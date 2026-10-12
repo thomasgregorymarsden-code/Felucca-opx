@@ -1,0 +1,63 @@
+name: Update test baselines
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Python packages
+        run: pip install Pillow mido python-rtmidi
+
+      - name: Cache JieLi toolchain
+        id: tc
+        uses: actions/cache@v5
+        with:
+          path: ~/.jieli
+          key: jieli-toolchain-v1
+
+      - name: Download JieLi toolchain
+        if: steps.tc.outputs.cache-hit != 'true'
+        run: tools/get_toolchain.sh
+
+      - name: Cache AC79 SDK files
+        id: sdk
+        uses: actions/cache@v5
+        with:
+          path: ~/fw-AC79_AIoT_SDK
+          key: ac79-sdk-V1.2.1-2023-12-13-v1
+
+      - name: Fetch AC79 SDK files
+        if: steps.sdk.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+            https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git /tmp/sdk
+          mkdir -p ~/fw-AC79_AIoT_SDK/cpu/wl82
+          mv /tmp/sdk/cpu/wl82/tools ~/fw-AC79_AIoT_SDK/cpu/wl82/
+          rm -rf /tmp/sdk
+
+      - name: Build firmware
+        run: ./build.sh
+
+      - name: Regenerate baselines
+        run: GOLDEN_UPDATE=1 BUDGET_UPDATE=1 tests/run_tests.sh || true
+
+      - name: Commit changed baselines
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
+          git add tests/*.txt
+          if git diff --cached --quiet; then echo "No baseline changes"; exit 0; fi
+          git diff --cached --stat
+          git commit -m "Update test baselines (CI, ${GITHUB_SHA::7})"
+          git push

@@ -1,0 +1,129 @@
+name: Build and publish
+
+on:
+  push:
+    branches: [opx-engine]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Python packages
+        run: pip install Pillow mido python-rtmidi
+
+      - name: Cache JieLi toolchain
+        id: tc
+        uses: actions/cache@v5
+        with:
+          path: ~/.jieli
+          key: jieli-toolchain-v1
+
+      - name: Download JieLi toolchain
+        if: steps.tc.outputs.cache-hit != 'true'
+        run: tools/get_toolchain.sh
+
+      - name: Cache AC79 SDK files
+        id: sdk
+        uses: actions/cache@v5
+        with:
+          path: ~/fw-AC79_AIoT_SDK
+          key: ac79-sdk-V1.2.1-2023-12-13-v1
+
+      - name: Fetch AC79 SDK files
+        if: steps.sdk.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+            https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git /tmp/sdk
+          mkdir -p ~/fw-AC79_AIoT_SDK/cpu/wl82
+          mv /tmp/sdk/cpu/wl82/tools ~/fw-AC79_AIoT_SDK/cpu/wl82/
+          rm -rf /tmp/sdk
+          for f in uboot.boot cfg_tool.bin cfg/eq_cfg_hw.bin; do
+            test -f ~/fw-AC79_AIoT_SDK/cpu/wl82/tools/$f || { echo "SDK file missing: $f"; exit 1; }
+          done
+
+      - name: Build firmware
+        run: ./build.sh
+
+      - name: Make installer site
+        run: python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: firmware
+          path: build/felucca.fwsc
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Python packages
+        run: pip install Pillow mido python-rtmidi
+
+      - name: Cache JieLi toolchain
+        id: tc
+        uses: actions/cache@v5
+        with:
+          path: ~/.jieli
+          key: jieli-toolchain-v1
+
+      - name: Download JieLi toolchain
+        if: steps.tc.outputs.cache-hit != 'true'
+        run: tools/get_toolchain.sh
+
+      - name: Cache AC79 SDK files
+        id: sdk
+        uses: actions/cache@v5
+        with:
+          path: ~/fw-AC79_AIoT_SDK
+          key: ac79-sdk-V1.2.1-2023-12-13-v1
+
+      - name: Fetch AC79 SDK files
+        if: steps.sdk.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+            https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git /tmp/sdk
+          mkdir -p ~/fw-AC79_AIoT_SDK/cpu/wl82
+          mv /tmp/sdk/cpu/wl82/tools ~/fw-AC79_AIoT_SDK/cpu/wl82/
+          rm -rf /tmp/sdk
+
+      - name: Build firmware
+        run: ./build.sh
+
+      - name: Host tests
+        run: tests/run_tests.sh
