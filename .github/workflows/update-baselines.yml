@@ -17,7 +17,7 @@ jobs:
           python-version: "3.12"
 
       - name: Python packages
-        run: pip install Pillow mido python-rtmidi
+        run: pip install Pillow fonttools numpy mido python-rtmidi
 
       - name: Cache JieLi toolchain
         id: tc
