@@ -19,32 +19,27 @@ jobs:
       - name: Python packages
         run: pip install Pillow fonttools numpy mido python-rtmidi
 
-      - name: Cache JieLi toolchain
-        id: tc
-        uses: actions/cache@v5
+      - name: Restore JieLi toolchain and SDK
+        id: deps
+        uses: actions/cache/restore@v5
         with:
-          path: ~/.jieli
-          key: jieli-toolchain-v1
+          path: |
+            ~/.jieli
+            ~/fw-AC79_AIoT_SDK
+          key: jieli-deps-v1
 
-      - name: Download JieLi toolchain
-        if: steps.tc.outputs.cache-hit != 'true'
-        run: tools/get_toolchain.sh
+      - name: Fetch JieLi toolchain and SDK
+        if: steps.deps.outputs.cache-hit != 'true'
+        run: .github/scripts/fetch-jieli-deps.sh
 
-      - name: Cache AC79 SDK files
-        id: sdk
-        uses: actions/cache@v5
+      - name: Save JieLi toolchain and SDK
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
         with:
-          path: ~/fw-AC79_AIoT_SDK
-          key: ac79-sdk-V1.2.1-2023-12-13-v1
-
-      - name: Fetch AC79 SDK files
-        if: steps.sdk.outputs.cache-hit != 'true'
-        run: |
-          git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
-            https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git /tmp/sdk
-          mkdir -p ~/fw-AC79_AIoT_SDK/cpu/wl82
-          mv /tmp/sdk/cpu/wl82/tools ~/fw-AC79_AIoT_SDK/cpu/wl82/
-          rm -rf /tmp/sdk
+          path: |
+            ~/.jieli
+            ~/fw-AC79_AIoT_SDK
+          key: jieli-deps-v1
 
       - name: Build firmware
         run: ./build.sh
