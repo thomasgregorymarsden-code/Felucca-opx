@@ -27,7 +27,8 @@
  *   FB    added to every operator's feedback and to ALG FB
  *   MRAT  added to the coarse ratio of the operators that are not heard
  *   DTUN  spreads the heard operators apart (up to +-25 cents between the outer ones)
- *   SLOT  the factory patch
+ *   SLOT  F1..F7 load a factory patch into the track; OWN the track's own (edited on the operator pages, ui_fm6op.c,
+ *         or loaded with a project, opx_store.c). The patch is opx_patch.c's packed record per track
  * The operator envelopes are the voice's amplitude and end it (engine_t.ownenv / done). The track's FLT moves MLVL,
  * SHP the feedback, PIT the pitch.
  *
@@ -213,6 +214,7 @@ static opx_rt_t opx_rt[NTRK];
 /* the track's own patch (M3: loaded with the project, edited in the editor); 0 = the factory patch SLOT names. A
  * pointer the main loop sets, the audio ISR reads once a block (opx_build) */
 static const opx_patch_t *volatile opx_own[NTRK];
+#include "opx_patch.c"            /* the stored form, each track's patch, SLOT (OPX_OWN) */
 
 static void opx_build(const track_t *t, opx_rt_t *r)
 {
@@ -502,9 +504,9 @@ static const char *const N_OPX_ALG[] = {"PAT", "1", "2", "3", "4", "5", "6", "7"
                                         "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26",
                                         "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39",
                                         "40", "USR", 0};
-static const char *const N_OPX_SLOT[] = {"F1", "F2", "F3", "F4", "F5", "F6", "F7", 0};
+static const char *const N_OPX_SLOT[] = {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "OWN", 0};
 _Static_assert(NELEM(N_OPX_ALG) == OPX_NALG + 3u, "an ALG name per value");
-_Static_assert(NELEM(N_OPX_SLOT) == NELEM(OPX_FACTORY) + 1u, "a SLOT name per factory patch");
+_Static_assert(NELEM(N_OPX_SLOT) == NELEM(OPX_FACTORY) + 2u, "a SLOT name per factory patch, then OWN");
 
 /* {ALG, ATK, DEC, MLVL, FB, MRAT, DTUN, SLOT}: each factory patch as it is */
 static const preset_t OPX_PRESETS[] = {
@@ -528,7 +530,7 @@ static const engine_t ENG_OPX = {
         {"FB", F_BIPCT, -64, 63, 0, 0, 0},
         {"MRAT", F_INT, -16, 16, 0, 0, 0},
         {"DTUN", F_PCT, 0, 127, 0, 0, 0},
-        {"SLOT", F_INT, 0, (int16_t)(NELEM(OPX_FACTORY) - 1), 0, N_OPX_SLOT, 0},
+        {"SLOT", F_INT, 0, (int16_t)NELEM(OPX_FACTORY), 0, N_OPX_SLOT, 0},
     },
     .presets = OPX_PRESETS,
     .npresets = NELEM(OPX_PRESETS),

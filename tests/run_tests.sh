@@ -364,6 +364,9 @@ if [ -f build/gen/felucca_tables.h ]; then
     mkdir -p build/opx_demo
     run "OPX (OPX fork): 40 algorithms + USER = a float reference, envelopes, feedback, velocity, DC, clipping, cost, demos" \
         "$OUT/opx_test" build/opx_demo
+    "$OUT/opx_test" --dump > "$OUT/opx_dump.txt"
+    run "OPX (OPX fork): records the firmware packs = the patch spec's unpack (factory, defaults, random)" \
+        python3 tools/opx_patch_spec.py --check-c "$OUT/opx_dump.txt"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm
     mkdir -p build/fm6_demo
     run "FM6: algorithms, envelopes, retrigger, DC, clipping, macros, patch formats, voices, cost, demos" "$OUT/fm6_test" build/fm6_demo

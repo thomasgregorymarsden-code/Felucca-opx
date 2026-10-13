@@ -422,6 +422,116 @@ static int autosave_test(void)
     return bad;
 }
 
+#if FELUCCA_OPX
+/* ---- OPX fork: the tracks' OPX patches beside a project (opx_store.c) and the autosave, tied by the record's CRC ---- */
+static void opx_reset(void)
+{
+    uint32_t tr;
+    for (tr = 0; tr < NTRK; tr++) {
+        opx_own[tr] = 0;
+        opx_slot[tr] = 0xFFu;
+    }
+    opx_poll();                                          /* (every track: F1) */
+}
+static int opx_persist_test(void)
+{
+    int bad = 0, ok;
+    uint32_t before, off, outside = 0;
+    uint8_t mine[OPX_PK_BYTES], other[OPX_PK_BYTES];
+    static uint8_t snap[0x100000];
+    reset();
+    opx_reset();
+    trk[1].eng_req = trk[1].engine = ENGI_OPX;
+    trk[1].p[P_E7] = 2;
+    opx_poll();                                          /* T2: FM BASS */
+    opx_edit(1, OPXF_OP(3, OPXF_OP1_LEVEL), 33);         /* edited: OWN */
+    opx_edit(1, OPXF_OP(0, OPXF_OP1_EG_REL), 700);
+    memcpy(mine, opx_pk[1], OPX_PK_BYTES);
+    memcpy(snap, nor, sizeof nor);
+    ok = project_save(1) == 0 && str_eq(ui.msg, "SAVED");
+    for (off = 0; off < sizeof nor; off++)                /* written: project 1's pair, extension 1's pair only */
+        if (nor[off] != snap[off] && !(off >= 0x99000u && off < 0x9B000u) &&
+            !(off >= OPX_EXT_LO + 2u * 0x1000u && off < OPX_EXT_LO + 4u * 0x1000u))
+            outside++;
+    bad += check("OPX: a project save writes its record and its extension (slot 1's pair in the OPX region) only",
+                 ok && !outside);
+    opx_load_factory(1, 5);
+    trk[1].p[P_E7] = 5;
+    project_load(1);
+    ok = !memcmp(mine, opx_pk[1], OPX_PK_BYTES) && trk[1].p[P_E7] == (int16_t)OPX_OWN && opx_slot[1] == OPX_OWN &&
+         opx_own[1] && opx_own[1]->op[3].level == 33u;
+    opx_poll();
+    ok &= !memcmp(mine, opx_pk[1], OPX_PK_BYTES);
+    bad += check("OPX: a project load brings the edited patch back (SLOT OWN, the audio's copy; opx_poll keeps it)", ok);
+
+    ok = project_rename(1, "RENAMED") == 0;
+    opx_load_factory(1, 0);
+    project_load(1);
+    ok &= !memcmp(mine, opx_pk[1], OPX_PK_BYTES);
+    bad += check("OPX: a rename re-links the extension (the patch still loads)", ok);
+
+    /* the same slot saved again without OPX: the extension is left, but no longer the project's */
+    trk[1].eng_req = trk[1].engine = 0;
+    trk[1].p[P_E7] = 0;
+    before = erases;
+    project_save(1);
+    ok = erases == before + 1u;                          /* (the record only) */
+    opx_edit(1, OPXF_OP(3, OPXF_OP1_LEVEL), 90);
+    memcpy(other, opx_pk[1], OPX_PK_BYTES);
+    project_load(1);
+    ok &= memcmp(mine, opx_pk[1], OPX_PK_BYTES) != 0 && opx_get(opx_pk[1], OPXF_OP(3, OPXF_OP1_LEVEL)) != 33;
+    bad += check("OPX: a project saved without OPX writes no extension; the old one is not taken (its link differs)", ok);
+
+    /* a damaged extension is ignored: SLOT's factory patch, OWN stays OWN */
+    trk[1].eng_req = trk[1].engine = ENGI_OPX;
+    trk[1].p[P_E7] = 2;
+    opx_poll();
+    opx_set_pk(1, mine);
+    trk[1].p[P_E7] = (int16_t)OPX_OWN;
+    opx_slot[1] = (uint8_t)OPX_OWN;
+    project_save(2);
+    nor[OPX_EXT_LO + 4u * 0x1000u + (nor[OPX_EXT_LO + 4u * 0x1000u + 8u] != 0xFF ? 0x1000u : 0u) + 300u] ^= 0x10u;
+    nor[OPX_EXT_LO + 4u * 0x1000u + 300u] ^= 0x10u;
+    nor[OPX_EXT_LO + 5u * 0x1000u + 300u] ^= 0x10u;
+    opx_load_factory(1, 4);
+    project_load(2);
+    opx_load_factory(1, 0);                              /* (what the load should have put: F1's, OWN) */
+    ok = trk[1].p[P_E7] == (int16_t)OPX_OWN;
+    project_load(2);
+    ok &= memcmp(mine, opx_pk[1], OPX_PK_BYTES) != 0 && trk[1].p[P_E7] == (int16_t)OPX_OWN;
+    {
+        uint8_t f1[OPX_PK_BYTES];
+        opx_encode(&OPX_FACTORY[0], f1);
+        ok &= !memcmp(f1, opx_pk[1], OPX_PK_BYTES);
+    }
+    bad += check("OPX: a damaged extension is ignored: F1's patch, SLOT OWN kept", ok);
+
+    /* the autosave: the edited patch survives a power cycle */
+    reset();
+    opx_reset();
+    as_power_on();
+    autosave_boot(1);
+    trk[0].eng_req = trk[0].engine = ENGI_OPX;
+    trk[0].p[P_E7] = 0;
+    opx_poll();
+    opx_edit(0, OPXF_OP(1, OPXF_OP1_COARSE), 20);
+    memcpy(mine, opx_pk[0], OPX_PK_BYTES);
+    as_run(70000u);
+    ok = as.writes == 1u;
+    as_power_on();
+    opx_reset();
+    ok &= memcmp(mine, opx_pk[0], OPX_PK_BYTES) != 0;
+    ok &= autosave_boot(1) == 1 && trk[0].eng_req == ENGI_OPX && !memcmp(mine, opx_pk[0], OPX_PK_BYTES) &&
+          trk[0].p[P_E7] == (int16_t)OPX_OWN;
+    bad += check("OPX: the autosave keeps an edited patch through a power cycle (extension 5)", ok);
+    opx_edit(0, OPXF_OP(1, OPXF_OP1_COARSE), 21);
+    before = as.writes;
+    as_run(70000u);
+    bad += check("OPX: an OPX edit alone is a change the autosave writes", as.writes == before + 1u);
+    return bad;
+}
+#endif
+
 int main(void)
 {
     int bad = 0, ok;
@@ -699,6 +809,9 @@ int main(void)
                   irq_races == 3u && song.playing && !transport_req && persist_pending && erases == before);
     bad += mig_test();
     bad += autosave_test();
+#if FELUCCA_OPX
+    bad += opx_persist_test();
+#endif
     printf("%s\n", bad ? "PERSISTENCE TEST FAILED" : "persistence test passed");
     return bad != 0;
 }

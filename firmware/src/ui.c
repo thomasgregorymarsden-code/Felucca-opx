@@ -393,7 +393,9 @@ static int page_visible(uint32_t i)
     if (PAGES[i].id[0] == P_FTYPE)                    /* FILTER (1.5, #104): ANALOG's */
         return ENGINES[TSEL->eng_req % NENGINES] == &ENG_ANALOG;
     if (PAGES[i].graph >= GR_FMOP && PAGES[i].graph <= GR_FMENV)
-        return TSEL->eng_req % NENGINES == ENGI_FM6;
+        return TSEL->eng_req % NENGINES == ENGI_FM6 || (FELUCCA_OPX && TSEL->eng_req % NENGINES == ENGI_OPX);
+    if (PAGES[i].graph == GR_OPX3)                    /* (OPX fork) */
+        return FELUCCA_OPX && TSEL->eng_req % NENGINES == ENGI_OPX;
 #if FELUCCA_SLICE
     if (PAGES[i].graph == GR_SLICES)
         return ENGINES[TSEL->eng_req % NENGINES] == &ENG_SLICE;
@@ -734,6 +736,10 @@ static struct {
     uint8_t eng, preset, user, patn;
     uint8_t fm6_slot;            /* the track's FM6 patch and its SLOT (eng_fm6.c): an edited or a project's */
     uint8_t fm6[FP_SIZE + 1u];   /* patch is the track's own, not a factory one */
+#if FELUCCA_OPX
+    uint8_t opx_slot;            /* OPX fork: the track's OPX patch (opx_patch.c) and its SLOT, as FM6's */
+    uint8_t opx[OPX_PK_BYTES];
+#endif
     int16_t p[P_COUNT];
     step_t step[NSTEP];
     motion_store_t motion_backup; /* one track only, swaps with the shared event pool on undo */
@@ -861,6 +867,10 @@ static void load_begin(track_t *t, uint32_t what)
     memcpy(undo.step, t->step, sizeof undo.step);
     memcpy(undo.fm6, fm6_patch[i], FP_SIZE);
     undo.fm6_slot = fm6_slot[i];
+#if FELUCCA_OPX
+    memcpy(undo.opx, opx_pk[i], OPX_PK_BYTES);
+    undo.opx_slot = opx_slot[i];
+#endif
     undo.pat = pat_sig[i];
     undo.from = pat_from[i];
     undo.from_h = pat_from_h[i];
@@ -919,6 +929,10 @@ static void edit_undo_take(track_t *t, uint32_t tag, uint32_t what)
     memcpy(undo.step, t->step, sizeof undo.step);
     memcpy(undo.fm6, fm6_patch[i], FP_SIZE);
     undo.fm6_slot = fm6_slot[i];
+#if FELUCCA_OPX
+    memcpy(undo.opx, opx_pk[i], OPX_PK_BYTES);
+    undo.opx_slot = opx_slot[i];
+#endif
     undo.pat = pat_sig[i];
     undo.from = pat_from[i];
     undo.from_h = pat_from_h[i];
@@ -1012,6 +1026,16 @@ static void undo_swap(void)
         fm6_own_ok &= (uint8_t)~(1u << tr);
         memcpy(undo.fm6, v, FP_SIZE);
         undo.fm6_slot = sl;
+#if FELUCCA_OPX
+        {
+            uint8_t o[OPX_PK_BYTES], os = opx_slot[tr];
+            memcpy(o, opx_pk[tr], OPX_PK_BYTES);
+            opx_set_pk(tr, undo.opx);
+            opx_slot[tr] = undo.opx_slot;             /* (opx_poll: the patch stays) */
+            memcpy(undo.opx, o, OPX_PK_BYTES);
+            undo.opx_slot = os;
+        }
+#endif
     }
     undo.keep = 0;                                /* the next load copies the track as it is now */
     if (t == TSEL)

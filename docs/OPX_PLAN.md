@@ -8,8 +8,9 @@ OPX is an altered-FM engine modelled on the Korg opsix, built into Felucca as en
 |---|---|---|
 | M0 | Engine slot 15 (14 reserved), presets, the tables every engine appears in, relocatable storage region | done |
 | M1 | Six operators in FM mode (sine), all 40 algorithms plus USER, ratio and fixed pitch, per-operator FB, ALG FB loops, per-operator ATK/DEC/SUS/REL/CURVE envelopes, level velocity; device macros; cost against FM6 | **done (on-device listening and cost pending)** |
+| M1.5 | Operator editing on the device; each track's patch kept in the stored format; saved with projects and the autosave (pulled forward from M3/M4) | **done** |
 | M2 | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; the 23 waveforms and WIDTH; level key tracking | |
-| M3 | The full patch stored per project (extension objects) and in user presets; editor backup; the web editor's OPX patch page | |
+| M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page, including the USER algorithm matrix; algorithm charts on the device | |
 | M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |
 | M5 | Main filter, effects 1–3, virtual patch, as far as the processor time allows | |
 
@@ -21,6 +22,37 @@ OPX is an altered-FM engine modelled on the Korg opsix, built into Felucca as en
   - `tests/opx_test.c` checks every chart against a table written separately from the engine, and renders every algorithm against a floating-point reference implementation. They agree to better than −45 dB.
 - **Order and timing.** Each sample, the operators run from 6 down to 1. An input from a higher-numbered operator is this sample's output. An input from a lower-numbered one, as in the loops of algorithms 4, 6 and 34 or an upward link in USER, is the previous sample's.
 - **Self-feedback** uses the mean of the operator's last two outputs (as the DX7 does), and is linear in FB: 100 % gives 2 rad. At 75 % the harmonics come out within 3 dB of a sawtooth's, which matches the manual's description.
+
+## Editing on the device (M1.5)
+
+On an OPX track the EDIT pages after EDIT 2 edit the track's own patch. Knob 1 picks the operator; knobs 2–4 edit:
+
+| Page | Knob 2 | Knob 3 | Knob 4 |
+|---|---|---|---|
+| OPERATOR | RATIO (1/128–32; in FIXED mode, the frequency, a semitone a detent) | FINE (×0.50–×2.00; in FIXED mode, a cent a detent) | LEVEL |
+| OP ENV | ATK | DEC | SUS |
+| OPERATOR 2 | REL | CURVE (LIN, 1–9, EXP) | FB |
+| OPERATOR 3 | MODE (RATIO / FIXED) | DTUN (cents) | VEL |
+
+- **The panel:** OPERATOR and OPERATOR 3 show six level bars (heard operators in the track's colour, the picked one in the accent colour) with the algorithm number and the picked operator's ratio or frequency. OP ENV and OPERATOR 2 show the picked operator's envelope.
+- **Editing makes the patch OWN.** SLOT then shows OWN, and SLOT F1–F7 loads a factory patch over it.
+- **Undo:** holding SAVE undoes the last knob gesture, patch and SLOT together; holding it again redoes.
+- **The macros on EDIT 1/2** still apply on top of the patch.
+
+### What is stored
+
+Each track keeps its patch in the bit-packed format of `tools/opx_patch_spec.py`: 434 bytes, every opsix field. The C layout is generated from that spec at build time (`build/gen/opx_fields.h`), and fields the engine doesn't play yet are kept through every edit and save. `tests/opx_test.c --dump` with `opx_patch_spec.py --check-c` checks that the firmware's packer and the spec agree bit for bit.
+
+### Where it is stored
+
+The four tracks' patches are saved beside the project, in its extension object (see [OPX_STORAGE.md](OPX_STORAGE.md)). The autosave gets its own extension. Each extension carries the CRC of the project record it belongs to:
+
+- A load takes the patches only when the CRC matches the record it loaded.
+- A missing, damaged or stale extension is ignored, and the track plays its SLOT's factory patch. An OWN track without its patch plays F1 and stays OWN.
+- A rename re-links the extension.
+- A project without OPX tracks writes no extension.
+
+**Not yet covered:** user presets and the editor's backup archive. An OPX sound saved as a user preset, or restored from a backup, comes back with its SLOT's factory patch.
 
 ## Assumptions to check by ear
 

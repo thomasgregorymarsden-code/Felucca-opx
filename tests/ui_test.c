@@ -8965,6 +8965,92 @@ static int test_fm6_ops(void)
     return bad;
 }
 
+#if FELUCCA_OPX
+/* OPX fork: OPX's operator pages (ui_fm6op.c xop_*) over the track's packed patch (opx_patch.c) */
+static uint32_t opx_fields_diff(const uint8_t *a, const uint8_t *b, uint32_t *at)
+{
+    uint32_t f, n = 0;
+    for (f = 0; f < OPXF_COUNT; f++)
+        if (opx_get(a, f) != opx_get(b, f)) { n++; *at = f; }
+    return n;
+}
+static int test_opx_ops(void)
+{
+    static const char *const CYC_O[] = {"EDIT 1", "EDIT 2", "OPERATOR", "OP ENV", "OPERATOR 2", "OPERATOR 3", "VOICE",
+                                        "VOICE 2", "VOICE 3", "EDIT 1"};
+    static const struct { const char *page; uint32_t k, f; } F[] = {
+        {"OPERATOR", EN_K2, OPXF_OP1_COARSE}, {"OPERATOR", EN_K3, OPXF_OP1_FINE}, {"OPERATOR", EN_K4, OPXF_OP1_LEVEL},
+        {"OP ENV", EN_K2, OPXF_OP1_EG_ATK}, {"OP ENV", EN_K3, OPXF_OP1_EG_DEC}, {"OP ENV", EN_K4, OPXF_OP1_EG_SUS},
+        {"OPERATOR 2", EN_K2, OPXF_OP1_EG_REL}, {"OPERATOR 2", EN_K3, OPXF_OP1_EG_CURVE}, {"OPERATOR 2", EN_K4, OPXF_OP1_FM_FB},
+        {"OPERATOR 3", EN_K2, OPXF_OP1_FREQ_FIXED}, {"OPERATOR 3", EN_K3, OPXF_OP1_DETUNE}, {"OPERATOR 3", EN_K4, OPXF_OP1_LMOD_VEL}};
+    int bad = 0, ok;
+    uint32_t tr, at = 0, opn, f, n = 0;
+    uint8_t before[OPX_PK_BYTES], v[OPX_PK_BYTES], mine[OPX_PK_BYTES];
+    ui_power_on();
+    song.sel = 2;
+    tr = song.sel;
+    set_engine_of(TSEL, ENGI_OPX);
+    frame();
+    bad += check("OPX ops: OPX's EDIT cycle EDIT 1 EDIT 2 OPERATOR OP ENV OPERATOR 2 OPERATOR 3 VOICE .. EDIT 1",
+                 TSEL->eng_req == ENGI_OPX && engine_cycle(CYC_O, NELEM(CYC_O)));
+    ok = TSEL->p[P_E7] == 0 && opx_slot[tr] == 0u && opx_own[tr] && opx_own[tr]->op[0].level == OPX_FACTORY[0].op[0].level;
+    bad += check("OPX ops: the track's patch is F1 (E.PIANO), the audio plays the decoded copy", ok);
+    go_title("OPERATOR"); frame();
+    fop_pick(3);
+    memcpy(before, opx_pk[tr], OPX_PK_BYTES);
+    turn(EN_K4, -5);                                 /* OP 3 LEVEL, one gesture of two turns */
+    turn(EN_K4, -2);
+    ok = opx_fields_diff(before, opx_pk[tr], &at) == 1 && at == OPXF_OP(2, OPXF_OP1_LEVEL) &&
+         opx_get(opx_pk[tr], at) == opx_get(before, at) - 7 && TSEL->p[P_E7] == (int16_t)OPX_OWN &&
+         opx_slot[tr] == OPX_OWN && opx_own[tr]->op[2].level == (uint8_t)opx_get(opx_pk[tr], at);
+    bad += check("OPX ops: OPERATOR KNOB 4 on OP 3: its LEVEL only; F1 -> SLOT OWN; the audio's copy follows", ok);
+    hold(B_SAVE);
+    ok = !memcmp(before, opx_pk[tr], OPX_PK_BYTES) && TSEL->p[P_E7] == 0 && opx_slot[tr] == 0u && msg_is("UNDO/REDO T3");
+    hold(B_SAVE);
+    ok &= opx_get(opx_pk[tr], OPXF_OP(2, OPXF_OP1_LEVEL)) == opx_get(before, OPXF_OP(2, OPXF_OP1_LEVEL)) - 7 &&
+          TSEL->p[P_E7] == (int16_t)OPX_OWN;
+    bad += check("OPX ops: SAVE held undoes the gesture (patch and SLOT F1 back), again redoes", ok);
+
+    ok = 1;                                          /* every operator, every field the pages edit: that field only */
+    for (opn = 1; opn <= 6u; opn++)
+        for (f = 0; f < NELEM(F); f++) {
+            uint32_t fid = OPXF_OP(opn - 1u, F[f].f), want = fid;
+            int32_t hi = OPX_FIELDS[fid].hi, lo = OPX_FIELDS[fid].lo, x;
+            go_title(F[f].page); frame();
+            fop_pick(opn);
+            opx_edit(tr, OPXF_OP(opn - 1u, OPXF_OP1_FREQ_FIXED), 0);   /* (RATIO / FINE: the ratio fields) */
+            memcpy(v, opx_pk[tr], OPX_PK_BYTES);
+            x = opx_get(v, fid);
+            frames(1600);
+            turn(F[f].k, x < hi ? 1 : -1);
+            if (opx_fields_diff(v, opx_pk[tr], &at) != 1 || at != want) {
+                printf("ui: OPX ops: OP %u %s KNOB %u: field %u, not %u\n", opn, F[f].page, F[f].k - EN_K1 + 1u, at, want);
+                ok = 0;
+            }
+            turn(F[f].k, 2000);
+            ok &= opx_get(opx_pk[tr], fid) == hi;
+            turn(F[f].k, -2000);
+            ok &= opx_get(opx_pk[tr], fid) == lo;
+            n++;
+        }
+    bad += check("OPX ops: 6 operators x 12 fields, each knob writes its field only, within its range", ok && n == 72u);
+
+    /* FIXED: RATIO and FINE move the fixed frequency (a semitone, a cent a detent) */
+    go_title("OPERATOR 3"); frame();
+    fop_pick(1);
+    turn(EN_K2, 1);
+    go_title("OPERATOR"); frame();
+    opx_edit(tr, OPXF_OP(0, OPXF_OP1_FIXED_FREQ), 44000);
+    turn(EN_K2, 12);
+    ok = opx_get(opx_pk[tr], OPXF_OP(0, OPXF_OP1_FIXED_FREQ)) >= 87900 &&
+         opx_get(opx_pk[tr], OPXF_OP(0, OPXF_OP1_FIXED_FREQ)) <= 88100;
+    bad += check("OPX ops: FIXED: RATIO 12 detents = an octave (440 -> 880 Hz)", ok);
+
+    (void)mine;                                      /* (projects: tests/persistence_test.c, with the flash) */
+    return bad;
+}
+#endif
+
 /* 1.3 (Discussions #112, #134): MENU > DISPLAY > HOME SCOPE / TRACKS (ui.c ui_home_view, settings byte [15][26]) and
  * HOME > TRACKS (ui_graph.c draw_home_tracks): the setting (its default, names, tab, byte, the other settings' bytes
  * untouched, an unknown value as SCOPE, the menu's knob, the settings record); the rows read from the screen: a note's
@@ -9647,6 +9733,9 @@ int main(void)
     bad += test_momentary();
     bad += test_fm6_charts();
     bad += test_fm6_ops();
+#if FELUCCA_OPX
+    bad += test_opx_ops();
+#endif
     bad += test_home_tracks();
     bad += test_fx_map_columns();
     bad += test_help();

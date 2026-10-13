@@ -38,6 +38,7 @@ static const struct { const char *title, *hint; } HELP_PAGE[] = {
     {"OPERATOR", H_FMOP},
     {"OP ENV", H_FMOP},
     {"OPERATOR 2", H_FMOP},
+    {"OPERATOR 3", H_FMOP},                                  /* (OPX fork: OPX's MODE DTUN VEL) */
     {"VOICE", "[K1]POLY, MONO[K2]GLIDE"},
     {"VOICE 2", "[K2]DETUNE[K3]PAN[K4]MUTE"},
     {"VOICE 3", "[K1]STEREO SPREAD[EDIT]EDIT 1"},

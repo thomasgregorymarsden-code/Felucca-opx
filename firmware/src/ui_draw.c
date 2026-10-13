@@ -1065,11 +1065,11 @@ static void draw_columns(void)
             int32_t r;
             uint32_t ic;
             int on;
-            if (!fop_ok()) {                             /* (the engine changed before ui_draw left the page) */
+            if (!fop_any_ok()) {                         /* (the engine changed before ui_draw left the page) */
                 draw_column(c, "", "", "", T_THEME, -1, ICON_NONE);
                 continue;
             }
-            on = fop_card(c, &lb, val, &u, &r, &ic);
+            on = fop_any_card(c, &lb, val, &u, &r, &ic);
             draw_column(c, lb, val, u, on ? VAL(c) : T_DIM, r, ic);
         }
         return;

@@ -811,6 +811,9 @@ static void proj_fetch(uint32_t slot)
 }
 #endif
 
+#if FELUCCA_OPX
+#include "opx_store.c"                                /* OPX fork: the tracks' OPX patches beside a project */
+#endif
 static void project_capture(project_t *p)
 {
     uint32_t i;
@@ -864,6 +867,12 @@ static int project_save_as(uint32_t slot, const char *name)
         proj_name_get(proj_name, (const uint8_t *)p->name);
         proj_cur = (uint8_t)(slot & 3u);
         pat_from_set((slot & 3u) + 1u);
+#if FELUCCA_OPX
+        if (opx_ext_save(slot & 3u, st_crc32(&proj_wire, sizeof proj_wire))) {   /* (the project is saved) */
+            ui_message("SAVE ERROR (OPX)");
+            return 2;
+        }
+#endif
         ui_message("SAVED");
         return 0;
     }
@@ -948,6 +957,9 @@ static int project_rename(uint32_t slot, const char *name)
     memcpy(p->name, name, str_len(name) < PROJ_NAME_LEN ? str_len(name) : PROJ_NAME_LEN);
     proj_wire_gen++;
     if (!proj_pack(&proj_wire, p)) { ui_message("SAVE FORMAT ERROR"); return 2; }
+#if FELUCCA_FLASH && FELUCCA_OPX
+    uint32_t opx_old = st_crc32(&proj_slot[slot & 3u], sizeof proj_wire);   /* (the extension's link before) */
+#endif
 #if FELUCCA_FLASH
     if (flash_ok && st_save(OBJ_PROJECT0 + (slot & 3u), &proj_wire, sizeof proj_wire)) {
         ui_message("SAVE ERROR");
@@ -955,6 +967,9 @@ static int project_rename(uint32_t slot, const char *name)
     }
 #endif
     memcpy(&proj_slot[slot & 3u], &proj_wire, sizeof proj_wire);
+#if FELUCCA_FLASH && FELUCCA_OPX
+    opx_ext_relink(slot & 3u, opx_old, st_crc32(&proj_wire, sizeof proj_wire));
+#endif
     if (proj_cur == (slot & 3u))
         proj_name_get(proj_name, (const uint8_t *)p->name);
 #if FELUCCA_FLASH
@@ -1011,6 +1026,9 @@ static int project_restore_runtime(const project_t *input)
     }
     song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);
     fm1_irq_on();
+#if FELUCCA_OPX
+    opx_after_restore();                                /* OPX fork: patches by SLOT (an extension may follow) */
+#endif
     proj_name_get(proj_name, (const uint8_t *)p->name);
     proj_cur = PROJ_NO_SLOT;                            /* (project_load: its slot) */
     pat_from_set(0);                                    /* (project_load: its slot; the header's letter) */
@@ -1050,6 +1068,9 @@ static void project_load(uint32_t slot)
     if (!project_restore_runtime(&proj_scratch)) {
         proj_cur = (uint8_t)(slot & 3u);
         pat_from_set((slot & 3u) + 1u);
+#if FELUCCA_FLASH && FELUCCA_OPX
+        opx_ext_load(slot & 3u, st_crc32(&proj_slot[slot & 3u], sizeof proj_wire));   /* its OPX patches */
+#endif
     }
 }
 
@@ -1237,6 +1258,9 @@ static uint32_t autosave_sig(void)
         h = as_mix(h, &t->preset, 1);
         h = as_mix(h, t->step, sizeof t->step);
         h = as_mix(h, fm6_patch[i], sizeof fm6_patch[i]);
+#if FELUCCA_OPX
+        h = as_mix(h, opx_pk[i], sizeof opx_pk[i]);     /* (OPX fork: an edited OPX patch is a change) */
+#endif
     }
     for (i = 0; i < G_COUNT; i++)
         if (i != G_SLOT && i != G_NAME && i != G_LOAD && i != G_SAVE)
@@ -1283,6 +1307,10 @@ static void autosave_poll(void)
     project_capture(&proj_scratch);
     proj_wire_gen++;
     as.err = !proj_pack(&proj_wire, &proj_scratch) || st_save(OBJ_AUTOSAVE, &proj_wire, sizeof proj_wire) != 0;
+#if FELUCCA_OPX
+    if (!as.err)                                        /* (OPX fork: its OPX patches, tied to it) */
+        as.err = opx_ext_save(OPX_EXT_AUTOSAVE, st_crc32(&proj_wire, sizeof proj_wire)) != 0;
+#endif
     if (!as.err) {
         as.saved = sig;
         as.writes++;
@@ -1304,6 +1332,9 @@ static int autosave_boot(int allowed)
         if (n > 0 && proj_import(&proj_scratch, &proj_wire, n)) {
             proj_bound(&proj_scratch);
             if (!project_restore_runtime(&proj_scratch)) {
+#if FELUCCA_OPX
+                opx_ext_load(OPX_EXT_AUTOSAVE, st_crc32(&proj_wire, sizeof proj_wire));
+#endif
                 ui_message("RESTORED");
                 rc = 1;
             }

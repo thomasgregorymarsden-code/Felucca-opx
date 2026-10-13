@@ -18,6 +18,7 @@
  * 6. cost: host CPU time per voice against FM6 (six voices held, six operators sounding each), the ratio printed
  *    (no instruction counter here; the device budget is FM6's, which runs six voices).
  * 7. demos into DEMODIR: every factory preset playing its suggested pattern. */
+#define OPX_FIELD_NAMES 1        /* (--dump: every field by name) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -499,9 +500,38 @@ static void demo(const char *dir, uint32_t pi)
     fclose(w);
 }
 
+/* --dump: the factory patches and a record of random values, packed: a hex line, then name=value, then -- (checked
+ * by tools/opx_patch_spec.py --check-c: the firmware's packer and the spec agree bit for bit) */
+static void dump(void)
+{
+    static uint8_t pk[OPX_PK_BYTES];
+    uint32_t i, f, k, seed = 12345;
+    for (i = 0; i <= OPX_NFACTORY + 2u; i++) {
+        if (i < OPX_NFACTORY)
+            opx_encode(&OPX_FACTORY[i], pk);
+        else if (i == OPX_NFACTORY)
+            opx_defaults(pk);
+        else
+            for (f = 0; f < OPXF_COUNT; f++) {            /* every field anywhere in its range */
+                seed = seed * 1103515245u + 12345u;
+                opx_put(pk, f, OPX_FIELDS[f].lo + (int32_t)((seed >> 8) % (uint32_t)(OPX_FIELDS[f].hi - OPX_FIELDS[f].lo + 1)));
+            }
+        for (k = 0; k < OPX_PK_BYTES; k++)
+            printf("%02x", pk[k]);
+        printf("\n");
+        for (f = 0; f < OPXF_COUNT; f++)
+            printf("%s=%d\n", OPX_FIELD_NAME[f], (int)opx_get(pk, f));
+        printf("--\n");
+    }
+}
+
 int main(int argc, char **argv)
 {
     uint32_t pi;
+    if (argc > 1 && !strcmp(argv[1], "--dump")) {
+        dump();
+        return 0;
+    }
     test_reference();
     test_envelopes();
     test_feedback();
