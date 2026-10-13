@@ -36,7 +36,7 @@ static const char *const PRESET_CAT[16] = {
     "KUBLPUKU",                  /* 12 FM6: TINE EP, BELL, FM BASS, BRASS, PAD, MARIMBA, ORGAN, PLUCK */
     "DD",                        /* 13 SLICE: CHOP, STUTTER */
     "",                          /* 14 (OPX fork: reserved) */
-    "KUB",                       /* 15 OPX (OPX fork): INIT, BELL, BASS (OTHER stays empty: tests/ui_test.c) */
+    "KUBLLPF",                   /* 15 OPX (OPX fork): E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD, X-MOD */
 };
 static uint32_t preset_cat(uint32_t e, uint32_t k)    /* factory preset k of engine e */
 {

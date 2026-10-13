@@ -1700,7 +1700,6 @@ function makeMockDevice(opt = {}) {
     D("-", F.INT, 0, 0, 0), D("-", F.INT, 0, 0, 0),   /* G_DRLVL, G_DRREV: inert since 1.0 */
   ];
   const NONE = D("-", F.INT, 0, 0, 0);
-  const OPX_RATIO = ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"];
   const RATIO = [".5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "14", "16"];
   const P = (name, e, env = [10, 70, 90, 60], mono = 0, pat = 0) => ({ name, e, env, mono, pat });
   const ENG = [
@@ -1782,10 +1781,13 @@ function makeMockDevice(opt = {}) {
       presets: [P("CHOP", [0, 2, 0, 0, 0, 0, 127, 127], [0, 127, 127, 30], 0, 9), P("STUTTER", [0, 1, 0, 0, 1, 0, 90, 110], [0, 127, 127, 12], 0, 10)] },
     /* OPX fork: 14 reserved (its favourites row is the MIDI LEARN map), 15 OPX (eng_opx.c; M0: two operators) */
     { name: "-", titles: ["-", "-"], edit: [NONE, NONE, NONE, NONE, NONE, NONE, NONE, NONE], presets: [] },
-    { name: "OPX", titles: ["OP", "MOD"], edit: [E("MRAT", OPX_RATIO, 1), D("MLVL", F.PCT, 0, 127, 40), D("FB", F.PCT, 0, 127, 0),
-        D("MDEC", F.PCT, 0, 127, 0), D("DTUN", F.INT, -7, 7, 0), E("CRAT", OPX_RATIO, 1), D("KTR", F.PCT, 0, 127, 0), D("MIX", F.PCT, 0, 127, 0)],
-      presets: [P("INIT", [1, 40, 0, 0, 0, 1, 0, 0], [0, 60, 110, 30], 0, 0), P("BELL", [4, 70, 0, 70, 2, 1, 40, 0], [0, 100, 0, 90], 0, 0),
-        P("BASS", [1, 90, 40, 60, 0, 1, 64, 0], [0, 70, 60, 20], 1, 0)] },
+    { name: "OPX", titles: ["ALGO", "MOD"], edit: [D("ALG", F.INT, 0, 41, 0), D("ATK", F.BIPCT, -64, 63, 0),
+        D("DEC", F.BIPCT, -64, 63, 0), D("MLVL", F.BIPCT, -64, 63, 0), D("FB", F.BIPCT, -64, 63, 0), D("MRAT", F.INT, -16, 16, 0),
+        D("DTUN", F.PCT, 0, 127, 0), D("SLOT", F.INT, 0, 6, 0)],
+      presets: [P("E.PIANO", [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 127, 0], 0, 6), P("BELL", [0, 0, 0, 0, 0, 0, 0, 1], [0, 0, 127, 0], 0, 7),
+        P("FM BASS", [0, 0, 0, 0, 0, 0, 0, 2], [0, 0, 127, 0], 1, 2), P("BRASS", [0, 0, 0, 0, 0, 0, 0, 3], [0, 0, 127, 0], 0, 4),
+        P("SAW LEAD", [0, 0, 0, 0, 0, 0, 0, 4], [0, 0, 127, 0], 1, 4), P("LOOP PAD", [0, 0, 0, 0, 0, 0, 0, 5], [0, 0, 127, 0], 0, 5),
+        P("X-MOD", [0, 0, 0, 0, 0, 0, 0, 6], [0, 0, 127, 0], 0, 3)] },
   ];
   const FM6_E = ENG.findIndex((e) => e.name === "FM6"), FM6_OWN = FM6.FACTORY_PK.length, DRUM_E = ENG.findIndex((e) => e.name === "DRUM");
   /* factory PATTERNS[] (engines.c; the device loads them from SAVE > PHRASES, presets only suggest one): absolute

@@ -225,7 +225,7 @@ static const uint8_t MIDI_CC_ENG[NENGINES] = {
     0x80,                                             /* SLICE TONE */
 #endif
 #if FELUCCA_OPX
-    0x00, 0x23,                                       /* (OPX fork) 14 reserved, OPX MLVL FB */
+    0x00, 0x45,                                       /* (OPX fork) 14 reserved, OPX MLVL FB */
 #endif
 };
 /* a CC sets parameter id of track t as a knob would: 0..127 over its range */
