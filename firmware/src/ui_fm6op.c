@@ -199,8 +199,8 @@ static int fop_card(uint32_t slot, const char **label, char *val, const char **u
  *   KNOB 4  the row's value
  * The panel shows the section's rows around the one picked (7 at a time, as AUTOMATION's), each with its value. A
  * detent of KNOB 4 writes one field (opx_edit: the patch becomes the track's own, SLOT OWN), one undo per knob
- * gesture (SAVE held). USER's rows are the picked operator's: what it sends to each other operator, its self feedback
- * and whether it is heard (DIRECT OUT); they sound with ALG USR (or a patch whose ALG is USER), else they show DIM.
+ * gesture (SAVE held). USER's rows are the picked operator's: TO OP 1..6, what it sends to each (its own row, marked
+ * "(SELF)", its self feedback: the list stays the same for every operator), and OUT, whether it is heard; they sound with ALG USR (or a patch whose ALG is USER), else they show DIM.
  * The macros (EDIT 1 / 2) still apply on top, as FM6's. */
 enum { XS_PITCH, XS_EG, XS_OSC, XS_USER, XS_ALGO, XS_N };
 enum { XR_MODE, XR_RATIO, XR_FINE, XR_DTUN, XR_TRANS, XR_LVL, XR_ATK, XR_DEC, XR_SUS, XR_REL, XR_CRV, XR_VEL, XR_FB,
@@ -210,7 +210,7 @@ static const uint8_t XS_ROWS[XS_N][7] = {
     {XR_MODE, XR_RATIO, XR_FINE, XR_DTUN, XR_TRANS, 0xFF, 0xFF},
     {XR_LVL, XR_ATK, XR_DEC, XR_SUS, XR_REL, XR_CRV, XR_VEL},
     {XR_FB, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-    {XR_TO, XR_TO, XR_TO, XR_TO, XR_TO, XR_SELF, XR_OUT},   /* (XR_TO: the five other operators, in order) */
+    {XR_TO, XR_TO, XR_TO, XR_TO, XR_TO, XR_TO, XR_OUT},    /* (XR_TO: row k = TO OP k+1; the picked one's own: SELF) */
     {XR_ALG, XR_ALGFB, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
 static uint8_t xop_sec;                              /* KNOB 1 */
 static uint8_t xop_rows[XS_N];                       /* KNOB 3, per section */
@@ -240,7 +240,7 @@ static uint32_t xop_rowf(uint32_t sec, uint32_t r, uint32_t tr, uint32_t *field,
         else
             *field = OPXF_OP(op, F[k]);
     } else if (k == XR_TO) {
-        *dst = r < op ? r : r + 1u;                  /* (the five others, in order) */
+        *dst = r % 6u;                               /* (a fixed list: the picked operator's own row is its SELF) */
         *field = opxf_ua(op, *dst);
     } else if (k == XR_SELF) {
         *field = opxf_ua(op, op);
@@ -366,7 +366,7 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
 {
     static const char *const LBL[] = {"MODE", "RATIO", "FINE", "DTUN", "TRANS", "LEVEL", "ATK", "DEC", "SUS", "REL",
                                       "CURVE", "VEL", "FB", "TO OP", "SELF", "OUT", "ALG", "ALG FB"};
-    static char to[8];
+    static char to[16];
     uint32_t tr = song.sel % NTRK, f, dst, k = xop_rowf(xop_sec, r, tr, &f, &dst), heard;
     int32_t v = opx_get(opx_pk[tr], f), lo = OPX_FIELDS[f].lo, hi = OPX_FIELDS[f].hi;
     int on = 1;
@@ -422,6 +422,8 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
         str_cpy(to, "TO OP", sizeof to);
         to[5] = (char)('1' + dst);
         to[6] = 0;
+        if (dst == fop_op % 6u)
+            str_cpy(to + 6, " (SELF)", sizeof to - 6u);  /* its self feedback */
         *label = to;
         *unit = "%";
         on = xop_alg(TSEL, &heard) == OPX_USER;
@@ -477,8 +479,15 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         *icon = ICON_STEPS;
         return 1;
     }
-    *icon = ICN[xop_rowf(xop_sec, xop_row(), tr, &f, &dst)];
-    return xop_rowtext(xop_row(), label, val, unit, ratio);
+    {
+        uint32_t k = xop_rowf(xop_sec, xop_row(), tr, &f, &dst);
+        int on = xop_rowtext(xop_row(), label, val, unit, ratio);
+        int self = k == XR_TO && dst == fop_op % 6u;
+        *icon = self ? ICON_FEEDBACK : ICN[k];
+        if (self)
+            *label = "SELF";                         /* (the card's title is short: "TO OP3 (SELF)" in the list) */
+        return on;
+    }
 }
 #endif
 

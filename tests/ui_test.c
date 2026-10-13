@@ -9082,13 +9082,14 @@ static int test_opx_ops(void)
         go_title("OPERATORS"); frame();
         xo_set(EN_K1, XS_USER, 10);
         TSEL->p[P_E0] = 0;                           /* (PAT: E.PIANO's algorithm 5) */
-        ok = !xop_rowtext(0, &lb, val, &u, &r) && str_eq(lb, "TO OP2");
+        ok = !xop_rowtext(0, &lb, val, &u, &r) && str_eq(lb, "TO OP1 (SELF)");
+        ok &= xop_rowtext(1, &lb, val, &u, &r) == 0 && str_eq(lb, "TO OP2");
         TSEL->p[P_E0] = 41;                          /* USR */
         opx_edit(tr, OPXF_UA_OUT(0), 1);
         ok &= xop_rowtext(0, &lb, val, &u, &r) == 1;
         frame();
     }
-    bad += check("OPX ops: USER's rows DIM unless the track plays ALG USR; OP 1's first row is TO OP2", ok);
+    bad += check("OPX ops: USER's rows DIM unless ALG USR; a fixed list TO OP1..6, OP 1's own row TO OP1 (SELF)", ok);
     TSEL->p[P_E0] = 0;
     return bad;
 }

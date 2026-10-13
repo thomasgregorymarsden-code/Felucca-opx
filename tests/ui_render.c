@@ -1229,8 +1229,8 @@ static void setup(int s)
     case S_OPX_PITCH: eng(ENGI_OPX); opx_poll(); xop_sec = XS_PITCH; fop_op = 1; xop_rows[XS_PITCH] = 1;
         go_title("OPERATORS"); ui.hot_col = 3; ui.hot_t = 30; break;
     case S_OPX_EG: eng(ENGI_OPX); opx_poll(); xop_sec = XS_EG; fop_op = 2; xop_rows[XS_EG] = 6; go_title("OPERATORS"); break;
-    case S_OPX_USER: eng(ENGI_OPX); opx_poll(); xop_sec = XS_USER; fop_op = 0; xop_rows[XS_USER] = 5;
-        TSEL->p[P_E0] = 41; opx_edit(song.sel, OPXF_UA_OUT(0), 1); opx_edit(song.sel, opxf_ua(0, 1), 35);
+    case S_OPX_USER: eng(ENGI_OPX); opx_poll(); xop_sec = XS_USER; fop_op = 2; xop_rows[XS_USER] = 2;
+        TSEL->p[P_E0] = 41; opx_edit(song.sel, OPXF_UA_OUT(2), 1); opx_edit(song.sel, opxf_ua(2, 1), 35); opx_edit(song.sel, opxf_ua(2, 2), 20);
         go_title("OPERATORS"); break;
     case S_OPX_FIXED: eng(ENGI_OPX); opx_poll(); xop_sec = XS_PITCH; fop_op = 4; xop_rows[XS_PITCH] = 1;
         opx_edit(song.sel, OPXF_OP(4, OPXF_OP1_FREQ_FIXED), 1); opx_edit(song.sel, OPXF_OP(4, OPXF_OP1_FIXED_FREQ), 123456);

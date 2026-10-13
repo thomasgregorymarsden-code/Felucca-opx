@@ -39,7 +39,7 @@ On an OPX track, the page after EDIT 2 is **OPERATORS**: a scrolling list over t
 | PITCH | MODE (RATIO / FIXED), RATIO (1/128–32) or FREQ in FIXED mode (a semitone per detent), FINE (×0.50–×2.00; in FIXED mode a cent per detent, shown to 0.01 Hz), DTUN (cents), TRANS (semitones) |
 | EG | LEVEL, ATK, DEC, SUS, REL, CURVE (LIN, 1–9, EXP), VEL |
 | OSC | FB (M2 adds MODE, WAVE and the mode settings here) |
-| USER | TO OP n for the five other operators, SELF (self feedback), OUT (heard). These rows are dimmed unless the track plays ALG USR. |
+| USER | TO OP1–TO OP6 (a fixed list; the selected operator's own row reads "(SELF)" and is its self feedback), OUT (heard). These rows are dimmed unless the track plays ALG USR. |
 | ALGO | ALG (the patch's algorithm, 1–40 or USER), ALG FB |
 
 - **Editing makes the patch OWN.** SLOT then shows OWN, and SLOT F1–F7 loads a factory patch over it.
