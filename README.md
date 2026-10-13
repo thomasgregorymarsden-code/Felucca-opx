@@ -1,24 +1,28 @@
 # Felucca
 
+**Felucca-OPX** is a fork of [Felucca](https://github.com/hugelton/Felucca) that adds an Opsix-style altered-FM
+engine (work in progress, on the `opx-engine` branch). The installer, editor, issues and discussions linked below are
+this fork's; links marked *(upstream)* exist only in the original project.
+
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
 ![Felucca 1.0](docs/felucca-1.0.png)
 
 **TL;DR:** Felucca 1.5.1 — SEQ > DETAIL for a step's chance, ratchet, nudge and velocity, MIDI Program Change, dotted delay times, REV / ECHO THROW, on top of 1.5's INSERT effects, MIDI LEARN, ANALOG's band-pass and high-pass, ENV SYNC, note lengths and per-step velocity. Connect your FM-1 to a computer by USB,
-open the [web installer](https://hugelton.github.io/Felucca/) in Chrome or Edge, and press Install;
+open the [web installer](https://thomasgregorymarsden-code.github.io/Felucca-opx/) in Chrome or Edge, and press Install;
 no extra hardware is needed. Installing is at your own risk: M-VAVE's updater or the installer's
 **Return to official V15** takes you back. Coming from 1.1.5.x? Read [⚠ Coming from 1.1.5](#-coming-from-115) first:
 projects saved by 1.4 or later do not open on 1.1.5.x. Going back from 1.5.x to 1.4.1? Read
 [⚠ New in 1.5](#new-in-15) first: projects saved by 1.5 do not open on 1.2 to 1.4.1. Want to look around first?
-[Try it in your browser](https://hugelton.github.io/Felucca/webapp/try/), no FM-1 needed.
+[Try it in your browser](https://hugelton.github.io/Felucca/webapp/try/) *(upstream)*, no FM-1 needed.
 
 Multi-engine synthesizer firmware for the M-VAVE FM-1. Please report what you find in
-[Issues](https://github.com/hugelton/Felucca/issues).
+[Issues](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues).
 
-- Install: [web installer](https://hugelton.github.io/Felucca/) (Chrome or Edge, USB), or `tools/fm1_install.py` from a terminal
-- Try: [Felucca in your browser](https://hugelton.github.io/Felucca/webapp/try/): the same firmware compiled to
+- Install: [web installer](https://thomasgregorymarsden-code.github.io/Felucca-opx/) (Chrome or Edge, USB), or `tools/fm1_install.py` from a terminal
+- Try: [Felucca in your browser](https://hugelton.github.io/Felucca/webapp/try/) *(upstream)*: the same firmware compiled to
   WebAssembly, with the panel on screen (mouse, touch, computer keyboard, Web MIDI in)
-- Editor: [web editor](https://hugelton.github.io/Felucca/webapp/editor/); its development has moved to
+- Editor: [web editor](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/editor/); its development has moved to
   [Felucca-WebApp](https://github.com/hugelton/Felucca-WebApp)
 - Build: [BUILDING.md](BUILDING.md)
 
@@ -395,15 +399,15 @@ the FM-1 can be brought back:
 - If it stays in boot mode, [FM-1 Transporter](https://github.com/kurogedelic/FM-1-transporter) reads and
   writes the FM-1's flash from a Mac through a Seeed XIAO RP2040 (three wires to the FM-1's USB lines). Back up
   the flash first, then write the official firmware (M-VAVE's FM-1.fwsc).
-- Questions: [Issues](https://github.com/hugelton/Felucca/issues).
+- Questions: [Issues](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues).
 
 ## Support
 
-If Felucca is useful to you, [sponsoring on GitHub](https://github.com/sponsors/hugelton) or a donation
-on [itch.io](https://hugelton.itch.io/felucca) helps keep its development going.
+Felucca itself is the work of Hügelton Instruments. If it is useful to you, [sponsoring its author on GitHub](https://github.com/sponsors/hugelton)
+*(upstream)* or a donation on [itch.io](https://hugelton.itch.io/felucca) *(upstream)* helps keep its development going.
 
 Issues are for reproducible bugs (one per issue). Ideas and requests go to
-[Discussions](https://github.com/hugelton/Felucca/discussions), and feature requests posted as issues will be
+[Discussions](https://github.com/thomasgregorymarsden-code/Felucca-opx/discussions), and feature requests posted as issues will be
 moved there. Pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## AI disclaimer
@@ -411,7 +415,7 @@ moved there. Pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
 Felucca is developed with the assistance of AI coding agents. These tools are used for coding, testing, documentation, translation, and maintenance.
 The instrument's design, features, sound design, and overall direction are determined by the maintainer or community.
 No generative AI is used to create music, icons, or visual artwork for this project.
-For more details, see [On AI-Assisted Development and Responsibility](https://github.com/hugelton/Felucca/discussions/166).
+For more details, see [On AI-Assisted Development and Responsibility](https://github.com/hugelton/Felucca/discussions/166) *(upstream)*.
 
 ## Credits
 
