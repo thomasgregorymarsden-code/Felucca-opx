@@ -48,6 +48,11 @@ static uint32_t pow2_q16(int32_t d16)
 #define SMP_USER_DATA 512u
 #define SMP_USER_MAGIC 0x504D5346u                  /* "FSMP" */
 #define SMP_NALL (SMP_NSETS + SMP_USER_SLOTS)
+/* OPX fork: bytes of slot k samples may use (opx_map.h: slot 3 gives its top to the OPX data); the slot's place in
+ * flash stays k x SMP_USER_SIZE, so only how far it reaches changes */
+_Static_assert(SMP_USER_BASE == OPX_SMP_BASE && SMP_USER_SIZE == OPX_SMP_SIZE && SMP_USER_SLOTS == OPX_SMP_SLOTS,
+               "opx_map.h's copy of the user slot layout");
+#define SMP_SLOT_SIZE(k) opx_smp_slot_size(k)
 typedef struct {
     uint32_t magic;
     uint16_t version;
@@ -83,7 +88,7 @@ static void smp_user_scan(uint32_t k)
     usr_nz[k] = 0;
     slc_user_scan(k, 0);
     if (h->magic == SMP_USER_MAGIC && h->version == 1 && h->nz && h->nz <= 16u &&
-        h->data_len <= SMP_USER_SIZE - SMP_USER_DATA) {
+        h->data_len <= SMP_SLOT_SIZE(k) - SMP_USER_DATA) {
         base = (uint32_t)(uintptr_t)(smp_user_xip(k) + SMP_USER_DATA) - (uint32_t)(uintptr_t)SMP_DATA;
         for (nz = h->nz, i = 0; i < nz; i++) {
             smp_zone_t *z = &zt[i];

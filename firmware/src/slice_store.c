@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* SLICE's MAN slices in flash, kept with the sample they were set on (based on hugelton/Felucca#27 by andreahaku).
  *
- * Where: in the user slot itself, a record at the start of the slot's last sector (slot + SLC_REC_OFF). The slot
+ * Where: in the user slot itself, a record at the start of the slot's last sector (slot + SLC_REC_OFF(k)). The slot
  * header has no room (its 32 spare bytes hold 8 slice starts at most, and NOR could write them only once), and every
  * free sector of the map is taken (FM6's bank has 0x9F000 / 0xFE000). An upload writes the sample from the slot's
  * start, so its last sector is free unless the sample fills it: up to 77,312 bytes of ADPCM (about 7.0 s at the
@@ -18,7 +18,7 @@
  * writes when the transport is stopped (no erase while playing, as settings_poll), only if the flash holds something
  * else ("SLICES SAVED").
  * Flash access through storage.c's hooks (st_erase / st_prog); the host tests give their own. */
-#define SLC_REC_OFF (SMP_USER_SIZE - 0x1000u)        /* the slot's last sector */
+#define SLC_REC_OFF(k) (SMP_SLOT_SIZE(k) - 0x1000u)  /* the slot's last sector (OPX fork: of what the slot keeps) */
 #define SLC_REC_MAGIC 0x314D4C53u                    /* "SLM1" */
 typedef struct {
     uint32_t magic;
@@ -33,7 +33,7 @@ _Static_assert(sizeof(slc_rec_t) == 152u, "SLICE record layout");
 static int slc_rec_room(uint32_t k)
 {
     const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(k);
-    return usr_nz[k] && h->data_len <= SLC_REC_OFF - SMP_USER_DATA;
+    return usr_nz[k] && h->data_len <= SLC_REC_OFF(k) - SMP_USER_DATA;
 }
 
 /* what slot k's record should hold now (its MAN slices in use, or none: n = 0) */
@@ -56,7 +56,7 @@ static void slc_rec_make(uint32_t k, slc_rec_t *r)
 /* slc_man_load (eng_slice.c): slot k was read and is valid: its stored slices, if they are its material's */
 static void slc_store_load(uint32_t k)
 {
-    const slc_rec_t *r = (const slc_rec_t *)(smp_user_xip(k) + SLC_REC_OFF);
+    const slc_rec_t *r = (const slc_rec_t *)(smp_user_xip(k) + SLC_REC_OFF(k));
     const slc_src_t *s = slc_get(k + 1u);
     slc_rec_t c;
     if (!s || !slc_rec_room(k))
@@ -72,13 +72,13 @@ static void slc_store_load(uint32_t k)
 static int slc_store_write(uint32_t k)
 {
     slc_rec_t r;
-    uint32_t off = SMP_USER_BASE + k * SMP_USER_SIZE + SLC_REC_OFF;
+    uint32_t off = SMP_USER_BASE + k * SMP_USER_SIZE + SLC_REC_OFF(k);
     if (!usr_nz[k])                                  /* emptied or being uploaded meanwhile: nothing to keep */
         return 0;
     if (!slc_rec_room(k))
         return 1;
     slc_rec_make(k, &r);
-    if (!memcmp(&r, smp_user_xip(k) + SLC_REC_OFF, sizeof r))
+    if (!memcmp(&r, smp_user_xip(k) + SLC_REC_OFF(k), sizeof r))
         return 0;                                    /* unchanged: no erase cycle */
     if (st_erase(off) || st_prog(off, &r, sizeof r))
         return 2;

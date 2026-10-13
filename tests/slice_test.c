@@ -689,7 +689,7 @@ int main(int argc, char **argv)
     /* 7: the store, in the slot's last sector (slice_store.c) */
     {
         const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(0);
-        const slc_rec_t *r = (const slc_rec_t *)(smp_user_xip(0) + SLC_REC_OFF);
+        const slc_rec_t *r = (const slc_rec_t *)(smp_user_xip(0) + SLC_REC_OFF(0));
         const slc_src_t *s;
         slc_man_t *m, keep;
         smp_user_hdr_t h0;
@@ -697,7 +697,7 @@ int main(int argc, char **argv)
         slc_store_boot();                                  /* (persist_boot: the scans read the record) */
         smp_user_scan(0);
         s = slc_get(1);
-        ok &= !slc_man_of(s) && slc_rec_room(0) && h->data_len + SMP_USER_DATA <= SLC_REC_OFF;
+        ok &= !slc_man_of(s) && slc_rec_room(0) && h->data_len + SMP_USER_DATA <= SLC_REC_OFF(0);
         m = slc_man_begin(0);
         slc_man_move(s, m, 1, 777);
         slc_man_split(s, m, 3);
@@ -736,10 +736,10 @@ int main(int argc, char **argv)
         smp_user_scan(0);
         ok &= !slc_man_of(slc_get(1));
         *(smp_user_hdr_t *)host_slots = h0;
-        ((uint8_t *)host_slots)[SLC_REC_OFF + 20] ^= 4u;    /* a start changed: the record's CRC fails */
+        ((uint8_t *)host_slots)[SLC_REC_OFF(0) + 20] ^= 4u;    /* a start changed: the record's CRC fails */
         smp_user_scan(0);
         ok &= !slc_man_of(slc_get(1));
-        ((uint8_t *)host_slots)[SLC_REC_OFF + 20] ^= 4u;
+        ((uint8_t *)host_slots)[SLC_REC_OFF(0) + 20] ^= 4u;
         smp_user_scan(0);
         ok &= slc_man_of(slc_get(1)) != 0;
         check("store: another sample's record or a broken one is ignored", ok, 0);
@@ -749,8 +749,8 @@ int main(int argc, char **argv)
             slc_rec_t c = *r;
             c.pos[1] = c.pos[0] + 1u;
             c.rcrc = st_crc32(&c, sizeof c - 4u);
-            st_erase(SMP_USER_BASE + SLC_REC_OFF);
-            st_prog(SMP_USER_BASE + SLC_REC_OFF, &c, sizeof c);
+            st_erase(SMP_USER_BASE + SLC_REC_OFF(0));
+            st_prog(SMP_USER_BASE + SLC_REC_OFF(0), &c, sizeof c);
             smp_user_scan(0);
             ok &= !slc_man_of(slc_get(1));
         }
@@ -769,7 +769,7 @@ int main(int argc, char **argv)
 
         ok = 1;
         h0 = *h;
-        ((smp_user_hdr_t *)host_slots)->data_len = SLC_REC_OFF - SMP_USER_DATA + 1u;   /* into the last sector */
+        ((smp_user_hdr_t *)host_slots)->data_len = SLC_REC_OFF(0) - SMP_USER_DATA + 1u;   /* into the last sector */
         s = slc_get(1);
         m = slc_man_begin(0);
         slc_man_split(s, m, 0);

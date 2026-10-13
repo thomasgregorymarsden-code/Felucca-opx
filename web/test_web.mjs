@@ -294,6 +294,19 @@ async function editorMock() {
   rc = rc || E.parse[E.CMD.SMP_END](await rq(E.req.smpEnd(1, hdr), { timeout: 2000, retries: 0 })).rc;
   const si = E.parse[E.CMD.SMP_INFO](await rq(E.req.smpInfo()));
   ok(rc === 0 && si.slots[1].zones === 1 && si.slots[1].name === "TEST", "editor: sample upload (CRC checked by the mock)");
+  /* OPX fork: SMP_INFO with each slot's own size after the entries (slot 3 gives 40 KiB to the OPX data); an older reply
+   * (the mock's) gives every slot slotKiB */
+  ok(si.slots.every((u) => u.capKiB === si.slotKiB), "editor: SMP_INFO without per-slot sizes -> every slot the slot size");
+  {
+    const raw = [3, 80, 0, 0, 0, 1, 65, 0, 12, 0, 0, 0, 80, 80, 40];
+    const o = E.parse[E.CMD.SMP_INFO](raw);
+    ok(o.slots.map((u) => u.capKiB).join() === "80,80,40" && o.slots[1].name === "A" && o.slots[1].kib === 12,
+       "editor: SMP_INFO per-slot sizes (OPX fork: 80, 80, 40 KiB)");
+    let tooLong = "";
+    try { E.buildSlot("big", [{ s: new Int16Array(2 * (40 * 1024 - 512) + 2), root: 60 }], 40 * 1024 - 512); }
+    catch (e) { tooLong = e.message; }
+    ok(/^too long/.test(tooLong), "editor: a sample past the slot's own size is refused before upload");
+  }
   /* a device that never answers */
   const dead = new E.Link(() => {}, { timeout: 30 });
   const err = await dead.request(E.req.info(), { retries: 1 }).then(() => null, (e) => e.message);

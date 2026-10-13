@@ -525,6 +525,8 @@ const parse = {
     const r = new Reader(a);
     const o = { nslots: r.b(), slotKiB: r.b(), slots: [] };
     for (let i = 0; i < o.nslots; i++) o.slots.push({ zones: r.b(), name: r.s(), kib: r.b() });
+    /* OPX fork: then each slot's own size in KiB (a firmware without it: every slot is slotKiB) */
+    for (const u of o.slots) u.capKiB = r.i < r.a.length ? r.b() : o.slotKiB;
     return o;
   },
   [CMD.UP_LIST](a) {
@@ -810,6 +812,11 @@ function fmtValue(d, v) {
    byte for byte: web/test_web.mjs compares them. */
 const SMP = { SLOT_SIZE: 0x14000, DATA_OFF: 512, RATE: 22050, HDR_LEN: 32 + 16 * 28, MAX_ZONES: 16 };
 SMP.MAX_DATA = SMP.SLOT_SIZE - SMP.DATA_OFF;
+/* OPX fork: the data bytes slot k takes on the connected device (SMP_INFO's per-slot size; slot 3 is smaller there) */
+const smpMax = (k) => {
+  const c = typeof dev !== "undefined" && dev && dev.smp && dev.smp.slots[k] ? dev.smp.slots[k].capKiB : 0;
+  return c ? Math.min(SMP.MAX_DATA, c * 1024 - SMP.DATA_OFF) : SMP.MAX_DATA;
+};
 
 /* groups of up to 7 bytes, each preceded by their top bits */
 function pack7(b) {
@@ -979,7 +986,7 @@ function rootFromName(name) {
 }
 
 /* zones: [{s: Int16Array (22050 Hz), root, lo?, hi?}] -> {hdr (480 B), data, zones} (sampleio.user_slot) */
-function buildSlot(name, zonesIn) {
+function buildSlot(name, zonesIn, maxData = SMP.MAX_DATA) {
   const zones = [], parts = [];
   let len = 0;
   for (const z of zonesIn) {
@@ -991,7 +998,7 @@ function buildSlot(name, zonesIn) {
   const data = new Uint8Array(len);
   let o = 0;
   for (const p of parts) { data.set(p, o); o += p.length; }
-  if (len > SMP.MAX_DATA) throw new Error(`too long: ${len} B (max ${SMP.MAX_DATA} B)`);
+  if (len > maxData) throw new Error(`too long: ${len} B (max ${maxData} B)`);
   if (!zones.length || zones.length > SMP.MAX_ZONES) throw new Error("1..16 files per slot");
   zones.sort((a, b) => a.root - b.root);
   zones.forEach((z, j) => {
@@ -3072,7 +3079,7 @@ function renderSysinfo() {
   const rows = [
     ["firmware", i.version], ["sync", t(dev.watch ? "live" : "polling")], ["enginesL", i.engines.join(", ")],
     ["tracksN", i.ntrk ? String(i.ntrk) : "1"], ["stepsN", String(i.nstep)],
-    ["smpSlots", dev.smp ? `${dev.smp.nslots} × ${dev.smp.slotKiB} KiB` : t("none")],
+    ["smpSlots", dev.smp ? dev.smp.slots.map((u) => u.capKiB).join(" + ") + " KiB" : t("none")],
     ["userBank", dev.bank ? String(dev.bank.total) : t("none")],
   ];
   box.replaceChildren(...rows.map(([k, v]) => el("tr", {}, el("th", { text: t(k) }), el("td", { text: v }))));
@@ -3637,7 +3644,7 @@ async function listInputs() {
 let recStarting = false, recEpoch = 0;               /* cancel a pending permission / worklet on leave */
 const recActive = () => !!rec || recStarting;       /* the draft must not change: Upload, files, trims off */
 async function recStart(k) {
-  const d = smpDraft[k], left = SMP.MAX_DATA - draftBytes(d);   /* bytes: two samples each */
+  const d = smpDraft[k], left = smpMax(k) - draftBytes(d);   /* bytes: two samples each */
   if (!dev || tab !== "samples" || rec || recStarting || smpBusy) return;
   const session = dev, epoch = ++recEpoch;
   const current = () => epoch === recEpoch && dev === session && tab === "samples";
@@ -3898,11 +3905,10 @@ function recRow(k) {
 function renderSamples() {
   const box = $("smpslots");                        /* the tab says when there are no slots (renderPanels) */
   if (!dev || !dev.smp) { box.replaceChildren(); return; }
-  const max = SMP.MAX_DATA;
   box.replaceChildren(...dev.smp.slots.map((u, k) => {
-    const d = smpDraft[k];
+    const d = smpDraft[k], max = smpMax(k);
     const status = u.zones ? `${u.name || "—"}, ${u.zones} ${t("zones")}, ${u.kib} KiB` : t("empty");
-    const bar = el("progress", { max: dev.smp.slotKiB, value: u.kib, title: `${u.kib} / ${dev.smp.slotKiB} KiB` });
+    const bar = el("progress", { max: u.capKiB, value: u.kib, title: `${u.kib} / ${u.capKiB} KiB` });
     const file = el("input", { type: "file", accept: ".wav,audio/wav,audio/x-wav,audio/*", multiple: true, hidden: true });
     file.addEventListener("change", () => { addFiles(k, [...file.files]); file.value = ""; });
     const name = el("input", { type: "text", class: "name", maxlength: 8, value: d.name, spellcheck: "false", placeholder: "NAME" });
@@ -3968,7 +3974,7 @@ async function smpInfo(d = dev) { d.smp = parse[CMD.SMP_INFO](await sessionReque
 async function smpUpload(k, prog) {
   const d = smpDraft[k];
   let built;
-  try { built = buildSlot(d.name, d.files.map((f) => ({ s: f.s, root: f.root }))); }
+  try { built = buildSlot(d.name, d.files.map((f) => ({ s: f.s, root: f.root })), smpMax(k)); }
   catch (e) { sayK("smpFail", e.message); return; }
   if (!confirm(t("confirmUpload").replace("{n}", k + 1))) return;
   const { hdr, data } = built;

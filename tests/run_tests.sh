@@ -174,6 +174,12 @@ run "OPX fork: patch format (tools/opx_patch_spec.py): pack / unpack round trips
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
+$CC -o "$OUT/storage_test_noopx" -DFELUCCA_OPX=0 tests/storage_test.c
+run "flash storage (A/B, torn writes), FELUCCA_OPX=0" "$OUT/storage_test_noopx"
+$CC -o "$OUT/opx_store_test" tests/opx_store_test.c
+run "OPX fork: extension objects, slot 3's top, fixed tags, relocation from a former place" "$OUT/opx_store_test"
+$CC -o "$OUT/opx_store_test_noopx" -DFELUCCA_OPX=0 tests/opx_store_test.c
+run "OPX fork: FELUCCA_OPX=0 gives slot 3 back and has no OPX object" "$OUT/opx_store_test_noopx"
 
 $CC -o "$OUT/upreset_test" tests/upreset_test.c
 run "user presets (UP_PUT parser, bank round trip, versions, PHYS DRUM and SAMPLE PERC -> DRUM, grid records, DIGITAL kept)" "$OUT/upreset_test"
