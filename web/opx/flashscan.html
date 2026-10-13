@@ -46,8 +46,6 @@
   <div class="card">
     <div class="row">
       <button id="connect" class="primary">Connect</button>
-      <select id="inport" aria-label="MIDI input"></select>
-      <select id="outport" aria-label="MIDI output"></select>
       <button id="scan" disabled>Scan</button>
     </div>
     <p id="status" class="mut">Not connected.</p>
@@ -66,6 +64,11 @@
     </table>
     <p class="mut">Erased means nothing has written there since the last erase on this unit. It does not prove that the
     stock firmware would never use it after a return to the official firmware.</p>
+  </div>
+
+  <div class="card">
+    <p><strong>Log</strong> <span class="mut">(include this if something goes wrong)</span></p>
+    <textarea id="log" readonly></textarea>
   </div>
 
   <div class="card">
@@ -97,7 +100,7 @@ const REGIONS = [
   [0xFF, 0xFF, "Key / MAC", "stock (package header)"],
 ];
 const result = new Map();   // sector -> {st, used, crc}
-let midi = null, inp = null, out = null, waiting = null;
+let midi = null;
 const $ = id => document.getElementById(id);
 const hex = (n, w) => n.toString(16).toUpperCase().padStart(w, "0");
 function say(t) { $("status").textContent = t; }
@@ -140,46 +143,91 @@ function drawOut() {
 }
 function redraw() { drawMap(); drawRegions(); drawOut(); }
 
-function fillPorts() {
-  const pick = (sel, ports) => {
-    sel.innerHTML = "";
-    for (const p of ports.values()) {
-      const o = document.createElement("option"); o.value = p.id; o.textContent = p.name; sel.appendChild(o);
-      if (/fm-1|felucca|sinco|usb-midi|composite/i.test(p.name)) sel.value = p.id;
+function log(t) { const l = $("log"); l.value += t + "\n"; l.scrollTop = l.scrollHeight; }
+const toHex = a => Array.from(a, b => hex(b, 2)).join(" ");
+
+// one in/out pair; replies are copied with Array.from (Web MIDI Browser may hand over a plain array)
+class Link {
+  constructor(input, output) {
+    this.input = input; this.output = output; this.q = []; this.waiter = null;
+    input.onmidimessage = ev => {
+      const d = Array.from(ev.data);
+      if (d[0] !== 0xF0) return;
+      this.q.push(d);
+      if (this.waiter) { const w = this.waiter; this.waiter = null; w(); }
+    };
+  }
+  send(bytes) { try { this.output.send(bytes); return true; } catch (e) { log("send failed: " + e.message); return false; } }
+  drain() { this.q.length = 0; }
+  async read(ms) {
+    if (!this.q.length) {
+      let tm;
+      await Promise.race([new Promise(r => { this.waiter = r; }), new Promise(r => { tm = setTimeout(r, ms); })]);
+      clearTimeout(tm); this.waiter = null;
     }
-  };
-  pick($("inport"), midi.inputs); pick($("outport"), midi.outputs);
-  bindPorts();
+    return this.q.shift() || null;
+  }
+  // the next editor reply to cmd (other SysEx, e.g. live-sync pushes, is skipped)
+  async reply(cmd, ms) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      const d = await this.read(end - Date.now());
+      if (!d) return null;
+      if (d.length >= 6 && d[1] === 0x7D && d[2] === 0x46 && d[3] === 0x4C && d[4] === cmd) return d;
+    }
+    return null;
+  }
+  close() { this.input.onmidimessage = null; }
 }
-function bindPorts() {
-  if (inp) inp.onmidimessage = null;
-  inp = midi.inputs.get($("inport").value) || null;
-  out = midi.outputs.get($("outport").value) || null;
-  if (inp) inp.onmidimessage = onMsg;
-  $("scan").disabled = !(inp && out);
-  say(inp && out ? `Ready: ${inp.name}` : "No MIDI port found. Connect the FM-1 and press Connect again.");
+let link = null;
+const values = m => (typeof m.values === "function" ? Array.from(m.values()) : Array.isArray(m) ? m : []);
+
+// every input whose name looks like the FM-1, paired with the output of the same name, asked for the editor's INFO (cmd 1)
+async function findDevice() {
+  const ins = values(midi.inputs), outs = values(midi.outputs);
+  log(`inputs: ${ins.map(p => p.name).join(", ") || "none"}`);
+  log(`outputs: ${outs.map(p => p.name).join(", ") || "none"}`);
+  const cand = ins.filter(p => /fm-1|felucca|sinco|usb-midi|composite/i.test(p.name || ""));
+  for (const input of (cand.length ? cand : ins)) {
+    const output = outs.find(o => o.name === input.name) || (outs.length === 1 ? outs[0] : null);
+    if (!output) { log(`${input.name}: no output of the same name`); continue; }
+    try { if (input.open) await input.open(); if (output.open) await output.open(); }
+    catch (e) { log(`${input.name}: open failed: ${e.message}`); continue; }
+    const l = new Link(input, output);
+    for (let t = 0; t < 2; t++) {
+      l.drain(); l.send([0xF0, 0x7D, 0x46, 0x4C, 1, 0xF7]);
+      const d = await l.reply(1, 1500);
+      if (d) {
+        let txt = ""; for (let i = 5; i < d.length && d[i]; i++) txt += String.fromCharCode(d[i]);
+        log(`${input.name}: answers as "${txt}"`);
+        return { link: l, name: input.name, version: txt };
+      }
+    }
+    log(`${input.name}: no answer to INFO`);
+    l.close();
+  }
+  return null;
 }
-function onMsg(ev) {
-  const d = ev.data;
-  if (d.length < 6 || d[0] !== 0xF0 || d[1] !== 0x7D || d[2] !== 0x46 || d[3] !== 0x4C || d[4] !== CMD) return;
-  if (waiting) { const w = waiting; waiting = null; w(d); }
-}
-function request(first, count) {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => { waiting = null; reject(new Error("timeout")); }, 3000);
-    waiting = d => { clearTimeout(t); resolve(d); };
-    out.send([0xF0, 0x7D, 0x46, 0x4C, CMD, first & 127, first >> 7, count, 0xF7]);
-  });
-}
+
 function parse(d) {
-  if (d[5] === 127 && d.length === 7) throw new Error("the device refused the request");
+  if (d.length === 7 && d[5] === 127) throw new Error("the device refused the request");
   const first = d[5] | d[6] << 7, count = d[7];
-  if (d.length !== 9 + count * 8) throw new Error("reply of an unexpected length");
+  if (d.length !== 9 + count * 8) throw new Error(`reply of an unexpected length (${d.length} bytes)`);
   for (let i = 0; i < count; i++) {
-    const r = d.subarray(8 + i * 8, 16 + i * 8);
+    const r = d.slice(8 + i * 8, 16 + i * 8);
     let crc = 0; for (let k = 0; k < 5; k++) crc += r[3 + k] * 2 ** (7 * k);
     result.set(first + i, { st: r[0], used: r[1] | r[2] << 7, crc: crc % 2 ** 32 });
   }
+}
+async function request(first, count) {
+  for (let t = 0; t < 2; t++) {
+    link.drain();
+    if (!link.send([0xF0, 0x7D, 0x46, 0x4C, CMD, first & 127, first >> 7, count, 0xF7])) throw new Error("the FM-1 is not connected");
+    const d = await link.reply(CMD, 3000);
+    if (d) return d;
+    log(`no reply for 0x${hex(first * 4096, 5)}` + (t ? "" : ", retrying"));
+  }
+  throw new Error("timeout");
 }
 async function scan() {
   $("scan").disabled = true; result.clear(); redraw();
@@ -187,30 +235,36 @@ async function scan() {
     for (let s = LO; s <= HI; s += PER) {
       const n = Math.min(PER, HI - s + 1);
       say(`Reading 0x${hex(s * 4096, 5)}…`);
-      let d;
-      try { d = await request(s, n); }
-      catch (e) { d = await request(s, n); }          // one retry
+      const d = await request(s, n);
+      if (s === LO) log(`first reply: ${toHex(d.slice(0, 16))} …`);
       parse(d); redraw();
     }
     const e = [...result.values()].filter(r => r.st === 0).length;
-    say(`Done: ${result.size} sectors, ${e} erased.`);
+    say(`Done: ${result.size} sectors, ${e} erased.`); log(`scan done: ${result.size} sectors, ${e} erased`);
   } catch (e) {
-    say(e.message === "timeout" ? "No reply. Is a Felucca-OPX build with FLASH_SCAN installed, and is no other app using the FM-1?"
-                                : "Stopped: " + e.message);
+    const msg = e.message === "timeout"
+      ? "No reply to FLASH_SCAN. The FM-1 answers the editor, so its firmware is probably older than the FLASH_SCAN build: install the latest build from this site, then try again."
+      : "Stopped: " + e.message;
+    say(msg); log(msg);
   }
   $("scan").disabled = false;
 }
 
 $("connect").onclick = async () => {
-  if (!navigator.requestMIDIAccess) { say("This browser has no Web MIDI. On iPad / iPhone, open this page in Web MIDI Browser."); return; }
-  try {
-    midi = await navigator.requestMIDIAccess({ sysex: true });
-    midi.onstatechange = fillPorts;
-    fillPorts();
-  } catch (e) { say("MIDI access was refused: " + e.message); }
+  $("log").value = "";
+  log(`page: ${location.href}`);
+  log(`browser: ${navigator.userAgent}`);
+  if (!navigator.requestMIDIAccess) { say("This browser has no Web MIDI. On iPad / iPhone, open this page in Web MIDI Browser."); log("no navigator.requestMIDIAccess"); return; }
+  try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (e) { say("MIDI access was refused."); log("requestMIDIAccess failed: " + e.message); return; }
+  if (link) { link.close(); link = null; }
+  say("Looking for the FM-1…");
+  const dev = await findDevice();
+  if (!dev) { say("FM-1 not found. Check the USB cable, close other MIDI apps, and press Connect again."); $("scan").disabled = true; return; }
+  link = dev.link;
+  say(`Connected: ${dev.name} (${dev.version}). Press Scan.`);
+  $("scan").disabled = false;
 };
-$("inport").onchange = bindPorts;
-$("outport").onchange = bindPorts;
 $("scan").onclick = scan;
 redraw();
 </script>
