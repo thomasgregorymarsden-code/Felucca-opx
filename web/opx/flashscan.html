@@ -146,7 +146,7 @@ function redraw() { drawMap(); drawRegions(); drawOut(); }
 function log(t) { const l = $("log"); l.value += t + "\n"; l.scrollTop = l.scrollHeight; }
 const toHex = a => Array.from(a, b => hex(b, 2)).join(" ");
 
-// one in/out pair; replies are copied with Array.from (Web MIDI Browser may hand over a plain array)
+// one in/out pair; replies are copied with Array.from (iOS Web MIDI apps such as MIDIWeb Browser may hand over a plain array)
 class Link {
   constructor(input, output) {
     this.input = input; this.output = output; this.q = []; this.waiter = null;
@@ -254,7 +254,7 @@ $("connect").onclick = async () => {
   $("log").value = "";
   log(`page: ${location.href}`);
   log(`browser: ${navigator.userAgent}`);
-  if (!navigator.requestMIDIAccess) { say("This browser has no Web MIDI. On iPad / iPhone, open this page in Web MIDI Browser."); log("no navigator.requestMIDIAccess"); return; }
+  if (!navigator.requestMIDIAccess) { say("This browser has no Web MIDI. On iPad / iPhone, open this page in a Web MIDI app such as MIDIWeb Browser."); log("no navigator.requestMIDIAccess"); return; }
   try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
   catch (e) { say("MIDI access was refused."); log("requestMIDIAccess failed: " + e.message); return; }
   if (link) { link.close(); link = null; }
