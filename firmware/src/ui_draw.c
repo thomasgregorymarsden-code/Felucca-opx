@@ -1059,6 +1059,18 @@ static void draw_columns(void)
         return;
     }
 #endif
+#if FELUCCA_OPX
+    if (xmat_on()) {                                     /* OPX's EDIT 1 on USER: ALG, ROW, COL, the amount (ui_fm6op.c) */
+        for (c = 0; c < 4u; c++) {
+            const char *lb, *u;
+            int32_t r;
+            uint32_t ic;
+            xmat_card(c, &lb, val, &u, &r, &ic);
+            draw_column(c, lb, val, u, VAL(c), r, ic);
+        }
+        return;
+    }
+#endif
     if (fop_page(cur_page()->graph)) {                   /* FM6: OP, then three of its bytes (ui_fm6op.c) */
         for (c = 0; c < 4u; c++) {
             const char *lb, *u;

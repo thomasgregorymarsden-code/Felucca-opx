@@ -340,6 +340,24 @@ static void test_feedback(void)
           err_db(z, y, CTL, FS / 4) > -20.0);
 }
 
+/* USER plays the matrix as it is: without a heard operator, silence (no fallback to the patch's algorithm) */
+static void test_user_empty(void)
+{
+    static double y[FS / 4];
+    uint32_t i;
+    double e = 0;
+    int16_t ev[8] = {41, 0, 0, 0, 0, 0, 0, 0};
+    memset(&P, 0, sizeof P);
+    for (i = 0; i < 6u; i++)
+        P.op[i] = OP_FLAT;
+    P.algo = 0;
+    setup(&P, ev);
+    engine_render(60, 127, y, FS / 4, 0, 0);
+    for (i = 0; i < FS / 4; i++)
+        e += fabs(y[i]);
+    check("ALG USR on a patch without a heard operator in its matrix: silent", e == 0);
+}
+
 static void test_velocity(void)
 {
     static double y[FS / 2];
@@ -536,6 +554,7 @@ int main(int argc, char **argv)
     test_envelopes();
     test_feedback();
     test_velocity();
+    test_user_empty();
     test_factory();
     test_cost();
     if (argc > 1) {

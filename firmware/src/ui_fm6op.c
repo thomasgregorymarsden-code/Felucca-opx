@@ -259,8 +259,7 @@ static uint32_t xop_alg(const track_t *t, uint32_t *heard)
     uint32_t a = e >= 1 && e <= 41 ? (uint32_t)e - 1u : (uint32_t)opx_get(pk, OPXF_ALGO), k, out = 0;
     for (k = 0; k < 6u; k++)
         out |= (uint32_t)opx_get(pk, OPXF_UA_OUT(k)) << k;
-    if (a == OPX_USER && !out)
-        a = (uint32_t)opx_get(pk, OPXF_ALGO) == OPX_USER ? 0u : (uint32_t)opx_get(pk, OPXF_ALGO);
+    a = a > OPX_USER ? OPX_USER : a;
     *heard = a == OPX_USER ? out : OPX_ALG[a % OPX_NALG].out;
     return a;
 }
@@ -519,3 +518,94 @@ static int fop_any_card(uint32_t slot, const char **label, char *val, const char
 #endif
     return fop_card(slot, label, val, unit, ratio, icon);
 }
+
+#if FELUCCA_OPX
+/* -------------------------------------------------------------------------------- OPX's EDIT 1: the matrix ---
+ * EDIT 1 (ALGO) on an OPX track that plays USER (ALG USR, or PAT on a patch whose algorithm is USER): the user algorithm
+ * as the opsix's FM MATRIX (p.74): a column per operator sending (OP 1 left), a row per operator receiving (OP 1 at the
+ * top) with a dot as big as the amount, the diagonal its self feedback, and the bottom row OUT (DIRECT OUT, heard or
+ * not). KNOB 1 is ALG as ever; KNOB 2 the row, KNOB 3 the column, KNOB 4 the amount (OUT: on / off), one undo per
+ * gesture. (ATK DEC MLVL come back with a preset algorithm.) EDIT 2 shows the same matrix, nothing picked. */
+static uint8_t xmat_row, xmat_col;                   /* 0..6 (6 = OUT), 0..5 */
+static int xmat_user(const track_t *t)
+{
+    uint32_t heard;
+    return t->eng_req % NENGINES == ENGI_OPX && xop_alg(t, &heard) == OPX_USER;
+}
+static int xmat_on(void) { const page_t *pg = cur_page(); return !ui.home && pg->scope == SC_ENGINE && pg->id[0] == P_E0 && xmat_user(TSEL); }
+/* the matrix's field at (row, column) */
+static uint32_t xmat_field(uint32_t row, uint32_t col) { return row >= 6u ? OPXF_UA_OUT(col % 6u) : opxf_ua(col % 6u, row); }
+static void xmat_knob(uint32_t slot, int32_t steps)
+{
+    uint32_t tr = song.sel % NTRK, f;
+    int32_t v;
+    if (slot == 1u) {
+        xmat_row = (uint8_t)clamp((int32_t)xmat_row + steps, 0, 6);
+        return;
+    }
+    if (slot == 2u) {
+        xmat_col = (uint8_t)clamp((int32_t)xmat_col + steps, 0, 5);
+        return;
+    }
+    f = xmat_field(xmat_row, xmat_col);
+    v = xmat_row >= 6u ? steps > 0 : opx_get(opx_pk[tr], f) + accel(EN_K4, steps, 100);
+    v = clamp(v, OPX_FIELDS[f].lo, OPX_FIELDS[f].hi);
+    if (v == opx_get(opx_pk[tr], f))
+        return;
+    edit_undo_take(TSEL, 0x4000u | f, UNDO_SOUND);
+    opx_edit(tr, f, v);
+    motion_undo_done(TSEL);
+}
+/* the cards: ALG, ROW, COL, the amount ("2>3", "SELF", "OUT") */
+static void xmat_card(uint32_t slot, const char **label, char *val, const char **unit, int32_t *ratio, uint32_t *icon)
+{
+    static char lb[8];
+    uint32_t tr = song.sel % NTRK;
+    int32_t v;
+    *unit = "";
+    *ratio = -1;
+    if (slot == 0u) {
+        int32_t a = TSEL->p[P_E0];
+        *label = "ALG";
+        str_cpy(val, N_OPX_ALG[clamp(a, 0, OPX_NALG + 1)], 12);
+        *ratio = a * 1000 / (OPX_NALG + 1);
+        *icon = ICON_ALGORITHM;
+        return;
+    }
+    if (slot == 1u) {
+        *label = "ROW";
+        if (xmat_row >= 6u)
+            str_cpy(val, "OUT", 12);
+        else
+            str_cpy(val, "OP", 12), val[2] = (char)('1' + xmat_row), val[3] = 0;
+        *ratio = xmat_row * 1000 / 6;
+        *icon = ICON_STEPS;
+        return;
+    }
+    if (slot == 2u) {
+        *label = "COL";
+        str_cpy(val, "OP", 12), val[2] = (char)('1' + xmat_col), val[3] = 0;
+        *ratio = xmat_col * 200;
+        *icon = ICON_STEPS;
+        return;
+    }
+    v = opx_get(opx_pk[tr], xmat_field(xmat_row, xmat_col));
+    if (xmat_row >= 6u) {
+        *label = "OUT";
+        str_cpy(val, v ? "ON" : "OFF", 12);
+        *icon = ICON_MIX;
+        return;
+    }
+    if (xmat_row == xmat_col) {
+        *label = "SELF";
+        *icon = ICON_FEEDBACK;
+    } else {
+        lb[0] = (char)('1' + xmat_col), lb[1] = '>', lb[2] = (char)('1' + xmat_row), lb[3] = 0;   /* "2>3": OP 2 to OP 3 */
+        *label = lb;
+        *icon = ICON_MOD;
+    }
+    fmt_int(val, v);
+    *unit = "%";
+    *ratio = v * 10;
+}
+#endif

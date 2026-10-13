@@ -991,6 +991,12 @@ static void edit_param(uint32_t slot, int32_t steps)
             ui.ppick = (uint8_t)clamp((int32_t)pat_pick() + steps, 0, (int32_t)pat_count() - 1);
         return;
     }
+#if FELUCCA_OPX
+    if (slot && xmat_on()) {                             /* OPX's EDIT 1 on USER: KNOB 2 3 the cell, 4 its amount */
+        xmat_knob(slot, steps);
+        return;
+    }
+#endif
     if (fop_page(pg->graph)) {                           /* FM6's operators: KNOB 1 OP, 2..4 its bytes (ui_fm6op.c) */
         fop_any_knob(slot, steps);                       /* (FM6's, or OPX's: OPX fork) */
         return;

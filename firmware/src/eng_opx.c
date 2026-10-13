@@ -228,8 +228,8 @@ static void opx_build(const track_t *t, opx_rt_t *r)
         pt = &OPX_FACTORY[(uint32_t)clamp(t->p[P_E7], 0, (int32_t)OPX_NFACTORY - 1)];
     if (alg <= 0)
         a = pt->algo;
-    if (a == OPX_USER && !pt->ua_out)                  /* USR on a patch without a user matrix: its own algorithm */
-        a = pt->algo == OPX_USER ? 0u : pt->algo;
+    /* (USER plays the patch's matrix as it is: one without a heard operator is silent, as the opsix's; the EDIT 1 page
+     * shows it, OUT all off) */
     /* the matrix */
     for (k = 0; k < OPX_NOP; k++) {
         r->nin[k] = 0;

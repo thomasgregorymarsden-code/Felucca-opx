@@ -9091,6 +9091,69 @@ static int test_opx_ops(void)
     }
     bad += check("OPX ops: USER's rows DIM unless ALG USR; a fixed list TO OP1..6, OP 1's own row TO OP1 (SELF)", ok);
     TSEL->p[P_E0] = 0;
+
+    /* EDIT 1 (ALGO): the chart; on USER the matrix: KNOB 2 the row, 3 the column, 4 the amount */
+    {
+        uint32_t a, k, j, rr, cc, cells = 0;
+        uint8_t m[6];
+        ok = 1;
+        for (a = 0; a < 32u; a++) {                  /* OPX's 1..32 = FM6's (the DX7's): routes and carriers */
+            fm6_routes(a, m);
+            for (k = 0; k < 6u; k++)
+                ok &= m[k] == OPX_ALG[a].mod[k];
+            ok &= fm6_car_ops(a) == OPX_ALG[a].out;
+        }
+        bad += check("OPX EDIT 1: algorithms 1..32 route as FM6's (the charts' cells are FM6's)", ok);
+        go_title("EDIT 1"); frame();
+        TSEL->p[P_E0] = 5;
+        frame();
+        k = (uint32_t)TSEL->p[P_E1];
+        turn(EN_K2, 3);                              /* a preset algorithm: KNOB 2 is ATK as ever */
+        ok = !xmat_on() && TSEL->p[P_E1] != (int16_t)k;
+        turn(EN_K1, 41);                             /* KNOB 1: ALG to USR (41, the last) */
+        frame();
+        ok &= TSEL->p[P_E0] == 41 && xmat_on();
+        bad += check("OPX EDIT 1: a preset algorithm keeps ATK DEC MLVL; KNOB 1 to USR shows the matrix", ok);
+        ok = 1;
+        for (rr = 0; rr < 7u; rr++)                  /* every cell: KNOB 2 3 pick it, KNOB 4 writes its field only */
+            for (cc = 0; cc < 6u; cc++) {
+                uint32_t want = rr == 6u ? OPXF_UA_OUT(cc) : opxf_ua(cc, rr);
+                xo_set(EN_K2, (int32_t)rr, 10);
+                xo_set(EN_K3, (int32_t)cc, 10);
+                opx_edit(tr, want, 0);
+                memcpy(v, opx_pk[tr], OPX_PK_BYTES);
+                frames(1600);
+                turn(EN_K4, rr == 6u ? 1 : 30);
+                if (opx_fields_diff(v, opx_pk[tr], &at) != 1 || at != want || opx_get(opx_pk[tr], want) <= 0) {
+                    printf("ui: OPX matrix: row %u col %u: field %u, not %u\n", rr + 1u, cc + 1u, at, want);
+                    ok = 0;
+                }
+                cells++;
+            }
+        ok &= TSEL->p[P_E0] == 41;                   /* (ALG stayed USR: KNOB 2..4 moved no macro) */
+        bad += check("OPX EDIT 1 USER: 42 cells (36 amounts, 6 OUT), KNOB 2 / 3 pick, KNOB 4 writes that field only",
+                     ok && cells == 42u);
+        xo_set(EN_K2, 1, 10);                        /* OP 3 -> OP 2: 0 then +2 detents, one gesture; undo */
+        xo_set(EN_K3, 2, 10);
+        opx_edit(tr, opxf_ua(2, 1), 0);
+        memcpy(v, opx_pk[tr], OPX_PK_BYTES);
+        frames(1600);
+        turn(EN_K4, 1);
+        turn(EN_K4, 1);
+        ok = opx_get(opx_pk[tr], opxf_ua(2, 1)) == 2;
+        hold(B_SAVE);
+        ok &= opx_get(opx_pk[tr], opxf_ua(2, 1)) == 0;
+        turn(EN_K4, 500);
+        ok &= opx_get(opx_pk[tr], opxf_ua(2, 1)) == 100;
+        turn(EN_K4, -500);
+        ok &= opx_get(opx_pk[tr], opxf_ua(2, 1)) == 0;
+        bad += check("OPX EDIT 1 USER: an amount 0..100, SAVE held undoes the gesture", ok);
+        go_title("EDIT 2"); frame();
+        ok = !xmat_on() && xmat_user(TSEL);         /* (EDIT 2: the matrix shown, its knobs FB MRAT DTUN SLOT) */
+        TSEL->p[P_E0] = 0;
+        bad += check("OPX EDIT 2 on USER: the matrix shown, the knobs its own", ok);
+        (void)j;
+    }
     return bad;
 }
 #endif

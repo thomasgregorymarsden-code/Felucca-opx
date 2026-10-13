@@ -10,7 +10,7 @@ OPX is an altered-FM engine modelled on the Korg opsix, built into Felucca as en
 | M1 | Six operators in FM mode (sine), all 40 algorithms plus USER, ratio and fixed pitch, per-operator FB, ALG FB loops, per-operator ATK/DEC/SUS/REL/CURVE envelopes, level velocity; device macros; cost against FM6 | **done (on-device listening and cost pending)** |
 | M1.5 | Operator editing on the device; each track's patch kept in the stored format; saved with projects and the autosave (pulled forward from M3/M4) | **done** |
 | M2 | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; the 23 waveforms and WIDTH; level key tracking | |
-| M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page; algorithm charts on the device | |
+| M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | |
 | M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |
 | M5 | Main filter, effects 1–3, virtual patch, as far as the processor time allows | |
 
@@ -24,6 +24,17 @@ OPX is an altered-FM engine modelled on the Korg opsix, built into Felucca as en
 - **Self-feedback** uses the mean of the operator's last two outputs (as the DX7 does), and is linear in FB: 100 % gives 2 rad. At 75 % the harmonics come out within 3 dB of a sawtooth's, which matches the manual's description.
 
 ## Editing on the device (M1.5)
+
+**EDIT 1 (ALGO) and EDIT 2** show the algorithm in the left two-thirds of the panel and a small oscilloscope in the right third.
+
+- **A preset algorithm** is drawn as a chart in FM6's style. Algorithms 1–32 use FM6's layouts; the test suite checks that OPX's 1–32 route exactly as FM6's. 33–40 have layouts of their own. The ALG FB loop (algorithms 4, 6, 34) is drawn as a return path.
+- **USER** (ALG USR, or PAT on a patch whose algorithm is USER) is drawn as the opsix's FM MATRIX:
+  - a column per sending operator, a row per receiving operator, and a dot sized by the amount;
+  - the diagonal is self feedback;
+  - the bottom row is OUT.
+- **On EDIT 1 with USER**, knob 1 is still ALG; knob 2 picks the row, knob 3 the column, and knob 4 sets the amount (0–100 %; OUT toggles). ATK, DEC and MLVL return when a preset algorithm is chosen.
+- **EDIT 2** shows the same matrix with nothing selected; its knobs keep their usual jobs.
+- **USER always plays the matrix.** One with no heard operator is silent, as on the opsix; it no longer falls back to the patch's preset algorithm.
 
 On an OPX track, the page after EDIT 2 is **OPERATORS**: a scrolling list over the track's own patch, styled like AUTOMATION's (7 rows on screen, the selected row highlighted, value on the right).
 
