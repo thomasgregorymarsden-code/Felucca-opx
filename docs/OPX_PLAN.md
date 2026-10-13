@@ -42,8 +42,8 @@ On an OPX track, the page after EDIT 2 is **OPERATORS**: one long list over the 
 | Knob | Selects |
 |---|---|
 | 1 | the operator (1–6; dimmed on ALGO's rows, which belong to the patch) |
-| 2 | a section per detent (PITCH, EG, OSC, ALGO): to its first row; turning left goes to this section's first row, then the previous section's |
-| 3 | the row (1–15) |
+| 2 | a section per detent (PITCH, EG, OSC, USER, ALGO): to its first row; turning left goes to this section's first row, then the previous section's |
+| 3 | the row (1–22) |
 | 4 | the row's value |
 
 | Section | Rows (for the selected operator) |
@@ -51,9 +51,10 @@ On an OPX track, the page after EDIT 2 is **OPERATORS**: one long list over the 
 | PITCH | MODE (RATIO / FIXED), RATIO (1/128–32) or FREQ in FIXED mode (a semitone per detent), FINE (×0.50–×2.00; in FIXED mode a cent per detent, shown to 0.01 Hz), DTUN (cents), TRANS (semitones) |
 | EG | LEVEL, ATK, DEC, SUS, REL, CURVE (LIN, 1–9, EXP), VEL |
 | OSC | FB (M2 adds MODE, WAVE and the mode settings here) |
+| USER | TO OP1–TO OP6: the amount (0–100 %) this operator sends to each; a fixed list, the selected operator's own row reads "(SELF)" and is its self feedback. OUT: its output level as on EDIT 1's matrix (its LEVEL while heard, OFF while not). These are the matrix's values as numbers, and are dimmed unless the track plays USER. |
 | ALGO | ALG (the patch's algorithm, 1–40 or USER), ALG FB |
 
-The user algorithm's connections are edited on EDIT 1's matrix only; the list no longer has USER rows.
+The user algorithm can be edited on either EDIT 1's matrix (an overview, dots sized by the amount) or the USER rows here (exact values). Both write the same fields.
 
 - **Editing makes the patch OWN.** SLOT then shows OWN, and SLOT F1–F7 loads a factory patch over it.
 - **Undo:** holding SAVE undoes the last knob gesture, patch and SLOT together; holding it again redoes.

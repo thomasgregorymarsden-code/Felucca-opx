@@ -9002,13 +9002,15 @@ static int test_opx_ops(void)
     ok &= xop_row() == 5u && xop_sec_of(xop_row()) == XS_EG;   /* (EG's first: LEVEL) */
     turn(EN_K2, 1);
     ok &= xop_row() == 12u && xop_sec_of(xop_row()) == XS_OSC;
+    turn(EN_K2, 1);
+    ok &= xop_row() == 13u && xop_sec_of(xop_row()) == XS_USER;
     turn(EN_K2, 5);
-    ok &= xop_row() == 13u && xop_sec_of(xop_row()) == XS_ALGO;   /* (the last: no wrap) */
+    ok &= xop_row() == 20u && xop_sec_of(xop_row()) == XS_ALGO;   /* (the last: no wrap) */
     turn(EN_K3, 1);
     turn(EN_K2, -1);
-    ok &= xop_row() == 13u;                          /* (left: this section's first row, then the one before) */
+    ok &= xop_row() == 20u;                          /* (left: this section's first row, then the one before) */
     turn(EN_K2, -1);
-    ok &= xop_row() == 12u;
+    ok &= xop_row() == 13u;
     turn(EN_K2, -9);
     ok &= xop_row() == 0u;
     bad += check("OPX ops: one list; KNOB 2 a section a detent (its first row; left: this one's, then the previous)", ok);
@@ -9055,8 +9057,8 @@ static int test_opx_ops(void)
     for (opn = 0; opn < 6u; opn++)
         for (row = 0; row < XL_N; row++) {
             int32_t x, hi, lo;
-            if (opn && xop_sec_of(row) == XS_ALGO)
-                continue;                            /* (ALGO's rows: the patch's, once) */
+            if ((opn && xop_sec_of(row) == XS_ALGO) || XL[row] == XR_OUT)
+                continue;                            /* (ALGO's rows: the patch's, once; OUT: a level, below) */
             go_title("OPERATORS"); frame();
             xo_set(EN_K1, (int32_t)opn, 10);
             xo_set(EN_K3, (int32_t)row, 30);
@@ -9080,8 +9082,8 @@ static int test_opx_ops(void)
         }
     {
         char what[120];
-        snprintf(what, sizeof what, "OPX ops: %u rows (13 x 6 operators, 2 the patch's), KNOB 4 writes its field only, within its range", n);
-        bad += check(what, ok && n == 6u * 13u + 2u);
+        snprintf(what, sizeof what, "OPX ops: %u rows (19 x 6 operators, 2 the patch's), KNOB 4 writes its field only, within its range", n);
+        bad += check(what, ok && n == 6u * 19u + 2u);
     }
 
     /* PITCH: MODE FIXED, then RATIO is the frequency: 12 detents = an octave */
@@ -9094,6 +9096,50 @@ static int test_opx_ops(void)
     turn(EN_K4, 12);
     f = (uint32_t)opx_get(opx_pk[tr], OPXF_OP(0, OPXF_OP1_FIXED_FREQ));
     bad += check("OPX ops: PITCH MODE FIXED, then RATIO 12 detents = an octave (440 -> 880 Hz)", f >= 87900u && f <= 88100u);
+
+    /* USER: the matrix's values as numbers, a fixed list TO OP1..6 (the operator's own: "(SELF)"), OUT as the matrix's
+     * (the operator's LEVEL, OFF); DIM unless the track plays USER */
+    {
+        const char *lb, *u;
+        char val[16];
+        int32_t r;
+        uint32_t ic;
+        go_title("OPERATORS"); frame();
+        ok = XL[XL_TO0] == XR_TO && XL[XL_TO0 + 5u] == XR_TO && XL[XL_TO0 + 6u] == XR_OUT && XL[XL_TO0 - 1u] == XR_FB;
+        bad += check("OPX ops: the list's USER rows where XL_TO0 says", ok);
+        xo_set(EN_K1, 2, 10);                        /* OP 3 */
+        TSEL->p[P_E0] = 0;                           /* (PAT: E.PIANO's algorithm 5) */
+        opx_edit(tr, opxf_ua(2, 0), 37);             /* OP 3 -> OP 1: 37 */
+        opx_edit(tr, opxf_ua(2, 2), 12);             /* OP 3 self: 12 */
+        ok = !xop_rowtext(XL_TO0, &lb, val, &u, &r) && str_eq(lb, "TO OP1") && str_eq(val, "37") && str_eq(u, "%");
+        ok &= str_eq((xop_rowtext(XL_TO0 + 2u, &lb, val, &u, &r), lb), "TO OP3 (SELF)") && str_eq(val, "12");
+        TSEL->p[P_E0] = 41;                          /* USR */
+        ok &= xop_rowtext(XL_TO0 + 1u, &lb, val, &u, &r) == 1 && str_eq(lb, "TO OP2");
+        xo_set(EN_K3, (int32_t)XL_TO0 + 2, 30);
+        xop_card(3, &lb, val, &u, &r, &ic);
+        ok &= str_eq(lb, "SELF") && str_eq(val, "12");
+        frames(1600);
+        turn(EN_K4, 3);
+        ok &= opx_get(opx_pk[tr], opxf_ua(2, 2)) == 15;
+        bad += check("OPX ops: USER rows: the matrix as numbers, TO OP1..6 fixed (own: (SELF), its card SELF), DIM unless USER", ok);
+        xo_set(EN_K3, (int32_t)XL_TO0 + 6, 30);      /* OUT */
+        opx_edit(tr, OPXF_OP(2, OPXF_OP1_LEVEL), 64);
+        opx_edit(tr, OPXF_UA_OUT(2), 1);
+        xop_rowtext(XL_TO0 + 6u, &lb, val, &u, &r);
+        ok = str_eq(lb, "OUT") && str_eq(val, "64");
+        frames(1600);
+        turn(EN_K4, 2);
+        ok &= opx_get(opx_pk[tr], OPXF_OP(2, OPXF_OP1_LEVEL)) == 66;
+        frames(1600);
+        turn(EN_K4, -500);
+        xop_rowtext(XL_TO0 + 6u, &lb, val, &u, &r);
+        ok &= str_eq(val, "OFF") && opx_get(opx_pk[tr], OPXF_UA_OUT(2)) == 0 && opx_get(opx_pk[tr], OPXF_OP(2, OPXF_OP1_LEVEL)) == 66;
+        frames(1600);
+        turn(EN_K4, 1);
+        ok &= xop_out(tr, 2) == 66;
+        bad += check("OPX ops: USER > OUT: the operator's LEVEL while heard, OFF keeps it (as EDIT 1's matrix)", ok);
+        TSEL->p[P_E0] = 0;
+    }
 
     /* EDIT 1 (ALGO): the chart; on USER the matrix: KNOB 2 the row, 3 the column, 4 the amount */
     {

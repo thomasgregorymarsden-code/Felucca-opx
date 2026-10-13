@@ -195,6 +195,8 @@ static int fop_card(uint32_t slot, const char **label, char *val, const char **u
  * EDIT > OPERATORS, an OPX track's one page over its patch (opx_patch.c opx_pk, the packed record): one long list of
  * the picked operator's parameters, then the patch's own (ALG, ALG FB):
  *   PITCH  MODE RATIO (FREQ when FIXED) FINE DTUN TRANS     EG  LEVEL ATK DEC SUS REL CURVE VEL     OSC  FB
+ *   USER   TO OP1 .. TO OP6 (the picked operator's own row: "(SELF)", its self feedback), OUT (as EDIT 1's matrix: its
+ *          LEVEL while heard, OFF), the matrix's values as numbers; DIM unless the track plays USER
  *   ALGO   ALG ALG FB
  *   KNOB 1  the operator (OP 1..6; shared with FM6's pages: fop_op)
  *   KNOB 2  a section at a time (to the first row of the next / previous one)
@@ -203,13 +205,15 @@ static int fop_card(uint32_t slot, const char **label, char *val, const char **u
  * The panel rolls: 7 rows on show, a row of "..." at the bottom (top) while more are below (above); the picked row
  * moves down to the last whole row, then the list moves up under it. A detent of KNOB 4 writes one field (opx_edit: the
  * patch becomes the track's own, SLOT OWN), one undo per knob gesture (SAVE held). The user algorithm's matrix is EDIT
- * 1's (ui_fm6op.c xmat_*). The macros (EDIT 1 / 2) still apply on top, as FM6's. */
-enum { XS_PITCH, XS_EG, XS_OSC, XS_ALGO, XS_N };
+ * 1's too (ui_fm6op.c xmat_*), drawn; this list gives its numbers. The macros (EDIT 1 / 2) still apply on top, as FM6's. */
+enum { XS_PITCH, XS_EG, XS_OSC, XS_USER, XS_ALGO, XS_N };
 enum { XR_MODE, XR_RATIO, XR_FINE, XR_DTUN, XR_TRANS, XR_LVL, XR_ATK, XR_DEC, XR_SUS, XR_REL, XR_CRV, XR_VEL, XR_FB,
        XR_TO, XR_SELF, XR_OUT, XR_ALG, XR_ALGFB };
-static const char *const XS_NAME[XS_N] = {"PITCH", "EG", "OSC", "ALGO"};
+static const char *const XS_NAME[XS_N] = {"PITCH", "EG", "OSC", "USER", "ALGO"};
 static const uint8_t XL[] = {XR_MODE, XR_RATIO, XR_FINE, XR_DTUN, XR_TRANS,               /* the list: the kinds */
-                             XR_LVL, XR_ATK, XR_DEC, XR_SUS, XR_REL, XR_CRV, XR_VEL, XR_FB, XR_ALG, XR_ALGFB};
+                             XR_LVL, XR_ATK, XR_DEC, XR_SUS, XR_REL, XR_CRV, XR_VEL, XR_FB,
+                             XR_TO, XR_TO, XR_TO, XR_TO, XR_TO, XR_TO, XR_OUT, XR_ALG, XR_ALGFB};
+#define XL_TO0 13u                                   /* XL's first XR_TO: TO OP1 (row i: TO OP i - XL_TO0 + 1) */
 #define XL_N ((uint32_t)sizeof XL)
 static uint8_t xop_li;                               /* KNOB 3: the picked row */
 static uint8_t xop_top;                              /* the first row on show */
@@ -219,10 +223,11 @@ static uint32_t xop_row(void) { return xop_li < XL_N ? xop_li : 0u; }
 static uint32_t xop_sec_of(uint32_t i)
 {
     uint32_t k = XL[i % XL_N];
-    return k <= XR_TRANS ? XS_PITCH : k <= XR_VEL ? XS_EG : k == XR_FB ? XS_OSC : XS_ALGO;
+    return k <= XR_TRANS ? XS_PITCH : k <= XR_VEL ? XS_EG : k == XR_FB ? XS_OSC : k <= XR_OUT ? XS_USER : XS_ALGO;
 }
 static int xop_fixed(uint32_t tr) { return opx_get(opx_pk[tr % NTRK], OPXF_OP(fop_op % 6u, OPXF_OP1_FREQ_FIXED)) != 0; }
-/* row i of the list for the picked operator: its kind (XR_*), its field */
+/* row i of the list for the picked operator: its kind (XR_*), its field (XR_TO: the amount it sends to operator
+ * i - XL_TO0; its own: its self feedback. XR_OUT: its OUT bit, though the row shows and sets xop_out) */
 static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
 {
     static const uint16_t F[XR_TO] = {OPXF_OP1_FREQ_FIXED, OPXF_OP1_COARSE, OPXF_OP1_FINE, OPXF_OP1_DETUNE,
@@ -232,6 +237,10 @@ static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
     uint32_t k = XL[i % XL_N], op = fop_op % 6u;
     if (k < XR_TO)
         *field = (k == XR_RATIO || k == XR_FINE) && xop_fixed(tr) ? OPXF_OP(op, OPXF_OP1_FIXED_FREQ) : OPXF_OP(op, F[k]);
+    else if (k == XR_TO)
+        *field = opxf_ua(op, (i % XL_N - XL_TO0) % 6u);
+    else if (k == XR_OUT)
+        *field = OPXF_UA_OUT(op);
     else
         *field = k == XR_ALG ? OPXF_ALGO : OPXF_PROG_ALG_FB;
     return k;
@@ -271,6 +280,28 @@ static uint32_t xop_alg(const track_t *t, uint32_t *heard)
     return a;
 }
 
+/* OUT (EDIT 1's matrix and the list's USER > OUT): operator k's output level, its LEVEL while heard, -1 (OFF) while
+ * not. A turn: 0..100 sets LEVEL; below 0 OFF (LEVEL kept); up from OFF heard again at that LEVEL. 1 = changed */
+static int32_t xop_out(uint32_t tr, uint32_t k)
+{
+    return opx_get(opx_pk[tr], OPXF_UA_OUT(k)) ? opx_get(opx_pk[tr], OPXF_OP(k, OPXF_OP1_LEVEL)) : -1;
+}
+static void xop_out_turn(uint32_t tr, uint32_t k, int32_t steps)
+{
+    uint32_t fo = OPXF_UA_OUT(k), fl = OPXF_OP(k, OPXF_OP1_LEVEL);
+    int32_t was = xop_out(tr, k), v;
+    v = was < 0 ? (steps > 0 ? opx_get(opx_pk[tr], fl) : -1) : clamp(was + accel(EN_K4, steps, 100), -1, 100);
+    if (v == was)
+        return;
+    edit_undo_take(TSEL, 0x4000u | fo, UNDO_SOUND);
+    if (v < 0)
+        opx_edit(tr, fo, 0);                             /* (OFF: LEVEL kept) */
+    else if (was < 0)
+        opx_edit(tr, fo, 1);
+    else
+        opx_edit(tr, fl, v);
+    motion_undo_done(TSEL);
+}
 /* f x (num / den)^n, at least one step a detent */
 static int32_t xop_pow(int32_t f, int32_t n, uint32_t num, uint32_t den)
 {
@@ -313,6 +344,10 @@ static void xop_knob(uint32_t slot, int32_t steps)
         return;
     }
     k = xop_rowf(xop_row(), tr, &f);
+    if (k == XR_OUT) {
+        xop_out_turn(tr, fop_op % 6u, steps);
+        return;
+    }
     v = opx_get(opx_pk[tr], f);
     if (f == OPXF_OP(fop_op % 6u, OPXF_OP1_FIXED_FREQ))
         v = k == XR_RATIO ? xop_pow(v, steps, 1059463u, 1000000u) : xop_pow(v, steps, 1000578u, 1000000u);
@@ -435,6 +470,33 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
         on = v != 0;
         *unit = "%";
         break;
+    case XR_TO: {
+        static char to[16];
+        uint32_t dst = (r % XL_N - XL_TO0) % 6u, heard;
+        str_cpy(to, "TO OP", sizeof to);
+        to[5] = (char)('1' + dst);
+        to[6] = 0;
+        if (dst == fop_op % 6u)
+            str_cpy(to + 6, " (SELF)", sizeof to - 6u);   /* (a fixed list: its own row is its self feedback) */
+        *label = to;
+        *unit = "%";
+        on = xop_alg(TSEL, &heard) == OPX_USER;
+        break;
+    }
+    case XR_OUT: {
+        uint32_t heard;
+        v = xop_out(tr, fop_op % 6u);
+        if (v < 0) {
+            str_cpy(val, "OFF", 12);
+            *ratio = 0;
+        } else {
+            fmt_int(val, v);
+            *unit = "%";
+            *ratio = v * 10;
+        }
+        on = xop_alg(TSEL, &heard) == OPX_USER;
+        break;
+    }
     case XR_ALG:
         if (v == (int32_t)OPX_USER)
             str_cpy(val, "USER", 12);
@@ -473,15 +535,22 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
     if (slot == 2u) {
         *label = "ROW";
         fmt_int(val, (int32_t)xop_row() + 1);
-        *unit = "/15";
+        *unit = "/22";
         *ratio = (int32_t)(xop_row() * 1000u / (XL_N - 1u));
         *icon = ICON_STEPS;
         return 1;
     }
-    *icon = ICN[xop_rowf(xop_row(), tr, &f)];
-    return xop_rowtext(xop_row(), label, val, unit, ratio);
+    {
+        uint32_t k = xop_rowf(xop_row(), tr, &f);
+        int on = xop_rowtext(xop_row(), label, val, unit, ratio);
+        int self = k == XR_TO && (xop_row() - XL_TO0) % 6u == fop_op % 6u;
+        *icon = self ? ICON_FEEDBACK : ICN[k];
+        if (self)
+            *label = "SELF";                         /* (the card's title is short: "TO OP3 (SELF)" in the list) */
+        return on;
+    }
 }
-_Static_assert(sizeof XL == 15u, "ROW's /15");
+_Static_assert(sizeof XL == 22u, "ROW's /22");   /* (XL[XL_TO0] .. + 5: XR_TO, + 6: XR_OUT: ui_test) */
 #endif
 
 /* the dispatch: FM6's pages, or OPX's OPERATORS (OPX fork) */
@@ -530,11 +599,6 @@ static int xmat_user(const track_t *t)
 static int xmat_on(void) { const page_t *pg = cur_page(); return !ui.home && pg->scope == SC_ENGINE && pg->id[0] == P_E0 && xmat_user(TSEL); }
 /* the matrix's field at (row, column) */
 static uint32_t xmat_field(uint32_t row, uint32_t col) { return row >= 6u ? OPXF_UA_OUT(col % 6u) : opxf_ua(col % 6u, row); }
-/* OUT, as the matrix shows it: operator k's LEVEL while heard, -1 while not */
-static int32_t xmat_out(uint32_t tr, uint32_t k)
-{
-    return opx_get(opx_pk[tr], OPXF_UA_OUT(k)) ? opx_get(opx_pk[tr], OPXF_OP(k, OPXF_OP1_LEVEL)) : -1;
-}
 static void xmat_knob(uint32_t slot, int32_t steps)
 {
     uint32_t tr = song.sel % NTRK, f;
@@ -547,21 +611,8 @@ static void xmat_knob(uint32_t slot, int32_t steps)
         xmat_col = (uint8_t)clamp((int32_t)xmat_col + steps, 0, 5);
         return;
     }
-    if (xmat_row >= 6u) {                                /* OUT: -1 (OFF) .. 100, the operator's LEVEL while heard */
-        uint32_t fo = OPXF_UA_OUT(xmat_col), fl = OPXF_OP(xmat_col, OPXF_OP1_LEVEL);
-        int32_t was = xmat_out(tr, xmat_col);
-        v = was < 0 ? (steps > 0 ? opx_get(opx_pk[tr], fl) : -1)    /* (OFF, up: heard again at its kept LEVEL) */
-                    : clamp(was + accel(EN_K4, steps, 100), -1, 100);
-        if (v == was)
-            return;
-        edit_undo_take(TSEL, 0x4000u | fo, UNDO_SOUND);
-        if (v < 0)
-            opx_edit(tr, fo, 0);                         /* (OFF: LEVEL kept) */
-        else if (was < 0)
-            opx_edit(tr, fo, 1);
-        else
-            opx_edit(tr, fl, v);
-        motion_undo_done(TSEL);
+    if (xmat_row >= 6u) {                                /* OUT: the operator's output level (xop_out) */
+        xop_out_turn(tr, xmat_col, steps);
         return;
     }
     f = xmat_field(xmat_row, xmat_col);
@@ -607,7 +658,7 @@ static void xmat_card(uint32_t slot, const char **label, char *val, const char *
     }
     if (xmat_row >= 6u) {
         *label = "OUT";
-        v = xmat_out(tr, xmat_col);
+        v = xop_out(tr, xmat_col);
         *icon = ICON_MIX;
         if (v < 0) {
             str_cpy(val, "OFF", 12);

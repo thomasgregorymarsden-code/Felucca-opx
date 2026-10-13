@@ -969,7 +969,7 @@ static void graph_opx_matrix(const track_t *t, uint16_t c, int pick)
             int32_t x0 = XM_X0 + (int32_t)k * XM_P, cx = x0 + 7, cy = yy + 7, v, sel = pick && r == xmat_row && k == xmat_col;
             uint16_t bg = sel ? T_ACCENT : r == k ? T_RAISE : T_SURF, fg = sel ? T_INK : c;
             if (r == 6u)                                 /* OUT: the operator's LEVEL while heard, else -1 */
-                v = xmat_out((uint32_t)(t - trk) % NTRK, k);
+                v = xop_out((uint32_t)(t - trk) % NTRK, k);
             else
                 v = opx_get(pk, opxf_ua(k, r));
             if (sel || r == k)
