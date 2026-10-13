@@ -393,8 +393,8 @@ static int page_visible(uint32_t i)
     if (PAGES[i].id[0] == P_FTYPE)                    /* FILTER (1.5, #104): ANALOG's */
         return ENGINES[TSEL->eng_req % NENGINES] == &ENG_ANALOG;
     if (PAGES[i].graph >= GR_FMOP && PAGES[i].graph <= GR_FMENV)
-        return TSEL->eng_req % NENGINES == ENGI_FM6 || (FELUCCA_OPX && TSEL->eng_req % NENGINES == ENGI_OPX);
-    if (PAGES[i].graph == GR_OPX3)                    /* (OPX fork) */
+        return TSEL->eng_req % NENGINES == ENGI_FM6;
+    if (PAGES[i].graph == GR_OPXL)                    /* (OPX fork) */
         return FELUCCA_OPX && TSEL->eng_req % NENGINES == ENGI_OPX;
 #if FELUCCA_SLICE
     if (PAGES[i].graph == GR_SLICES)

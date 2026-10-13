@@ -894,68 +894,6 @@ static void graph_fm6env(const track_t *t, uint16_t c)
     cv_text_r(228, 4 - GOY, &AF_S, b, T_TEXT, T_SURF);
 }
 
-#if FELUCCA_OPX
-/* OPX's operator pages (OPX fork, ui_fm6op.c): the six operators as level bars (a carrier the track's colour, a
- * modulator MID, the picked one ACCENT), their numbers under them; "ALG 05" / "ALG USR" top left, the picked
- * operator's pitch top right ("OP3 X2", "OP3 440.0 HZ"). The algorithm charts come later (docs/OPX_PLAN.md) */
-static void graph_opx(const track_t *t, uint16_t c)
-{
-    const uint8_t *pk = opx_pk[(t - trk) % NTRK];
-    uint32_t heard, a = xop_alg(t, &heard), k, sel = fop_op % 6u;
-    char b[24] = {'A', 'L', 'G', ' ', 0};
-    for (k = 0; k < 6u; k++) {
-        int32_t x = 18 + (int32_t)k * 36, lv = opx_get(pk, OPXF_OP(k, OPXF_OP1_LEVEL)), h = lv * 60 / 100;
-        uint16_t col = k == sel ? T_ACCENT : (heard >> k & 1u) ? c : T_MID;
-        char n[2] = {(char)('1' + k), 0};
-        cv_rrect(x, 24, 22, 62, 3, T_RAISE, T_SURF);
-        if (h)
-            cv_rrect(x, 86 - h, 22, h, 3, col, T_SURF);
-        cv_text_in(x, 90, 22, &AF_S, n, k == sel ? T_ACCENT : (heard >> k & 1u) ? T_TEXT : T_MID, T_SURF);
-    }
-    if (a == OPX_USER)
-        str_cpy(b + 4, "USR", 4);
-    else {
-        b[4] = (char)('0' + (a + 1u) / 10u);
-        b[5] = (char)('0' + (a + 1u) % 10u);
-        b[6] = 0;
-    }
-    cv_text(10, 4 - GOY, &AF_S, b, T_MID);
-    b[0] = 'O', b[1] = 'P', b[2] = (char)('1' + sel), b[3] = ' ';
-    if (opx_get(pk, OPXF_OP(sel, OPXF_OP1_FREQ_FIXED))) {
-        xop_hz(opx_get(pk, OPXF_OP(sel, OPXF_OP1_FIXED_FREQ)), b + 4);
-        str_cpy(b + str_len(b), " HZ", 4);
-    } else {
-        b[4] = 'X';
-        xop_coarse(opx_get(pk, OPXF_OP(sel, OPXF_OP1_COARSE)), b + 5);
-    }
-    cv_text_r(228, 4 - GOY, &AF_S, b, T_TEXT, T_SURF);
-}
-/* OP ENV / OPERATOR 2: the picked operator's envelope: up in ATK, down to SUS in DEC, held, down to 0 in REL; a
- * stage's width grows with its time code (4..60 px); the stage of the knob just turned ACCENT; "OP3" top left */
-static void graph_opxenv(const track_t *t, uint16_t c)
-{
-    const uint8_t *pk = opx_pk[(t - trk) % NTRK];
-    uint32_t sel = fop_op % 6u, hot = ui.hot_t ? xop_field(ui.hot_col & 3u) : 0u;
-    int32_t top = 24, bot = 88, x[5], y[5], k, sus = opx_get(pk, OPXF_OP(sel, OPXF_OP1_EG_SUS));
-    char b[4] = {'O', 'P', (char)('1' + sel), 0};
-#define XEGW(f) (4 + opx_get(pk, OPXF_OP(sel, f)) * 56 / 1023)
-    x[0] = 12, y[0] = bot;
-    x[1] = x[0] + XEGW(OPXF_OP1_EG_ATK), y[1] = top;
-    x[2] = x[1] + XEGW(OPXF_OP1_EG_DEC), y[2] = bot - sus * (bot - top) / 100;
-    x[4] = 228, y[4] = bot;
-    x[3] = x[4] - XEGW(OPXF_OP1_EG_REL), y[3] = y[2];
-#undef XEGW
-    cv_rect(PANEL_X0, bot + 2, PANEL_W, 1, T_RAISE);
-    cv_rect(x[3], top, 1, bot - top + 1, T_RAISE);   /* the key let go */
-    for (k = 0; k < 4; k++) {
-        uint32_t stg = k == 0 ? XO_ATK : k == 1 ? XO_DEC : k == 2 ? XO_SUS : XO_REL;
-        int on = hot == stg || (k == 3 && hot == XO_CRV) || (k == 1 && hot == XO_CRV);
-        cv_line_t(x[k], y[k], x[k + 1], y[k + 1], on ? T_ACCENT : c, 2);
-    }
-    cv_text(10, 4 - GOY, &AF_S, b, T_MID);
-}
-#endif
-
 #if FELUCCA_FM4
 /* DIGITAL's eight algorithms as FM charts, read from src/eng_digital.c's switch (alg) (ui_test.c checks
  * these tables against it). FM_CELL: per operator 1..4 its grid cell, the column in 24 px steps (bits 0..2)
@@ -1294,7 +1232,8 @@ static uint32_t graph_signature(void)
         h ^= (fm6_pgen[(t - trk) % NTRK] + 1u) * 2246822519u + (fop_op + 1u) * 40503u + (fop_stg + 1u) * 7919u;
 #if FELUCCA_OPX
     if ((pg->scope == SC_ENGINE || fop_page(pg->graph)) && t->eng_req % NENGINES == ENGI_OPX)   /* (OPX fork) */
-        h ^= (opx_pgen[(t - trk) % NTRK] + 1u) * 2246822519u + (fop_op + 1u) * 40503u + (uint32_t)t->p[P_E0] * 7919u;
+        h ^= (opx_pgen[(t - trk) % NTRK] + 1u) * 2246822519u + (fop_op + 1u) * 40503u + (uint32_t)t->p[P_E0] * 7919u +
+             (xop_sec + 1u) * 104729u + (xop_row() + 1u) * 1299709u;
 #endif
     if (pg->scope == SC_ENGINE && ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE) h ^= sample_wave.pos * 13u + sample_wave.key;
     if (pg->graph == GR_ROLL) {
@@ -1507,6 +1446,32 @@ static int32_t ev_value(int32_t y, const char *v, const char *unit, uint16_t fg,
     }
     return cv_text_r(x, y + LIST_TY, &AF_M, v, fg, bg);
 }
+#if FELUCCA_OPX
+/* EDIT > OPERATORS (OPX fork, ui_fm6op.c): the section's rows around the one picked, as AUTOMATION's: the name at the
+ * left (M), the value at the right with its unit; the picked row on THEME; a row that does not sound now DIM (USER's,
+ * when the track plays a preset algorithm; LEVEL 0) */
+static void graph_opxlist(void)
+{
+    uint32_t n = xop_nrows(xop_sec), cur = xop_row(), k;
+    int32_t row, first = clamp((int32_t)cur - 3, 0, (int32_t)n > 7 ? (int32_t)n - 7 : 0);
+    for (row = 0; row < 7 && (uint32_t)(first + row) < n; row++) {
+        int32_t y = LIST_Y(row), ratio;
+        const char *label, *unit;
+        char val[16];
+        int sel, on;
+        uint16_t bg;
+        k = (uint32_t)(first + row);
+        sel = k == cur;
+        bg = sel ? T_THEME : T_SURF;
+        on = xop_rowtext(k, &label, val, &unit, &ratio);
+        if (sel)
+            cv_rrect(6, y, 228, 16, 4, T_THEME, T_SURF);
+        GFX_HOOK_ALIGN(0, y, 0, y + 16, AL_V, "list row text centred up/down");
+        cv_text_on(14, y + LIST_TY, &AF_M, label, sel ? T_INK : on ? T_MID : T_DIM, bg);
+        ev_value(y, val, unit, sel ? T_INK : on ? T_TEXT : T_DIM, bg);
+    }
+}
+#endif
 /* SEQ > AUTOMATION (ui_events.c): the track's rows around the one selected: PLAY first (ON / OFF and the counts),
  * QUANTIZE (ON / OFF and the steps nudged), then a row each: the kind (LOCK in the accent, AUTO; STEP: a step's CHANCE,
  * RATCH, NUDGE or VEL, a NUDGE or VEL that does not play DIM), the step, the name, the value at the right; the last row
@@ -2391,20 +2356,15 @@ static void draw_graph(void)
 #endif
         case GR_FMOP:
         case GR_FMOP2:
-#if FELUCCA_OPX
-            if (xop_ok()) { pg->graph == GR_FMOP ? graph_opx(t, c) : graph_opxenv(t, c); break; }
-#endif
             if (fop_ok()) graph_fm6(t, c, fop_op % 6u);   /* the chart, the operator picked */
             break;
         case GR_FMENV:
-#if FELUCCA_OPX
-            if (xop_ok()) { graph_opxenv(t, c); break; }
-#endif
             if (fop_ok()) graph_fm6env(t, c);
             break;
 #if FELUCCA_OPX
-        case GR_OPX3:
-            if (xop_ok()) graph_opx(t, c);
+        case GR_OPXL:
+            cv_oy = 0;
+            if (xop_ok()) graph_opxlist();
             break;
 #endif
         default:

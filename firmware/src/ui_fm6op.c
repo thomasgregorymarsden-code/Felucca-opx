@@ -29,7 +29,7 @@ static const uint8_t FO_PAGE[3][4] = {
 /* per field: its byte in an operator's 21 (RATE / LEVEL: + the stage) */
 static const uint8_t FO_OFF[10] = {0, 0, FP_FC, FP_FF, FP_OL, FP_MODE, FP_DET, FP_KVS, FP_R1, FP_L1};
 
-static int fop_page(uint32_t g) { return (g >= GR_FMOP && g <= GR_FMENV) || g == GR_OPX3; }   /* (GR_OPX3: OPX fork) */
+static int fop_page(uint32_t g) { return (g >= GR_FMOP && g <= GR_FMENV) || g == GR_OPXL; }   /* (GR_OPXL: OPX fork) */
 static int fop_ok(void) { return TSEL->eng_req % NENGINES == ENGI_FM6; }
 static uint32_t fop_field(uint32_t slot)
 {
@@ -192,39 +192,80 @@ static int fop_card(uint32_t slot, const char **label, char *val, const char **u
 
 #if FELUCCA_OPX
 /* ------------------------------------------------------------------------------------------- OPX (OPX fork) ---
- * The same pages for an OPX track, over its patch (opx_patch.c opx_pk, the packed record), plus OPERATOR 3 (OPX only).
- * KNOB 1 is the operator (shared with FM6's pages: fop_op), KNOB 2..4:
- *   OPERATOR    OP  RATIO (1/128 .. 32; FIXED: the frequency, a semitone a detent)  FINE (x0.500 .. x2.000; FIXED: a cent)  LEVEL
- *   OPERATOR 2  OP  REL  CURVE (LIN 1..9 EXP)  FB
- *   OP ENV      OP  ATK  DEC  SUS
- *   OPERATOR 3  OP  MODE (RATIO / FIXED)  DTUN (cents)  VEL (level velocity)
- * A detent writes one field (opx_edit: the patch becomes the track's own, SLOT OWN), one undo per knob gesture. The
- * macros (EDIT 1 / 2) still apply on top, as FM6's. */
-enum { XO_OP, XO_RATIO, XO_FINE, XO_LVL, XO_ATK, XO_DEC, XO_SUS, XO_REL, XO_CRV, XO_FB, XO_MODE, XO_DTUN, XO_VEL };
-static const uint8_t XO_PAGE[4][4] = {
-    {XO_OP, XO_RATIO, XO_FINE, XO_LVL},              /* OPERATOR */
-    {XO_OP, XO_REL, XO_CRV, XO_FB},                  /* OPERATOR 2 */
-    {XO_OP, XO_ATK, XO_DEC, XO_SUS},                 /* OP ENV */
-    {XO_OP, XO_MODE, XO_DTUN, XO_VEL},               /* OPERATOR 3 */
-};
+ * EDIT > OPERATORS, an OPX track's one page over its patch (opx_patch.c opx_pk, the packed record): a list.
+ *   KNOB 1  the section: PITCH, EG, OSC, USER (the user algorithm), ALGO
+ *   KNOB 2  the operator (OP 1..6; shared with FM6's pages: fop_op; ALGO has none)
+ *   KNOB 3  the row (each section keeps its own)
+ *   KNOB 4  the row's value
+ * The panel shows the section's rows around the one picked (7 at a time, as AUTOMATION's), each with its value. A
+ * detent of KNOB 4 writes one field (opx_edit: the patch becomes the track's own, SLOT OWN), one undo per knob
+ * gesture (SAVE held). USER's rows are the picked operator's: what it sends to each other operator, its self feedback
+ * and whether it is heard (DIRECT OUT); they sound with ALG USR (or a patch whose ALG is USER), else they show DIM.
+ * The macros (EDIT 1 / 2) still apply on top, as FM6's. */
+enum { XS_PITCH, XS_EG, XS_OSC, XS_USER, XS_ALGO, XS_N };
+enum { XR_MODE, XR_RATIO, XR_FINE, XR_DTUN, XR_TRANS, XR_LVL, XR_ATK, XR_DEC, XR_SUS, XR_REL, XR_CRV, XR_VEL, XR_FB,
+       XR_TO, XR_SELF, XR_OUT, XR_ALG, XR_ALGFB };
+static const char *const XS_NAME[XS_N] = {"PITCH", "EG", "OSC", "USER", "ALGO"};
+static const uint8_t XS_ROWS[XS_N][7] = {
+    {XR_MODE, XR_RATIO, XR_FINE, XR_DTUN, XR_TRANS, 0xFF, 0xFF},
+    {XR_LVL, XR_ATK, XR_DEC, XR_SUS, XR_REL, XR_CRV, XR_VEL},
+    {XR_FB, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+    {XR_TO, XR_TO, XR_TO, XR_TO, XR_TO, XR_SELF, XR_OUT},   /* (XR_TO: the five other operators, in order) */
+    {XR_ALG, XR_ALGFB, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
+static uint8_t xop_sec;                              /* KNOB 1 */
+static uint8_t xop_rows[XS_N];                       /* KNOB 3, per section */
+
 static int xop_ok(void) { return TSEL->eng_req % NENGINES == ENGI_OPX; }
-static uint32_t xop_field(uint32_t slot)
+static uint32_t xop_nrows(uint32_t sec)
 {
-    uint32_t g = cur_page()->graph;
-    return XO_PAGE[g == GR_FMOP2 ? 1u : g == GR_FMENV ? 2u : g == GR_OPX3 ? 3u : 0u][slot & 3u];
+    uint32_t n = 0;
+    while (n < 7u && XS_ROWS[sec % XS_N][n] != 0xFFu)
+        n++;
+    return n;
 }
+static uint32_t xop_row(void) { return xop_rows[xop_sec % XS_N] < xop_nrows(xop_sec) ? xop_rows[xop_sec % XS_N] : 0u; }
 static int xop_fixed(uint32_t tr) { return opx_get(opx_pk[tr % NTRK], OPXF_OP(fop_op % 6u, OPXF_OP1_FREQ_FIXED)) != 0; }
-/* the patch field of x for the selected operator */
-static uint32_t xop_f(uint32_t x, uint32_t tr)
+/* row r of section sec for the picked operator: its kind (XR_*), its field; USER's XR_TO: *dst the operator it sends to */
+static uint32_t xop_rowf(uint32_t sec, uint32_t r, uint32_t tr, uint32_t *field, uint32_t *dst)
 {
-    static const uint16_t F[13] = {0, OPXF_OP1_COARSE, OPXF_OP1_FINE, OPXF_OP1_LEVEL, OPXF_OP1_EG_ATK, OPXF_OP1_EG_DEC,
-                                   OPXF_OP1_EG_SUS, OPXF_OP1_EG_REL, OPXF_OP1_EG_CURVE, OPXF_OP1_FM_FB,
-                                   OPXF_OP1_FREQ_FIXED, OPXF_OP1_DETUNE, OPXF_OP1_LMOD_VEL};
-    if ((x == XO_RATIO || x == XO_FINE) && xop_fixed(tr))
-        return OPXF_OP(fop_op % 6u, OPXF_OP1_FIXED_FREQ);
-    return OPXF_OP(fop_op % 6u, F[x % 13u]);
+    static const uint16_t F[XR_TO] = {OPXF_OP1_FREQ_FIXED, OPXF_OP1_COARSE, OPXF_OP1_FINE, OPXF_OP1_DETUNE,
+                                      OPXF_OP1_TRANS, OPXF_OP1_LEVEL, OPXF_OP1_EG_ATK, OPXF_OP1_EG_DEC,
+                                      OPXF_OP1_EG_SUS, OPXF_OP1_EG_REL, OPXF_OP1_EG_CURVE, OPXF_OP1_LMOD_VEL,
+                                      OPXF_OP1_FM_FB};
+    uint32_t k = XS_ROWS[sec % XS_N][r % 7u], op = fop_op % 6u;
+    *dst = 0;
+    if (k < XR_TO) {
+        if ((k == XR_RATIO || k == XR_FINE) && xop_fixed(tr))
+            *field = OPXF_OP(op, OPXF_OP1_FIXED_FREQ);
+        else
+            *field = OPXF_OP(op, F[k]);
+    } else if (k == XR_TO) {
+        *dst = r < op ? r : r + 1u;                  /* (the five others, in order) */
+        *field = opxf_ua(op, *dst);
+    } else if (k == XR_SELF) {
+        *field = opxf_ua(op, op);
+    } else if (k == XR_OUT) {
+        *field = OPXF_UA_OUT(op);
+    } else {
+        *field = k == XR_ALG ? OPXF_ALGO : OPXF_PROG_ALG_FB;
+    }
+    return k;
 }
-/* f x 2^(n / div), at least one step a detent */
+/* the algorithm a track plays (0..39, 40 USER) and its heard operators (bit k: op k+1), as opx_build takes them */
+static uint32_t xop_alg(const track_t *t, uint32_t *heard)
+{
+    const uint8_t *pk = opx_pk[(t - trk) % NTRK];
+    int32_t e = t->p[P_E0];
+    uint32_t a = e >= 1 && e <= 41 ? (uint32_t)e - 1u : (uint32_t)opx_get(pk, OPXF_ALGO), k, out = 0;
+    for (k = 0; k < 6u; k++)
+        out |= (uint32_t)opx_get(pk, OPXF_UA_OUT(k)) << k;
+    if (a == OPX_USER && !out)
+        a = (uint32_t)opx_get(pk, OPXF_ALGO) == OPX_USER ? 0u : (uint32_t)opx_get(pk, OPXF_ALGO);
+    *heard = a == OPX_USER ? out : OPX_ALG[a % OPX_NALG].out;
+    return a;
+}
+
+/* f x (num / den)^n, at least one step a detent */
 static int32_t xop_pow(int32_t f, int32_t n, uint32_t num, uint32_t den)
 {
     for (; n > 0; n--) {
@@ -239,20 +280,28 @@ static int32_t xop_pow(int32_t f, int32_t n, uint32_t num, uint32_t den)
 }
 static void xop_knob(uint32_t slot, int32_t steps)
 {
-    uint32_t x = xop_field(slot), tr = song.sel % NTRK, f;
+    uint32_t tr = song.sel % NTRK, f, dst, k;
     int32_t v;
-    if (x == XO_OP) {
+    if (slot == 0u) {
+        xop_sec = (uint8_t)clamp((int32_t)xop_sec + steps, 0, XS_N - 1);
+        return;
+    }
+    if (slot == 1u) {
         fop_op = (uint8_t)clamp((int32_t)fop_op + steps, 0, 5);
         return;
     }
-    f = xop_f(x, tr);
+    if (slot == 2u) {
+        xop_rows[xop_sec % XS_N] = (uint8_t)clamp((int32_t)xop_row() + steps, 0, (int32_t)xop_nrows(xop_sec) - 1);
+        return;
+    }
+    k = xop_rowf(xop_sec, xop_row(), tr, &f, &dst);
     v = opx_get(opx_pk[tr], f);
     if (f == OPXF_OP(fop_op % 6u, OPXF_OP1_FIXED_FREQ))
-        v = x == XO_RATIO ? xop_pow(v, steps, 1059463u, 1000000u) : xop_pow(v, steps, 1000578u, 1000000u);
-    else if (x == XO_MODE)
+        v = k == XR_RATIO ? xop_pow(v, steps, 1059463u, 1000000u) : xop_pow(v, steps, 1000578u, 1000000u);
+    else if (k == XR_MODE || k == XR_OUT)
         v = steps > 0;
     else
-        v += accel(EN_K1 + slot, steps, OPX_FIELDS[f].hi - OPX_FIELDS[f].lo);
+        v += accel(EN_K4, steps, OPX_FIELDS[f].hi - OPX_FIELDS[f].lo);
     v = clamp(v, OPX_FIELDS[f].lo, OPX_FIELDS[f].hi);
     if (v == opx_get(opx_pk[tr], f))
         return;
@@ -260,6 +309,7 @@ static void xop_knob(uint32_t slot, int32_t steps)
     opx_edit(tr, f, v);
     motion_undo_done(TSEL);
 }
+
 /* TIME10 code c as text: "0", "4.5" MS, "120" MS, "1.25" S, "12.5" S */
 static void xop_time(int32_t c, char *val, const char **unit)
 {
@@ -311,105 +361,141 @@ static void xop_hz(int32_t f, char *s)
         str_cpy(s + str_len(s), "K", 2);
     }
 }
-static int xop_card(uint32_t slot, const char **label, char *val, const char **unit, int32_t *ratio, uint32_t *icon)
+/* row r of the section shown: its label, value (12), unit, gauge (0..1000, -1 none); 0 = it does not sound now (DIM) */
+static int xop_rowtext(uint32_t r, const char **label, char *val, const char **unit, int32_t *ratio)
 {
-    static const char *const LBL[13] = {"OP", "RATIO", "FINE", "LEVEL", "ATK", "DEC", "SUS", "REL", "CURVE", "FB",
-                                        "MODE", "DTUN", "VEL"};
-    static const uint8_t ICN[13] = {ICON_ALGORITHM, ICON_RATIO, ICON_TUNE, ICON_LEVEL, ICON_ATTACK, ICON_DECAY,
-                                    ICON_SUSTAIN, ICON_RELEASE, ICON_ENV, ICON_FEEDBACK, ICON_RATIO, ICON_DETUNE,
-                                    ICON_ACCENT};
-    uint32_t x = xop_field(slot), tr = song.sel % NTRK, f;
-    int32_t v, lo, hi;
-    *label = LBL[x % 13u];
-    *icon = ICN[x % 13u];
+    static const char *const LBL[] = {"MODE", "RATIO", "FINE", "DTUN", "TRANS", "LEVEL", "ATK", "DEC", "SUS", "REL",
+                                      "CURVE", "VEL", "FB", "TO OP", "SELF", "OUT", "ALG", "ALG FB"};
+    static char to[8];
+    uint32_t tr = song.sel % NTRK, f, dst, k = xop_rowf(xop_sec, r, tr, &f, &dst), heard;
+    int32_t v = opx_get(opx_pk[tr], f), lo = OPX_FIELDS[f].lo, hi = OPX_FIELDS[f].hi;
+    int on = 1;
+    *label = LBL[k];
     *unit = "";
-    if (x == XO_OP) {
-        fmt_int(val, (int32_t)fop_op + 1);
-        *unit = "/6";
-        *ratio = (int32_t)fop_op * 200;
-        return 1;
-    }
-    f = xop_f(x, tr);
-    v = opx_get(opx_pk[tr], f);
-    lo = OPX_FIELDS[f].lo;
-    hi = OPX_FIELDS[f].hi;
     *ratio = (int32_t)((int64_t)(v - lo) * 1000 / (hi - lo));
     fmt_int(val, v);
-    switch (x) {
-    case XO_RATIO:
-    case XO_FINE:
+    switch (k) {
+    case XR_MODE:
+        str_cpy(val, v ? "FIXED" : "RATIO", 12);
+        *ratio = -1;
+        break;
+    case XR_RATIO:
+    case XR_FINE:
         if (f == OPXF_OP(fop_op % 6u, OPXF_OP1_FIXED_FREQ)) {
-            if (x == XO_RATIO)
-                *label = "FIXED";
-            xop_hz(v, val);
+            if (k == XR_RATIO) {
+                *label = "FREQ";
+                xop_hz(v, val);
+            } else {                                 /* FINE: the same frequency to 0.01 Hz (what a cent moves) */
+                fop_dec(val, (uint32_t)v / 100u, (uint32_t)v % 100u, 2u);
+            }
             *unit = "HZ";
             *ratio = -1;
-        } else if (x == XO_RATIO) {
+        } else if (k == XR_RATIO) {
             xop_coarse(v, val);
         } else {
             fop_dec(val, (uint32_t)v / 1000u, (uint32_t)v % 1000u / 10u, 2u);   /* x0.001: shown to 0.01 */
             *unit = "X";
         }
-        return 1;
-    case XO_LVL:
-        *unit = "%";
-        return v != 0;
-    case XO_SUS:
-    case XO_FB:
-    case XO_VEL:
-        *unit = "%";
-        return 1;
-    case XO_ATK:
-    case XO_DEC:
-    case XO_REL:
+        break;
+    case XR_DTUN:
+    case XR_TRANS:
+        val[0] = v > 0 ? '+' : 0;
+        fmt_int(val + (v > 0), v);
+        *unit = k == XR_DTUN ? "CT" : "ST";
+        break;
+    case XR_ATK:
+    case XR_DEC:
+    case XR_REL:
         xop_time(v, val, unit);
-        return 1;
-    case XO_CRV:
+        break;
+    case XR_CRV:
         if (!v)
             str_cpy(val, "LIN", 12);
         else if (v == 10)
             str_cpy(val, "EXP", 12);
-        return 1;
-    case XO_MODE:
-        str_cpy(val, v ? "FIXED" : "RATIO", 12);
+        break;
+    case XR_LVL:
+        on = v != 0;
+        *unit = "%";
+        break;
+    case XR_TO:
+        str_cpy(to, "TO OP", sizeof to);
+        to[5] = (char)('1' + dst);
+        to[6] = 0;
+        *label = to;
+        *unit = "%";
+        on = xop_alg(TSEL, &heard) == OPX_USER;
+        break;
+    case XR_SELF:
+        *unit = "%";
+        on = xop_alg(TSEL, &heard) == OPX_USER;
+        break;
+    case XR_OUT:
+        str_cpy(val, v ? "ON" : "OFF", 12);
         *ratio = -1;
-        return 1;
-    default:                                         /* XO_DTUN */
-        val[0] = v > 0 ? '+' : 0;
-        fmt_int(val + (v > 0), v);
-        *unit = "CT";
+        on = xop_alg(TSEL, &heard) == OPX_USER;
+        break;
+    case XR_ALG:
+        if (v == (int32_t)OPX_USER)
+            str_cpy(val, "USER", 12);
+        else
+            fmt_int(val, v + 1);
+        break;
+    default:                                         /* XR_SUS XR_VEL XR_FB XR_ALGFB */
+        *unit = "%";
+    }
+    return on;
+}
+static int xop_card(uint32_t slot, const char **label, char *val, const char **unit, int32_t *ratio, uint32_t *icon)
+{
+    static const uint8_t ICN[] = {ICON_RATIO, ICON_RATIO, ICON_TUNE, ICON_DETUNE, ICON_TRANSPOSE, ICON_LEVEL,
+                                  ICON_ATTACK, ICON_DECAY, ICON_SUSTAIN, ICON_RELEASE, ICON_ENV, ICON_ACCENT,
+                                  ICON_FEEDBACK, ICON_MOD, ICON_FEEDBACK, ICON_MIX, ICON_ALGORITHM, ICON_FEEDBACK};
+    uint32_t tr = song.sel % NTRK, f, dst, n = xop_nrows(xop_sec);
+    *unit = "";
+    *ratio = -1;
+    if (slot == 0u) {
+        *label = "PAGE";
+        str_cpy(val, XS_NAME[xop_sec % XS_N], 12);
+        *ratio = (int32_t)xop_sec * 1000 / (XS_N - 1);
+        *icon = ICON_ENV;
         return 1;
     }
-}
-/* the algorithm a track plays (0..39, 40 USER) and its heard operators (bit k: op k+1), as opx_build takes them */
-static uint32_t xop_alg(const track_t *t, uint32_t *heard)
-{
-    const uint8_t *pk = opx_pk[(t - trk) % NTRK];
-    int32_t e = t->p[P_E0];
-    uint32_t a = e >= 1 && e <= 41 ? (uint32_t)e - 1u : (uint32_t)opx_get(pk, OPXF_ALGO), k, out = 0;
-    for (k = 0; k < 6u; k++)
-        out |= (uint32_t)opx_get(pk, OPXF_UA_OUT(k)) << k;
-    if (a == OPX_USER && !out)
-        a = (uint32_t)opx_get(pk, OPXF_ALGO) == OPX_USER ? 0u : (uint32_t)opx_get(pk, OPXF_ALGO);
-    *heard = a == OPX_USER ? out : OPX_ALG[a % OPX_NALG].out;
-    return a;
+    if (slot == 1u) {
+        *label = "OP";
+        fmt_int(val, (int32_t)fop_op + 1);
+        *unit = "/6";
+        *ratio = (int32_t)fop_op * 200;
+        *icon = ICON_ALGORITHM;
+        return xop_sec != XS_ALGO;                    /* (ALGO: the patch's, no operator) */
+    }
+    if (slot == 2u) {
+        *label = "ROW";
+        fmt_int(val, (int32_t)xop_row() + 1);
+        *unit = n == 7u ? "/7" : n == 5u ? "/5" : n == 2u ? "/2" : "/1";
+        *ratio = n > 1u ? (int32_t)(xop_row() * 1000u / (n - 1u)) : 0;
+        *icon = ICON_STEPS;
+        return 1;
+    }
+    *icon = ICN[xop_rowf(xop_sec, xop_row(), tr, &f, &dst)];
+    return xop_rowtext(xop_row(), label, val, unit, ratio);
 }
 #endif
 
-/* the dispatch: an FM6 or an OPX track (OPERATOR 3: OPX only) */
+/* the dispatch: FM6's pages, or OPX's OPERATORS (OPX fork) */
 static int fop_any_ok(void)
 {
 #if FELUCCA_OPX
-    if (xop_ok())
-        return 1;
+    if (cur_page()->graph == GR_OPXL)
+        return xop_ok();
 #endif
-    return fop_ok() && cur_page()->graph != GR_OPX3;
+    return fop_ok();
 }
 static void fop_any_knob(uint32_t slot, int32_t steps)
 {
 #if FELUCCA_OPX
-    if (xop_ok()) {
-        if (steps)
+    if (cur_page()->graph == GR_OPXL) {
+        if (xop_ok() && steps)
             xop_knob(slot, steps);
         return;
     }
@@ -419,7 +505,7 @@ static void fop_any_knob(uint32_t slot, int32_t steps)
 static int fop_any_card(uint32_t slot, const char **label, char *val, const char **unit, int32_t *ratio, uint32_t *icon)
 {
 #if FELUCCA_OPX
-    if (xop_ok())
+    if (cur_page()->graph == GR_OPXL)
         return xop_card(slot, label, val, unit, ratio, icon);
 #endif
     return fop_card(slot, label, val, unit, ratio, icon);

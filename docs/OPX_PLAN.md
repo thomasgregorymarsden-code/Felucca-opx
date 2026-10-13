@@ -10,7 +10,7 @@ OPX is an altered-FM engine modelled on the Korg opsix, built into Felucca as en
 | M1 | Six operators in FM mode (sine), all 40 algorithms plus USER, ratio and fixed pitch, per-operator FB, ALG FB loops, per-operator ATK/DEC/SUS/REL/CURVE envelopes, level velocity; device macros; cost against FM6 | **done (on-device listening and cost pending)** |
 | M1.5 | Operator editing on the device; each track's patch kept in the stored format; saved with projects and the autosave (pulled forward from M3/M4) | **done** |
 | M2 | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; the 23 waveforms and WIDTH; level key tracking | |
-| M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page, including the USER algorithm matrix; algorithm charts on the device | |
+| M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page; algorithm charts on the device | |
 | M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |
 | M5 | Main filter, effects 1–3, virtual patch, as far as the processor time allows | |
 
@@ -25,16 +25,23 @@ OPX is an altered-FM engine modelled on the Korg opsix, built into Felucca as en
 
 ## Editing on the device (M1.5)
 
-On an OPX track the EDIT pages after EDIT 2 edit the track's own patch. Knob 1 picks the operator; knobs 2–4 edit:
+On an OPX track, the page after EDIT 2 is **OPERATORS**: a scrolling list over the track's own patch, styled like AUTOMATION's (7 rows on screen, the selected row highlighted, value on the right).
 
-| Page | Knob 2 | Knob 3 | Knob 4 |
-|---|---|---|---|
-| OPERATOR | RATIO (1/128–32; in FIXED mode, the frequency, a semitone a detent) | FINE (×0.50–×2.00; in FIXED mode, a cent a detent) | LEVEL |
-| OP ENV | ATK | DEC | SUS |
-| OPERATOR 2 | REL | CURVE (LIN, 1–9, EXP) | FB |
-| OPERATOR 3 | MODE (RATIO / FIXED) | DTUN (cents) | VEL |
+| Knob | Selects |
+|---|---|
+| 1 | the section (PAGE): PITCH, EG, OSC, USER, ALGO |
+| 2 | the operator (1–6; ALGO has none) |
+| 3 | the row; each section remembers its own |
+| 4 | the row's value |
 
-- **The panel:** OPERATOR and OPERATOR 3 show six level bars (heard operators in the track's colour, the picked one in the accent colour) with the algorithm number and the picked operator's ratio or frequency. OP ENV and OPERATOR 2 show the picked operator's envelope.
+| Section | Rows (for the selected operator) |
+|---|---|
+| PITCH | MODE (RATIO / FIXED), RATIO (1/128–32) or FREQ in FIXED mode (a semitone per detent), FINE (×0.50–×2.00; in FIXED mode a cent per detent, shown to 0.01 Hz), DTUN (cents), TRANS (semitones) |
+| EG | LEVEL, ATK, DEC, SUS, REL, CURVE (LIN, 1–9, EXP), VEL |
+| OSC | FB (M2 adds MODE, WAVE and the mode settings here) |
+| USER | TO OP n for the five other operators, SELF (self feedback), OUT (heard). These rows are dimmed unless the track plays ALG USR. |
+| ALGO | ALG (the patch's algorithm, 1–40 or USER), ALG FB |
+
 - **Editing makes the patch OWN.** SLOT then shows OWN, and SLOT F1–F7 loads a factory patch over it.
 - **Undo:** holding SAVE undoes the last knob gesture, patch and SLOT together; holding it again redoes.
 - **The macros on EDIT 1/2** still apply on top of the patch.

@@ -742,6 +742,7 @@ enum { S_HOME, S_HOME_IDLE, S_MESSAGE, S_MESSAGE_KEY, S_MESSAGE_NOFILE, S_PRESET
        S_EDIT_ANALOG, S_EDIT_DIGITAL, S_OP_ENV, S_EDIT_WHEEL, S_EDIT_SAMPLE, S_EDIT_GRAIN, S_EDIT_PHYS,
        S_ALG1, S_ALG2, S_ALG3, S_ALG4, S_ALG5, S_ALG6, S_ALG7, S_ALG8, S_OP_LEVEL,
        S_FM6_ALG1, S_FM6_ALG5, S_FM6_ALG22, S_FM6_ALG32, S_FM6_OP, S_FM6_OP_FIXED, S_FM6_OP2, S_FM6_OP_ENV, S_FM6_OP_ENV_REL,
+       S_OPX_PITCH, S_OPX_EG, S_OPX_USER, S_OPX_FIXED, S_OPX_ALGO,
        S_CONFIRM_SEQ, S_CONFIRM_PROJ, S_CONFIRM_USER, S_CONFIRM_PAT, S_CONFIRM_MOTION, S_CONFIRM_ERASE,
        S_MENU, S_MENU_SPEAKER, S_ABOUT, S_ABOUT_REC, S_ABOUT_CREDITS, S_ABOUT_END, S_UBOOT, S_CALIBRATION, S_SPLASH,
        S_BATT0, S_BATT1, S_BATT2, S_BATT3, S_BATT_USB, S_MOTION_REC, S_MOTION_OFF, S_MOTION_CARD, S_SONG_HOME,
@@ -768,7 +769,8 @@ static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "mes
     "phrases", "project", "tools", "song_empty", "song", "step", "auto_steps", "auto_add_chance", "automation", "drum",
     "drum_hand", "drum_cym", "mixer", "mixer_from_home", "mixer_pan", "env", "env_dest", "lfo", "mod", "fx", "slicer", "dly", "scl", "chord", "chord_wide", "chord_off", "chord_kit", "arp",
     "voice", "clock", "menu_midi", "edit_analog", FELUCCA_FM4 ? "edit_digital" : "edit_fm6", "op_env", "edit_wheel", "edit_sample",
-    "edit_grain", "edit_phys", "alg_1", "alg_2", "alg_3", "alg_4", "alg_5", "alg_6", "alg_7", "alg_8", "op_level", "fm6_alg_01", "fm6_alg_05", "fm6_alg_22", "fm6_alg_32", "fm6_op", "fm6_op_fixed", "fm6_op2", "fm6_op_env", "fm6_op_env_rel", "confirm_seq", "confirm_project", "confirm_user", "confirm_pattern",
+    "edit_grain", "edit_phys", "alg_1", "alg_2", "alg_3", "alg_4", "alg_5", "alg_6", "alg_7", "alg_8", "op_level", "fm6_alg_01", "fm6_alg_05", "fm6_alg_22", "fm6_alg_32", "fm6_op", "fm6_op_fixed", "fm6_op2", "fm6_op_env", "fm6_op_env_rel",
+    "opx_pitch", "opx_eg", "opx_user", "opx_fixed", "opx_algo", "confirm_seq", "confirm_project", "confirm_user", "confirm_pattern",
     "confirm_motion", "confirm_erase", "menu", "menu_speaker", "about", "about_rec", "about_credits", "about_end", "uboot", "calibration", "splash",
     "batt_0", "batt_1", "batt_2", "batt_3", "batt_usb", "motion_rec", "motion_off", "motion_card", "song_home",
     "perform_peek", "perform_held", "perform_wait", "perform_harm", "perform_mod", "perform_assign", "menu_hold", "menu_leds", "menu_end", "menu_system", "menu_slide", "reverb_spring",
@@ -1221,6 +1223,20 @@ static void setup(int s)
         break;
     case S_FM6_OP_ENV: eng(ENGI_FM6); fop_op = 0; fop_stg = 1; go_title("OP ENV"); ui.hot_col = 2; ui.hot_t = 30; break;
     case S_FM6_OP_ENV_REL: eng(ENGI_FM6); fop_op = 5; fop_stg = 3; go_title("OP ENV"); break;
+#if FELUCCA_OPX
+    /* OPX's OPERATORS list (OPX fork, ui_fm6op.c): PITCH on OP 2 (row RATIO, just turned); EG on OP 3 scrolled to VEL
+     * (rows 1..7 on show); USER on OP 1 with ALG USR; OP 5 FIXED at 1234.56 Hz; ALGO */
+    case S_OPX_PITCH: eng(ENGI_OPX); opx_poll(); xop_sec = XS_PITCH; fop_op = 1; xop_rows[XS_PITCH] = 1;
+        go_title("OPERATORS"); ui.hot_col = 3; ui.hot_t = 30; break;
+    case S_OPX_EG: eng(ENGI_OPX); opx_poll(); xop_sec = XS_EG; fop_op = 2; xop_rows[XS_EG] = 6; go_title("OPERATORS"); break;
+    case S_OPX_USER: eng(ENGI_OPX); opx_poll(); xop_sec = XS_USER; fop_op = 0; xop_rows[XS_USER] = 5;
+        TSEL->p[P_E0] = 41; opx_edit(song.sel, OPXF_UA_OUT(0), 1); opx_edit(song.sel, opxf_ua(0, 1), 35);
+        go_title("OPERATORS"); break;
+    case S_OPX_FIXED: eng(ENGI_OPX); opx_poll(); xop_sec = XS_PITCH; fop_op = 4; xop_rows[XS_PITCH] = 1;
+        opx_edit(song.sel, OPXF_OP(4, OPXF_OP1_FREQ_FIXED), 1); opx_edit(song.sel, OPXF_OP(4, OPXF_OP1_FIXED_FREQ), 123456);
+        go_title("OPERATORS"); ui.hot_col = 3; ui.hot_t = 30; break;
+    case S_OPX_ALGO: eng(ENGI_OPX); opx_poll(); xop_sec = XS_ALGO; xop_rows[XS_ALGO] = 0; go_title("OPERATORS"); break;
+#endif
     case S_CONFIRM_SEQ: ui.confirm = CF_CLEAR_SEQ; ui.confirm_trk = 2; break;
     case S_CONFIRM_PROJ: ui.confirm = CF_OVR_PROJ; ui.confirm_trk = 0; break;
     case S_CONFIRM_USER: song.playing = 0; up_store(6, "A VERY LONG SOUND NAME"); ui.confirm = CF_OVR_USER; ui.confirm_trk = 6; break;

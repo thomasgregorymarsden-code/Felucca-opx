@@ -13,6 +13,7 @@
 static const char H_EDIT[] = "[K1-4]SOUND[EDIT]HOLD: ENGINES";
 static const char H_LANES[] = "[K1-4]LANE LEVELS[EDIT]HOLD: MUTES";
 static const char H_FMOP[] = "[K1]OPERATOR[SAVE]HOLD: UNDO";
+static const char H_OPXL[] = "[K1]PAGE[K2]OP[K3]ROW";          /* (OPX fork: OPERATORS) */
 static const struct { const char *title, *hint; } HELP_PAGE[] = {
     {"ENV", "[K1-4]A D S R[ENV]ENV DEST"},
     {"ENV DEST", "[K1-4]ENV AMOUNTS[ENV]ENV"},
@@ -38,7 +39,7 @@ static const struct { const char *title, *hint; } HELP_PAGE[] = {
     {"OPERATOR", H_FMOP},
     {"OP ENV", H_FMOP},
     {"OPERATOR 2", H_FMOP},
-    {"OPERATOR 3", H_FMOP},                                  /* (OPX fork: OPX's MODE DTUN VEL) */
+    {"OPERATORS", H_OPXL},                                   /* (OPX fork) */
     {"VOICE", "[K1]POLY, MONO[K2]GLIDE"},
     {"VOICE 2", "[K2]DETUNE[K3]PAN[K4]MUTE"},
     {"VOICE 3", "[K1]STEREO SPREAD[EDIT]EDIT 1"},
