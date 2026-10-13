@@ -73,6 +73,9 @@ static const char *const N_ENGNAME[] = {"ANALOG", FELUCCA_FM4 ? "DIGITAL" : "-",
 #if FELUCCA_SLICE
                                              "SLICE",
 #endif
+#if FELUCCA_OPX
+                                             "-", "OPX",      /* 14 reserved, 15 OPX (OPX fork) */
+#endif
 };
 
 #define PD(l, f, mn, mx, df) {l, f, mn, mx, df, 0, 0}

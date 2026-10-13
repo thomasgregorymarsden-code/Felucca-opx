@@ -40,6 +40,9 @@ static uint8_t eng_mem_owner[NPART];       /* engine index + 1 whose state is in
 #if FELUCCA_SLICE
 #include "eng_slice.c"
 #endif
+#if FELUCCA_OPX
+#include "eng_opx.c"             /* OPX: the altered-FM engine (OPX fork; M0: a two-operator placeholder) */
+#endif
 
 /* the editor protocol, user presets and projects store these indices: append, never reorder */
 static const engine_t *const ENGINES[NENGINES] = {
@@ -62,6 +65,10 @@ static const engine_t *const ENGINES[NENGINES] = {
     &ENG_FM6,                    /* 12 (ENGI_FM6) */
 #if FELUCCA_SLICE
     &ENG_SLICE,                  /* 13 (FELUCCA_SLICE=0 builds without it) */
+#endif
+#if FELUCCA_OPX
+    &ENG_ROW14,                  /* 14 (ENGI_ROW14, OPX fork): reserved, the MIDI LEARN map's favourites row */
+    &ENG_OPX,                    /* 15 (ENGI_OPX; OPX fork, FELUCCA_OPX=0 builds without it) */
 #endif
 };
 
@@ -114,6 +121,9 @@ static const char *snd_missing(const track_t *t, uint32_t *code)
 static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
     0,                           /* ANALOG */
     12,                          /* FM6 */
+#if FELUCCA_OPX
+    15,                          /* OPX (OPX fork): after FM6, the other FM engine */
+#endif
 #if FELUCCA_FM4
     1,                           /* DIGITAL */
 #endif
@@ -127,7 +137,7 @@ static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
 
 /* the engines one can pick (engine 1 only with FELUCCA_FM4), in ENGINE_ORDER: eng_ok(e), the n-th of them
  * eng_vis(n), e's place among them eng_rank(e), the next / previous one eng_step(e, dir) (wraps) */
-static int eng_ok(uint32_t e) { return e < NENGINES && (FELUCCA_FM4 || e != ENGI_DIGITAL); }
+static int eng_ok(uint32_t e) { return e < NENGINES && (FELUCCA_FM4 || e != ENGI_DIGITAL) && (!FELUCCA_OPX || e != ENGI_ROW14); }
 static uint32_t eng_vis(uint32_t n) { return ENGINE_ORDER[n % NENG_SHOWN]; }
 static uint32_t eng_rank(uint32_t e)
 {

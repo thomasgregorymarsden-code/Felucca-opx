@@ -44,6 +44,12 @@ These are for the case where upstream Felucca takes the OPX engine but wants its
 
 The one thing a move cannot protect against is the old location being overwritten before the new firmware's first boot. For example, a user might install a firmware without OPX that gives slot 3 its full 80 KB back, then upload a long sample into slot 3. That loses OPX patches only; the device still works. A later milestone adds the extensions to the editor's backup archive, so users can export them first; an archive does not depend on where the data lives in flash.
 
+## Engine number
+
+The same concern applies to the engine number, which projects and user presets store. OPX is **engine 15**, and engine 14 is reserved: never selectable, silent, no presets. That is the same treatment as DIGITAL's retired number 1.
+
+The reason is that upstream keeps the MIDI LEARN map in the favourites row of engine 14 (`favorites.factory[14]`, `midi_learn.c`), and a compile-time check stops any engine from taking 14. Using 15 leaves that map where it is, so a user's learned CCs survive installing this fork. It also leaves 14 free for upstream's own next engine, if upstream ever moves the map. If upstream later wants OPX under another number, stored sounds would need a conversion at load, like DIGITAL's sounds becoming FM6 (`fm4_convert.c`).
+
 ## What this costs users of this fork
 
 - User sample slot 3 holds 40 KB instead of 80 KB, about 3.7 s at the editor's 22.05 kHz.

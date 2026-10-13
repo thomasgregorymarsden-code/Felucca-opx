@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 #define FELUCCA_FAVORITES 1
+#include "opx_map.h"   /* OPX fork: FELUCCA_OPX (engine 14 reserved) */
 /* Stable engine/preset references; fixed capacity independent of optional engines. */
 typedef struct {
     uint8_t factory[16][32]; /* engine 0..15, preset 0..255 */
@@ -9,6 +10,8 @@ typedef struct {
 static favorites_t favorites __attribute__((section(".pool")));
 static int favorite_has(uint32_t engine, uint32_t preset)
 {
+    if (FELUCCA_OPX && engine == 14u)                 /* (OPX fork: reserved; its row is the MIDI LEARN map) */
+        return 0;
     if (engine == NENGINES)
         return preset < UP_SLOTS && ((favorites.user >> preset) & 1u);
     return engine < NENGINES && engine < 16u && preset < 256u &&
@@ -16,7 +19,8 @@ static int favorite_has(uint32_t engine, uint32_t preset)
 }
 static int favorite_set(uint32_t engine, uint32_t preset, int on)
 {
-    if (engine > NENGINES || (engine == NENGINES ? preset >= UP_SLOTS : engine >= 16u || preset >= 256u))
+    if (engine > NENGINES || (engine == NENGINES ? preset >= UP_SLOTS : engine >= 16u || preset >= 256u) ||
+        (FELUCCA_OPX && engine == 14u))               /* (OPX fork: reserved; its row is the MIDI LEARN map) */
         return 0;
     if (favorite_has(engine, preset) == !!on) return 0;
     if (engine == NENGINES) {

@@ -21,9 +21,16 @@
                                   * by default; replaced by FM6, its sounds convert (fm4_convert.c) */
 #endif
 #include "opx_map.h"       /* FELUCCA_OPX (OPX fork) and where its data lives */
-#define NENGINES (13 + FELUCCA_SLICE)   /* SLICE (13) comes last: the other engines keep their numbers */
+#if FELUCCA_OPX && !FELUCCA_SLICE
+#error "FELUCCA_OPX: the OPX engine is engine 15, after SLICE's 13 (build with FELUCCA_SLICE=1, or FELUCCA_OPX=0)"
+#endif
+/* OPX fork: OPX is engine 15. 14 stays reserved (never selectable, silent: eng_opx.c ENG_ROW14): the favourites' row
+ * of engine 14 holds the MIDI LEARN map (midi_learn.c), so no engine may be 14 while it does */
+#define NENGINES (13 + FELUCCA_SLICE + 2 * FELUCCA_OPX)   /* SLICE (13), then (OPX fork) 14 reserved, OPX 15 */
+#define ENGI_ROW14 14u           /* OPX fork: reserved (the MIDI LEARN map's favourites row) */
+#define ENGI_OPX 15u             /* OPX fork: engines.c ENGINES[] (append-only) */
 #define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
-#define NENG_SHOWN (NENGINES - !FELUCCA_FM4)   /* the engines one can pick: PRESETS, the EDIT layer, the editor,
+#define NENG_SHOWN (NENGINES - !FELUCCA_FM4 - FELUCCA_OPX)   /* the engines one can pick: PRESETS, the EDIT layer, the editor,
                                                 * in the display order of engines.c ENGINE_ORDER */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 #define NELEM(a) (sizeof(a) / sizeof((a)[0]))
