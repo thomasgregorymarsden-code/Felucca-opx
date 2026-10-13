@@ -14,13 +14,13 @@ no extra hardware is needed. Installing is at your own risk: M-VAVE's updater or
 **Return to official V15** takes you back. Coming from 1.1.5.x? Read [⚠ Coming from 1.1.5](#-coming-from-115) first:
 projects saved by 1.4 or later do not open on 1.1.5.x. Going back from 1.5.x to 1.4.1? Read
 [⚠ New in 1.5](#new-in-15) first: projects saved by 1.5 do not open on 1.2 to 1.4.1. Want to look around first?
-[Try it in your browser](https://hugelton.github.io/Felucca/webapp/try/) *(upstream)*, no FM-1 needed.
+[Try it in your browser](https://thomasgregorymarsden-code.github.io/Felucca-opx/try/), no FM-1 needed.
 
 Multi-engine synthesizer firmware for the M-VAVE FM-1. Please report what you find in
 [Issues](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues).
 
 - Install: [web installer](https://thomasgregorymarsden-code.github.io/Felucca-opx/) (Chrome or Edge, USB), or `tools/fm1_install.py` from a terminal
-- Try: [Felucca in your browser](https://hugelton.github.io/Felucca/webapp/try/) *(upstream)*: the same firmware compiled to
+- Try: [Felucca in your browser](https://thomasgregorymarsden-code.github.io/Felucca-opx/try/): the same firmware compiled to
   WebAssembly, with the panel on screen (mouse, touch, computer keyboard, Web MIDI in)
 - Editor: [web editor](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/editor/); its development has moved to
   [Felucca-WebApp](https://github.com/hugelton/Felucca-WebApp)
