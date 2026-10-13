@@ -38,7 +38,7 @@ dv_metal_mix 16
 slicer_track 557
 slice_render 436
 slc_rev 120
-opx_render 60
+opx_render 640
 fm1_alnk0_irq 38871
 fm1_timer5_irq 35056
 click_render 30

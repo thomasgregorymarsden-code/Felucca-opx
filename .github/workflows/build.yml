@@ -137,6 +137,6 @@ jobs:
           rc=0
           tests/run_tests.sh 2>&1 | tee host_tests.log || rc=$?
           # failing checks and the target cost lines as annotations (readable through the API without the log)
-          grep -a -E "FAIL|over budget|no budget" host_tests.log | grep -av "TESTS FAILED" | head -40 | sed 's/^/::error::/' || true
+          grep -a -E "FAIL|OVER BUDGET|no budget" host_tests.log | grep -av "TESTS FAILED" | head -40 | sed 's/^/::error::/' || true
           grep -a -E "^opx: cost|target: .*opx" host_tests.log | head -10 | sed 's/^/::notice::/' || true
           exit $rc
