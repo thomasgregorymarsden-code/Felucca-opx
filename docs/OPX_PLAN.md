@@ -25,24 +25,25 @@ OPX is an altered-FM engine modelled on the Korg opsix, built into Felucca as en
 
 ## Editing on the device (M1.5)
 
-**EDIT 1 (ALGO) and EDIT 2** show the algorithm in the left two-thirds of the panel and a small oscilloscope in the right third.
+**EDIT 1 (ALGO) and EDIT 2** show the algorithm on the left and a small oscilloscope on the right.
 
 - **A preset algorithm** is drawn as a chart in FM6's style. Algorithms 1–32 use FM6's layouts; the test suite checks that OPX's 1–32 route exactly as FM6's. 33–40 have layouts of their own. The ALG FB loop (algorithms 4, 6, 34) is drawn as a return path.
-- **USER** (ALG USR, or PAT on a patch whose algorithm is USER) is drawn as the opsix's FM MATRIX:
+- **USER** (ALG USR, or PAT on a patch whose algorithm is USER) is drawn as the opsix's FM MATRIX, in square cells:
   - a column per sending operator, a row per receiving operator, and a dot sized by the amount;
   - the diagonal is self feedback;
-  - the bottom row is OUT.
-- **On EDIT 1 with USER**, knob 1 is still ALG; knob 2 picks the row, knob 3 the column, and knob 4 sets the amount (0–100 %; OUT toggles). ATK, DEC and MLVL return when a preset algorithm is chosen.
-- **EDIT 2** shows the same matrix with nothing selected; its knobs keep their usual jobs.
+  - the bottom row is OUT: a dot sized by the operator's LEVEL while it is heard, a dash while it is not.
+- **On EDIT 1 with USER**, knob 1 is still ALG; knob 2 picks the row, knob 3 the column, and knob 4 sets the amount (0–100 %). On the OUT row, knob 4 sets the operator's output level: 0–100 is its LEVEL (the same field as OPERATORS > LEVEL); turning below 0 gives OFF (not heard, the LEVEL kept), and turning up from OFF makes it heard again at that LEVEL. ATK, DEC and MLVL return when a preset algorithm is chosen.
+- **EDIT 2** shows the same matrix with nothing selected; its knobs keep their usual jobs (FB, MRAT, DTUN, SLOT).
 - **USER always plays the matrix.** One with no heard operator is silent, as on the opsix; it no longer falls back to the patch's preset algorithm.
+- **The scope's time scale** follows the pitch the selected track is sounding (its loudest voice; with none, the last note played): two periods across the scope above about 98 Hz, one period from there down to about 49 Hz, and the buffer's 20 ms below that; each trace starts at a rising zero crossing. The height is auto-scaled.
 
-On an OPX track, the page after EDIT 2 is **OPERATORS**: a scrolling list over the track's own patch, styled like AUTOMATION's (7 rows on screen, the selected row highlighted, value on the right).
+On an OPX track, the page after EDIT 2 is **OPERATORS**: one long list over the track's own patch, styled like AUTOMATION's. Seven places are on screen. When rows are hidden below, the bottom place shows "…", and likewise at the top; the selected row moves down to the last whole row, then the list rolls up under it.
 
 | Knob | Selects |
 |---|---|
-| 1 | the section (PAGE): PITCH, EG, OSC, USER, ALGO |
-| 2 | the operator (1–6; ALGO has none) |
-| 3 | the row; each section remembers its own |
+| 1 | the operator (1–6; dimmed on ALGO's rows, which belong to the patch) |
+| 2 | a section per detent (PITCH, EG, OSC, ALGO): to its first row; turning left goes to this section's first row, then the previous section's |
+| 3 | the row (1–15) |
 | 4 | the row's value |
 
 | Section | Rows (for the selected operator) |
@@ -50,12 +51,13 @@ On an OPX track, the page after EDIT 2 is **OPERATORS**: a scrolling list over t
 | PITCH | MODE (RATIO / FIXED), RATIO (1/128–32) or FREQ in FIXED mode (a semitone per detent), FINE (×0.50–×2.00; in FIXED mode a cent per detent, shown to 0.01 Hz), DTUN (cents), TRANS (semitones) |
 | EG | LEVEL, ATK, DEC, SUS, REL, CURVE (LIN, 1–9, EXP), VEL |
 | OSC | FB (M2 adds MODE, WAVE and the mode settings here) |
-| USER | TO OP1–TO OP6 (a fixed list; the selected operator's own row reads "(SELF)" and is its self feedback), OUT (heard). These rows are dimmed unless the track plays ALG USR. |
 | ALGO | ALG (the patch's algorithm, 1–40 or USER), ALG FB |
+
+The user algorithm's connections are edited on EDIT 1's matrix only; the list no longer has USER rows.
 
 - **Editing makes the patch OWN.** SLOT then shows OWN, and SLOT F1–F7 loads a factory patch over it.
 - **Undo:** holding SAVE undoes the last knob gesture, patch and SLOT together; holding it again redoes.
-- **The macros on EDIT 1/2** still apply on top of the patch.
+- **The macros on EDIT 1/2** still apply on top of the patch. They are the only OPX controls that can be automated, step-locked or mapped to MIDI CC, which is why EDIT 2 stays.
 
 ### What is stored
 

@@ -13,7 +13,7 @@
 static const char H_EDIT[] = "[K1-4]SOUND[EDIT]HOLD: ENGINES";
 static const char H_LANES[] = "[K1-4]LANE LEVELS[EDIT]HOLD: MUTES";
 static const char H_FMOP[] = "[K1]OPERATOR[SAVE]HOLD: UNDO";
-static const char H_OPXL[] = "[K1]PAGE[K2]OP[K3]ROW";          /* (OPX fork: OPERATORS) */
+static const char H_OPXL[] = "[K1]OP[K2]PAGE[K3]ROW";          /* (OPX fork: OPERATORS) */
 static const struct { const char *title, *hint; } HELP_PAGE[] = {
     {"ENV", "[K1-4]A D S R[ENV]ENV DEST"},
     {"ENV DEST", "[K1-4]ENV AMOUNTS[ENV]ENV"},

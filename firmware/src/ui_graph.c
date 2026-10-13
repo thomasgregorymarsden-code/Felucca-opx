@@ -939,76 +939,104 @@ static void graph_opx_chart(const track_t *t, uint16_t c, uint32_t a)
     }
     cv_text(10, 4 - GOY, &AF_S, b, hot == P_E0 ? T_ACCENT : T_MID);
 }
-/* USER: the matrix (ui_fm6op.c xmat_*): column = the operator sending (1..6), row = the one receiving (1..6), then OUT;
- * a dot as big as the amount (0: a point), the diagonal (self feedback) on RAISE, OUT a filled square (on) or a dash;
- * the picked cell (EDIT 1) on ACCENT */
+/* USER: the matrix (ui_fm6op.c xmat_*), square cells XM_P px apart from XM_X0: column = the operator sending (1..6),
+ * row = the one receiving (1..6), then OUT; a dot as big as the amount (0: a point), the diagonal (self feedback) on
+ * RAISE; OUT's dot as big as the operator's LEVEL while it is heard, a dash while it is not; the picked cell (EDIT 1)
+ * on ACCENT; the row and column numbers centred on their cells */
+#define XM_P 15                                          /* a cell: 14 px and a 1 px gap, across and down */
+#define XM_X0 36
+#define XM_Y0 16
+#define XM_W (XM_X0 + 6 * XM_P)                          /* the matrix's right edge (the scope after it) */
 static void graph_opx_matrix(const track_t *t, uint16_t c, int pick)
 {
     const uint8_t *pk = opx_pk[(t - trk) % NTRK];
     uint32_t r, k;
-    cv_text(10, 4 - GOY, &AF_S, "USER", T_MID);
+    int32_t oy = cv_oy;
+    cv_oy = 0;                                           /* (the panel's own rows: the 100 px scale is too short) */
+    cv_text(10, 1 + CAP_IN(S, 14), &AF_S, "USR", T_DIM);
     for (k = 0; k < 6u; k++) {                           /* the columns: the operators sending */
         char n[2] = {(char)('1' + k), 0};
-        cv_text_in(40 + (int32_t)k * 19, 4 - GOY, 15, &AF_S, n, pick && k == xmat_col ? T_ACCENT : T_MID, T_SURF);
+        cv_text_in(XM_X0 + (int32_t)k * XM_P, 1 + CAP_IN(S, 14), 14, &AF_S, n, pick && k == xmat_col ? T_ACCENT : T_MID, T_SURF);
     }
     for (r = 0; r < 7u; r++) {
-        int32_t yy = 15 + (int32_t)r * 13;
+        int32_t yy = XM_Y0 + (int32_t)r * XM_P;
         char n[4] = {(char)('1' + r), 0, 0, 0};
         if (r == 6u)
             str_cpy(n, "OUT", 4);
-        cv_text(10, yy + 1 - GOY, &AF_S, n, pick && r == xmat_row ? T_ACCENT : T_MID);
+        GFX_HOOK_ALIGN(0, yy, 0, yy + 14, AL_V, "OPX matrix row label centred on its row");
+        cv_text(10, yy + CAP_IN(S, 14), &AF_S, n, pick && r == xmat_row ? T_ACCENT : T_MID);
         for (k = 0; k < 6u; k++) {
-            int32_t cx = 47 + (int32_t)k * 19, cy = yy + 6, v = opx_get(pk, xmat_field(r, k)), sel = pick && r == xmat_row && k == xmat_col;
+            int32_t x0 = XM_X0 + (int32_t)k * XM_P, cx = x0 + 7, cy = yy + 7, v, sel = pick && r == xmat_row && k == xmat_col;
             uint16_t bg = sel ? T_ACCENT : r == k ? T_RAISE : T_SURF, fg = sel ? T_INK : c;
+            if (r == 6u)                                 /* OUT: the operator's LEVEL while heard, else -1 */
+                v = xmat_out((uint32_t)(t - trk) % NTRK, k);
+            else
+                v = opx_get(pk, opxf_ua(k, r));
             if (sel || r == k)
-                cv_rrect(cx - 8, yy, 17, 12, 3, bg, T_SURF);
-            if (r == 6u) {
-                if (v)
-                    cv_rrect(cx - 3, cy - 3, 7, 7, 1, fg, bg);
-                else
-                    cv_rect(cx - 3, cy, 7, 1, sel ? T_INK : T_DIM);
-            } else if (v) {
+                cv_rrect(x0, yy, 14, 14, 3, bg, T_SURF);
+            if (v > 0) {
                 int32_t d = 2 + v * 8 / 100;             /* 2..10 px */
                 cv_rrect(cx - d / 2, cy - d / 2, d, d, d / 2, fg, bg);
+            } else if (v < 0) {
+                cv_rect(cx - 3, cy, 7, 1, sel ? T_INK : T_DIM);   /* OUT off: a dash */
             } else {
                 cv_rect(cx, cy, 1, 1, sel ? T_INK : T_DIM);
             }
         }
     }
+    cv_oy = oy;
 }
-/* the small oscilloscope (the HOME scope's buffer, fx.c scope_buf) in x0 .. x0 + w, the panel's height, a rule left */
-static void graph_scope_mini(uint16_t c, int32_t x0, int32_t w)
+/* the small oscilloscope (the HOME scope's buffer, fx.c scope_buf: every other sample, 22.05 kHz) in x0 .. x0 + w, a
+ * rule left of it. The time scale follows the pitch the selected track sounds (its loudest voice; none: the last note
+ * played): two periods of it across the width, one when two do not fit the buffer, the buffer's most below that; a
+ * rising zero crossing first. Auto-scaled to +-34 px */
+static void graph_scope_mini(const track_t *t, uint16_t c, int32_t x0, int32_t w)
 {
     static int16_t snap[SCOPE_N] __attribute__((section(".pool")));
-    uint32_t wp = scope_w, i, trig = 0;
-    int32_t cy = (int32_t)cv_h / 2, py = cy, x, peak = 1500, a = 40;
+    uint32_t wp = scope_w, i, trig = 0, n, per;
+    int32_t cy = (int32_t)cv_h / 2, py = cy, x, peak = 1500, a = 34, p16 = (int32_t)last_note * 16, best = 0;
+    int32_t oy = cv_oy;
+    cv_oy = 0;
+    for (i = 0; i < NVOICE; i++)                         /* the pitch: the selected track's loudest voice */
+        if (t->v[i].env_out > best) {
+            best = t->v[i].env_out;
+            p16 = t->v[i].pitch_cur;
+        }
+    /* the period in scope samples (22.05 kHz: half the phase rate), Q8: 2^(32 - 1 + 8) / pitch_inc */
+    p16 = p16 < 0 ? 0 : p16 > 2047 ? 2047 : p16;
+    per = (uint32_t)((1ull << 39) / pitch_inc((uint32_t)p16));
+    n = per * 2u <= (SCOPE_N - 64u) * 256u ? per * 2u : per <= (SCOPE_N - 64u) * 256u ? per : (SCOPE_N - 64u) * 256u;
     for (i = 0; i < SCOPE_N; i++) {
         snap[i] = scope_buf[(wp + i) & (SCOPE_N - 1u)];
         peak = snap[i] > peak ? snap[i] : -snap[i] > peak ? -snap[i] : peak;
     }
-    for (i = 1; i < SCOPE_N - (uint32_t)w; i++)
+    for (i = 1; i + (n >> 8) + 2u < SCOPE_N; i++)
         if (snap[i - 1] < 0 && snap[i] >= 0) {
             trig = i;
             break;
         }
     cv_rect(x0 - 5, 6, 1, (int32_t)cv_h - 12, T_RAISE);
     cv_rect(x0, cy, w, 1, T_RAISE);
-    for (x = 0; x < w; x++) {
-        int32_t yv = cy - snap[trig + (uint32_t)x] * a / peak;
+    for (x = 0; x < w; x++) {                            /* sample at trig + x * n / w, linear between two */
+        uint32_t q = (uint32_t)x * n / (uint32_t)w, j = trig + (q >> 8), f = q & 255u;
+        int32_t sv = snap[j] + (((snap[j + 1u < SCOPE_N ? j + 1u : j] - snap[j]) * (int32_t)f) >> 8);
+        int32_t yv = cy - sv * a / peak;
         if (x)
             cv_line_t(x0 - 1 + x, py, x0 + x, yv, c, 2);
         py = yv;
     }
+    cv_oy = oy;
 }
 static void graph_opx_algo(const track_t *t, uint16_t c, int edit1)
 {
-    if (xmat_user(t))
+    if (xmat_user(t)) {
         graph_opx_matrix(t, c, edit1);
-    else {
+        graph_scope_mini(t, c, XM_W + 8, 229 - (XM_W + 8));   /* (the matrix leaves the scope more room) */
+    } else {
         uint32_t heard;
         graph_opx_chart(t, c, xop_alg(t, &heard));
+        graph_scope_mini(t, c, OPX_SX, 229 - OPX_SX);
     }
-    graph_scope_mini(c, OPX_SX, 230 - OPX_SX);
 }
 #endif
 
@@ -1392,7 +1420,7 @@ static uint32_t graph_signature(void)
 #if FELUCCA_OPX
     if ((pg->scope == SC_ENGINE || fop_page(pg->graph)) && t->eng_req % NENGINES == ENGI_OPX)   /* (OPX fork) */
         h ^= (opx_pgen[(t - trk) % NTRK] + 1u) * 2246822519u + (fop_op + 1u) * 40503u + (uint32_t)t->p[P_E0] * 7919u +
-             (xop_sec + 1u) * 104729u + (xop_row() + 1u) * 1299709u + (xmat_row + 1u) * 15485863u + (xmat_col + 1u) * 3571u;
+             (xop_top + 1u) * 104729u + (xop_row() + 1u) * 1299709u + (xmat_row + 1u) * 15485863u + (xmat_col + 1u) * 3571u;
 #endif
     if (pg->scope == SC_ENGINE && ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE) h ^= sample_wave.pos * 13u + sample_wave.key;
     if (pg->graph == GR_ROLL) {
@@ -1611,18 +1639,25 @@ static int32_t ev_value(int32_t y, const char *v, const char *unit, uint16_t fg,
  * when the track plays a preset algorithm; LEVEL 0) */
 static void graph_opxlist(void)
 {
-    uint32_t n = xop_nrows(xop_sec), cur = xop_row(), k;
-    int32_t row, first = clamp((int32_t)cur - 3, 0, (int32_t)n > 7 ? (int32_t)n - 7 : 0);
-    for (row = 0; row < 7 && (uint32_t)(first + row) < n; row++) {
+    uint32_t cur = xop_row(), top, i;
+    int32_t row;
+    xop_scroll();
+    top = xop_top;
+    for (row = 0; row < (int32_t)XL_SHOW && top + (uint32_t)row < XL_N; row++) {
         int32_t y = LIST_Y(row), ratio;
         const char *label, *unit;
         char val[16];
         int sel, on;
         uint16_t bg;
-        k = (uint32_t)(first + row);
-        sel = k == cur;
+        i = top + (uint32_t)row;
+        if ((row == 0 && top) || (row == (int32_t)XL_SHOW - 1 && i < XL_N - 1u)) {   /* rows hidden above / below */
+            GFX_HOOK_ALIGN(0, y, 0, y + 16, AL_V, "list row text centred up/down");
+            cv_text_on(14, y + LIST_TY, &AF_M, "...", T_DIM, T_SURF);
+            continue;
+        }
+        sel = i == cur;
         bg = sel ? T_THEME : T_SURF;
-        on = xop_rowtext(k, &label, val, &unit, &ratio);
+        on = xop_rowtext(i, &label, val, &unit, &ratio);
         if (sel)
             cv_rrect(6, y, 228, 16, 4, T_THEME, T_SURF);
         GFX_HOOK_ALIGN(0, y, 0, y + 16, AL_V, "list row text centred up/down");

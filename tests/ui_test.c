@@ -8983,7 +8983,7 @@ static int test_opx_ops(void)
 {
     static const char *const CYC_O[] = {"EDIT 1", "EDIT 2", "OPERATORS", "VOICE", "VOICE 2", "VOICE 3", "EDIT 1"};
     int bad = 0, ok;
-    uint32_t tr, at = 0, opn, sec, row, n = 0, f, dst;
+    uint32_t tr, at = 0, opn, row, n = 0, f;
     uint8_t before[OPX_PK_BYTES], v[OPX_PK_BYTES];
     ui_power_on();
     song.sel = 2;
@@ -8996,24 +8996,46 @@ static int test_opx_ops(void)
     bad += check("OPX ops: the track's patch is F1 (E.PIANO), the audio plays the decoded copy", ok);
 
     go_title("OPERATORS"); frame();
-    xo_set(EN_K1, 0, 10);
-    ok = xop_sec == XS_PITCH;
-    turn(EN_K1, 20);
-    ok &= xop_sec == XS_ALGO;
-    xo_set(EN_K1, XS_EG, 10);
-    xo_set(EN_K3, 4, 10);                            /* EG row 5: REL */
-    turn(EN_K3, 20);
-    ok &= xop_row() == 6u;                           /* (the last: VEL) */
-    xo_set(EN_K3, 4, 10);
-    xo_set(EN_K1, XS_PITCH, 10);
+    xo_set(EN_K3, 0, 30);
+    ok = xop_row() == 0u && xop_top == 0u && xop_sec_of(0) == XS_PITCH;
+    turn(EN_K2, 1);
+    ok &= xop_row() == 5u && xop_sec_of(xop_row()) == XS_EG;   /* (EG's first: LEVEL) */
+    turn(EN_K2, 1);
+    ok &= xop_row() == 12u && xop_sec_of(xop_row()) == XS_OSC;
+    turn(EN_K2, 5);
+    ok &= xop_row() == 13u && xop_sec_of(xop_row()) == XS_ALGO;   /* (the last: no wrap) */
+    turn(EN_K3, 1);
+    turn(EN_K2, -1);
+    ok &= xop_row() == 13u;                          /* (left: this section's first row, then the one before) */
+    turn(EN_K2, -1);
+    ok &= xop_row() == 12u;
+    turn(EN_K2, -9);
     ok &= xop_row() == 0u;
-    turn(EN_K1, 1);
-    ok &= xop_sec == XS_EG && xop_row() == 4u;       /* (each section keeps its row) */
-    bad += check("OPX ops: KNOB 1 the section (PITCH .. ALGO, no wrap), KNOB 3 the row, kept per section", ok);
+    bad += check("OPX ops: one list; KNOB 2 a section a detent (its first row; left: this one's, then the previous)", ok);
+
+    /* the roll: 7 places, "..." below while rows are hidden there, above likewise; the picked row never on a "..." */
+    {
+        uint32_t i, top, last;
+        ok = 1;
+        for (i = 0; i < XL_N; i++) {
+            xo_set(EN_K3, (int32_t)i, 30);
+            top = xop_top;
+            last = top + XL_SHOW - 1u < XL_N - 1u ? top + XL_SHOW - 2u : XL_N - 1u;
+            ok &= xop_row() == i && i >= (top ? top + 1u : 0u) && i <= last && top + XL_SHOW <= XL_N;
+            if (i <= XL_SHOW - 2u)
+                ok &= top == 0u;                     /* (down to the row before the bottom "...": no roll) */
+        }
+        ok &= xop_top == XL_N - XL_SHOW;             /* (at the end: the last row shown, no bottom "...") */
+        turn(EN_K3, -1);
+        ok &= xop_top == XL_N - XL_SHOW;             /* (back up one: the window stays) */
+        xo_set(EN_K3, 0, 30);
+        ok &= xop_top == 0u;
+        bad += check("OPX ops: the list rolls (7 places, \"...\" where rows are hidden, the picked row always shown)", ok);
+    }
 
     /* EG, OP 3, LEVEL: one gesture of two turns */
-    xo_set(EN_K2, 2, 10);
-    xo_set(EN_K3, 0, 10);
+    xo_set(EN_K1, 2, 10);
+    xo_set(EN_K3, 5, 30);
     frame();
     memcpy(before, opx_pk[tr], OPX_PK_BYTES);
     turn(EN_K4, -5);
@@ -9021,7 +9043,7 @@ static int test_opx_ops(void)
     ok = opx_fields_diff(before, opx_pk[tr], &at) == 1 && at == OPXF_OP(2, OPXF_OP1_LEVEL) &&
          opx_get(opx_pk[tr], at) == opx_get(before, at) - 7 && TSEL->p[P_E7] == (int16_t)OPX_OWN &&
          opx_slot[tr] == OPX_OWN && opx_own[tr]->op[2].level == (uint8_t)opx_get(opx_pk[tr], at);
-    bad += check("OPX ops: EG, OP 3, row LEVEL, KNOB 4: that field only; F1 -> SLOT OWN; the audio's copy follows", ok);
+    bad += check("OPX ops: OP 3 (KNOB 1), row LEVEL, KNOB 4: that field only; F1 -> SLOT OWN; the audio's copy follows", ok);
     hold(B_SAVE);
     ok = !memcmp(before, opx_pk[tr], OPX_PK_BYTES) && TSEL->p[P_E7] == 0 && opx_slot[tr] == 0u && msg_is("UNDO/REDO T3");
     hold(B_SAVE);
@@ -9029,68 +9051,49 @@ static int test_opx_ops(void)
           TSEL->p[P_E7] == (int16_t)OPX_OWN;
     bad += check("OPX ops: SAVE held undoes the gesture (patch and SLOT F1 back), again redoes", ok);
 
-    ok = 1;                                          /* every section, operator and row: KNOB 4 writes that field only */
-    for (sec = 0; sec < XS_N; sec++)
-        for (opn = 0; opn < 6u; opn++)
-            for (row = 0; row < xop_nrows(sec); row++) {
-                int32_t x, hi, lo;
-                go_title("OPERATORS"); frame();
-                xo_set(EN_K1, (int32_t)sec, 10);
-                xo_set(EN_K2, (int32_t)opn, 10);
-                xo_set(EN_K3, (int32_t)row, 10);
-                opx_edit(tr, OPXF_OP(opn, OPXF_OP1_FREQ_FIXED), 0);   /* (RATIO / FINE: the ratio fields) */
-                xop_rowf(sec, row, tr, &f, &dst);
-                hi = OPX_FIELDS[f].hi;
-                lo = OPX_FIELDS[f].lo;
-                memcpy(v, opx_pk[tr], OPX_PK_BYTES);
-                x = opx_get(v, f);
-                frames(1600);
-                turn(EN_K4, x < hi ? 1 : -1);
-                if (opx_fields_diff(v, opx_pk[tr], &at) != 1 || at != f) {
-                    printf("ui: OPX ops: %s OP %u row %u: field %u, not %u\n", XS_NAME[sec], opn + 1u, row + 1u, at, f);
-                    ok = 0;
-                }
-                turn(EN_K4, 3000);
-                ok &= opx_get(opx_pk[tr], f) == hi;
-                turn(EN_K4, -3000);
-                ok &= opx_get(opx_pk[tr], f) == lo;
-                n++;
+    ok = 1;                                          /* every operator and row: KNOB 4 writes that field only */
+    for (opn = 0; opn < 6u; opn++)
+        for (row = 0; row < XL_N; row++) {
+            int32_t x, hi, lo;
+            if (opn && xop_sec_of(row) == XS_ALGO)
+                continue;                            /* (ALGO's rows: the patch's, once) */
+            go_title("OPERATORS"); frame();
+            xo_set(EN_K1, (int32_t)opn, 10);
+            xo_set(EN_K3, (int32_t)row, 30);
+            opx_edit(tr, OPXF_OP(opn, OPXF_OP1_FREQ_FIXED), 0);   /* (RATIO / FINE: the ratio fields) */
+            xop_rowf(row, tr, &f);
+            hi = OPX_FIELDS[f].hi;
+            lo = OPX_FIELDS[f].lo;
+            memcpy(v, opx_pk[tr], OPX_PK_BYTES);
+            x = opx_get(v, f);
+            frames(1600);
+            turn(EN_K4, x < hi ? 1 : -1);
+            if (opx_fields_diff(v, opx_pk[tr], &at) != 1 || at != f) {
+                printf("ui: OPX ops: %s OP %u row %u: field %u, not %u\n", XS_NAME[xop_sec_of(row)], opn + 1u, row + 1u, at, f);
+                ok = 0;
             }
+            turn(EN_K4, 3000);
+            ok &= opx_get(opx_pk[tr], f) == hi;
+            turn(EN_K4, -3000);
+            ok &= opx_get(opx_pk[tr], f) == lo;
+            n++;
+        }
     {
         char what[120];
-        snprintf(what, sizeof what, "OPX ops: %u rows (5 sections x 6 operators), KNOB 4 writes its field only, within its range", n);
-        bad += check(what, ok && n == 6u * (5u + 7u + 1u + 7u + 2u));
+        snprintf(what, sizeof what, "OPX ops: %u rows (13 x 6 operators, 2 the patch's), KNOB 4 writes its field only, within its range", n);
+        bad += check(what, ok && n == 6u * 13u + 2u);
     }
 
     /* PITCH: MODE FIXED, then RATIO is the frequency: 12 detents = an octave */
     go_title("OPERATORS"); frame();
-    xo_set(EN_K1, XS_PITCH, 10);
-    xo_set(EN_K2, 0, 10);
-    xo_set(EN_K3, 0, 10);
+    xo_set(EN_K1, 0, 10);
+    xo_set(EN_K3, 0, 30);
     turn(EN_K4, 1);
     opx_edit(tr, OPXF_OP(0, OPXF_OP1_FIXED_FREQ), 44000);
     xo_set(EN_K3, 1, 10);
     turn(EN_K4, 12);
     f = (uint32_t)opx_get(opx_pk[tr], OPXF_OP(0, OPXF_OP1_FIXED_FREQ));
     bad += check("OPX ops: PITCH MODE FIXED, then RATIO 12 detents = an octave (440 -> 880 Hz)", f >= 87900u && f <= 88100u);
-
-    /* USER: its rows sound (not DIM) with ALG USR only */
-    {
-        const char *lb, *u;
-        char val[16];
-        int32_t r;
-        go_title("OPERATORS"); frame();
-        xo_set(EN_K1, XS_USER, 10);
-        TSEL->p[P_E0] = 0;                           /* (PAT: E.PIANO's algorithm 5) */
-        ok = !xop_rowtext(0, &lb, val, &u, &r) && str_eq(lb, "TO OP1 (SELF)");
-        ok &= xop_rowtext(1, &lb, val, &u, &r) == 0 && str_eq(lb, "TO OP2");
-        TSEL->p[P_E0] = 41;                          /* USR */
-        opx_edit(tr, OPXF_UA_OUT(0), 1);
-        ok &= xop_rowtext(0, &lb, val, &u, &r) == 1;
-        frame();
-    }
-    bad += check("OPX ops: USER's rows DIM unless ALG USR; a fixed list TO OP1..6, OP 1's own row TO OP1 (SELF)", ok);
-    TSEL->p[P_E0] = 0;
 
     /* EDIT 1 (ALGO): the chart; on USER the matrix: KNOB 2 the row, 3 the column, 4 the amount */
     {
@@ -9118,6 +9121,8 @@ static int test_opx_ops(void)
         for (rr = 0; rr < 7u; rr++)                  /* every cell: KNOB 2 3 pick it, KNOB 4 writes its field only */
             for (cc = 0; cc < 6u; cc++) {
                 uint32_t want = rr == 6u ? OPXF_UA_OUT(cc) : opxf_ua(cc, rr);
+                if (rr == 6u)
+                    opx_edit(tr, OPXF_OP(cc, OPXF_OP1_LEVEL), 40);   /* (OUT: OFF, a detent up: heard, at LEVEL 40) */
                 xo_set(EN_K2, (int32_t)rr, 10);
                 xo_set(EN_K3, (int32_t)cc, 10);
                 opx_edit(tr, want, 0);
@@ -9148,6 +9153,32 @@ static int test_opx_ops(void)
         turn(EN_K4, -500);
         ok &= opx_get(opx_pk[tr], opxf_ua(2, 1)) == 0;
         bad += check("OPX EDIT 1 USER: an amount 0..100, SAVE held undoes the gesture", ok);
+        /* OUT: OFF, then 0..100 = the operator's LEVEL; OFF keeps the LEVEL */
+        xo_set(EN_K2, 6, 10);
+        xo_set(EN_K3, 3, 10);
+        opx_edit(tr, OPXF_UA_OUT(3), 1);
+        opx_edit(tr, OPXF_OP(3, OPXF_OP1_LEVEL), 50);
+        frames(1600);
+        turn(EN_K4, 5);
+        ok = opx_get(opx_pk[tr], OPXF_OP(3, OPXF_OP1_LEVEL)) == 55 && opx_get(opx_pk[tr], OPXF_UA_OUT(3)) == 1;
+        {
+            const char *lb, *u;
+            char val[16];
+            int32_t r;
+            uint32_t ic;
+            xmat_card(3, &lb, val, &u, &r, &ic);
+            ok &= str_eq(lb, "OUT") && str_eq(val, "55") && str_eq(u, "%");
+            frames(1600);
+            turn(EN_K4, -500);
+            ok &= opx_get(opx_pk[tr], OPXF_UA_OUT(3)) == 0 && opx_get(opx_pk[tr], OPXF_OP(3, OPXF_OP1_LEVEL)) == 55;
+            xmat_card(3, &lb, val, &u, &r, &ic);
+            ok &= str_eq(val, "OFF");
+            opx_edit(tr, OPXF_OP(3, OPXF_OP1_LEVEL), 70);
+            frames(1600);
+            turn(EN_K4, 1);
+            ok &= opx_get(opx_pk[tr], OPXF_UA_OUT(3)) == 1 && opx_get(opx_pk[tr], OPXF_OP(3, OPXF_OP1_LEVEL)) == 70;
+        }
+        bad += check("OPX EDIT 1 USER: OUT is the operator's level (0..100 = LEVEL, below 0 OFF keeping it), back on at its kept LEVEL", ok);
         go_title("EDIT 2"); frame();
         ok = !xmat_on() && xmat_user(TSEL);         /* (EDIT 2: the matrix shown, its knobs FB MRAT DTUN SLOT) */
         TSEL->p[P_E0] = 0;
