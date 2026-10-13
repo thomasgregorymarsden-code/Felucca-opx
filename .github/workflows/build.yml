@@ -51,7 +51,9 @@ jobs:
         run: ./build.sh
 
       - name: Make installer site
-        run: python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site
+        run: |
+          python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site
+          mkdir -p _site/opx && cp web/opx/*.html _site/opx/
 
       - uses: actions/upload-artifact@v6
         with:

@@ -1,0 +1,218 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FM-1 Flash Scan</title>
+<style>
+  :root { --bg:#f6f5f2; --fg:#1d1d1b; --mut:#6b6a66; --line:#d9d7d1; --card:#fff;
+          --erased:#cfe8d2; --used:#f2c4b8; --err:#c9c9c9; --acc:#2f5d8a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161615; --fg:#ecebe7; --mut:#9a9893; --line:#33322f; --card:#1f1f1d;
+            --erased:#2c5a35; --used:#7a3a2c; --err:#4a4a48; --acc:#7fb0e0; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 -apple-system, system-ui, sans-serif; }
+  main { max-width:900px; margin:0 auto; padding:16px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p { margin:6px 0; }
+  .mut { color:var(--mut); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; margin:12px 0; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  select, button { font:inherit; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); }
+  button.primary { background:var(--acc); color:#fff; border-color:var(--acc); }
+  button:disabled { opacity:.5; }
+  #status { font-weight:600; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th, td { text-align:left; padding:5px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  td.addr, td.num { font-family:ui-monospace, Menlo, monospace; white-space:nowrap; }
+  .chip { display:inline-block; min-width:14px; height:14px; border-radius:3px; vertical-align:-2px; }
+  .e { background:var(--erased); } .u { background:var(--used); } .x { background:var(--err); }
+  .map { display:grid; grid-template-columns:56px repeat(16, 1fr); gap:2px; font:11px ui-monospace, Menlo, monospace; }
+  .map div { height:22px; border-radius:3px; display:flex; align-items:center; justify-content:center; }
+  .map .lbl { justify-content:flex-start; color:var(--mut); }
+  .map .pending { background:transparent; border:1px dashed var(--line); }
+  textarea { width:100%; height:140px; font:12px ui-monospace, Menlo, monospace; background:var(--card); color:var(--fg);
+             border:1px solid var(--line); border-radius:8px; padding:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>FM-1 Flash Scan</h1>
+  <p class="mut">Reads the FM-1's flash above the app (0x93000–0xFFFFF) and reports, per 4 KB sector, whether it is
+  erased or holds data. Read-only: nothing is written. Needs a Felucca-OPX build with the FLASH_SCAN command (cmd 120).</p>
+
+  <div class="card">
+    <div class="row">
+      <button id="connect" class="primary">Connect</button>
+      <select id="inport" aria-label="MIDI input"></select>
+      <select id="outport" aria-label="MIDI output"></select>
+      <button id="scan" disabled>Scan</button>
+    </div>
+    <p id="status" class="mut">Not connected.</p>
+  </div>
+
+  <div class="card">
+    <p><span class="chip e"></span> erased (all 0xFF) &nbsp; <span class="chip u"></span> holds data &nbsp;
+       <span class="chip x"></span> not read</p>
+    <div id="map" class="map"></div>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>Region</th><th>Sectors</th><th>Owner (from the code)</th><th>Erased</th><th>With data</th></tr></thead>
+      <tbody id="regions"></tbody>
+    </table>
+    <p class="mut">Erased means nothing has written there since the last erase on this unit. It does not prove that the
+    stock firmware would never use it after a return to the official firmware.</p>
+  </div>
+
+  <div class="card">
+    <p><strong>Results</strong> <span class="mut">(sector, status, bytes used, CRC-32): copy these to compare scans</span></p>
+    <textarea id="out" readonly></textarea>
+  </div>
+</main>
+<script>
+"use strict";
+const LO = 0x93, HI = 0xFF, PER = 4, CMD = 120;
+// Felucca's flash map (firmware/hal/fm1_flash.h, storage.c, eng_sample.c, tools/fm1pkg_make.py)
+const REGIONS = [
+  [0x93, 0x96, "Unmapped by Felucca", "inside the stock firmware's VM area"],
+  [0x97, 0x9E, "Projects A–D (A/B)", "Felucca"],
+  [0x9F, 0x9F, "FM6 user-preset patches, copy A", "Felucca"],
+  [0xA0, 0xB3, "User sample slot 1", "Felucca"],
+  [0xB4, 0xC7, "User sample slot 2", "Felucca"],
+  [0xC8, 0xD1, "User sample slot 3, first half", "Felucca"],
+  [0xD2, 0xDB, "User sample slot 3, second half (OPX candidate)", "Felucca"],
+  [0xDC, 0xDF, "User preset banks (A/B)", "Felucca"],
+  [0xE0, 0xE4, "Update staging (M-UPGRADE)", "Felucca / stock updater"],
+  [0xE5, 0xE6, "Autosave (A/B)", "Felucca"],
+  [0xE7, 0xE7, "FM6 voice bank", "Felucca"],
+  [0xE8, 0xE8, "Stock VM backup", "stock firmware (Felucca never writes)"],
+  [0xE9, 0xE9, "Stock BTIF", "stock firmware"],
+  [0xEA, 0xFB, "Unmapped by Felucca", "probably stock firmware"],
+  [0xFC, 0xFD, "Settings (A/B)", "Felucca"],
+  [0xFE, 0xFE, "FM6 user-preset patches, copy B", "Felucca"],
+  [0xFF, 0xFF, "Key / MAC", "stock (package header)"],
+];
+const result = new Map();   // sector -> {st, used, crc}
+let midi = null, inp = null, out = null, waiting = null;
+const $ = id => document.getElementById(id);
+const hex = (n, w) => n.toString(16).toUpperCase().padStart(w, "0");
+function say(t) { $("status").textContent = t; }
+
+function drawMap() {
+  const m = $("map"); m.innerHTML = "";
+  for (let row = 0x90; row <= 0xF0; row += 0x10) {
+    const l = document.createElement("div"); l.className = "lbl"; l.textContent = hex(row * 4096, 5); m.appendChild(l);
+    for (let k = 0; k < 16; k++) {
+      const s = row + k, d = document.createElement("div");
+      if (s < LO || s > HI) { d.style.visibility = "hidden"; }
+      else {
+        const r = result.get(s);
+        d.className = !r ? "pending" : r.st === 0 ? "e" : r.st === 1 ? "u" : "x";
+        d.title = "0x" + hex(s * 4096, 5) + (r ? (r.st === 0 ? " erased" : r.st === 1 ? ` ${r.used} bytes used` : " not read") : "");
+        d.textContent = hex(k, 1);
+      }
+      m.appendChild(d);
+    }
+  }
+}
+function drawRegions() {
+  const tb = $("regions"); tb.innerHTML = "";
+  for (const [a, b, name, owner] of REGIONS) {
+    let e = 0, u = 0, n = 0;
+    for (let s = a; s <= b; s++) { const r = result.get(s); if (!r) continue; n++; if (r.st === 0) e++; else if (r.st === 1) u++; }
+    const tr = document.createElement("tr");
+    const span = a === b ? `0x${hex(a * 4096, 5)}` : `0x${hex(a * 4096, 5)}–0x${hex((b + 1) * 4096 - 1, 5)}`;
+    tr.innerHTML = `<td>${name}</td><td class="addr">${span}<br><span class="mut">${b - a + 1} × 4 KB</span></td>` +
+      `<td>${owner}</td><td class="num">${n ? e : "–"}</td><td class="num">${n ? u : "–"}</td>`;
+    tb.appendChild(tr);
+  }
+}
+function drawOut() {
+  const lines = [...result.keys()].sort((a, b) => a - b).map(s => {
+    const r = result.get(s);
+    return `0x${hex(s * 4096, 5)} ${["erased", "data  ", "unread"][r.st]} ${String(r.used).padStart(4)} ${hex(r.crc >>> 0, 8)}`;
+  });
+  $("out").value = lines.join("\n");
+}
+function redraw() { drawMap(); drawRegions(); drawOut(); }
+
+function fillPorts() {
+  const pick = (sel, ports) => {
+    sel.innerHTML = "";
+    for (const p of ports.values()) {
+      const o = document.createElement("option"); o.value = p.id; o.textContent = p.name; sel.appendChild(o);
+      if (/fm-1|felucca|sinco|usb-midi|composite/i.test(p.name)) sel.value = p.id;
+    }
+  };
+  pick($("inport"), midi.inputs); pick($("outport"), midi.outputs);
+  bindPorts();
+}
+function bindPorts() {
+  if (inp) inp.onmidimessage = null;
+  inp = midi.inputs.get($("inport").value) || null;
+  out = midi.outputs.get($("outport").value) || null;
+  if (inp) inp.onmidimessage = onMsg;
+  $("scan").disabled = !(inp && out);
+  say(inp && out ? `Ready: ${inp.name}` : "No MIDI port found. Connect the FM-1 and press Connect again.");
+}
+function onMsg(ev) {
+  const d = ev.data;
+  if (d.length < 6 || d[0] !== 0xF0 || d[1] !== 0x7D || d[2] !== 0x46 || d[3] !== 0x4C || d[4] !== CMD) return;
+  if (waiting) { const w = waiting; waiting = null; w(d); }
+}
+function request(first, count) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => { waiting = null; reject(new Error("timeout")); }, 3000);
+    waiting = d => { clearTimeout(t); resolve(d); };
+    out.send([0xF0, 0x7D, 0x46, 0x4C, CMD, first & 127, first >> 7, count, 0xF7]);
+  });
+}
+function parse(d) {
+  if (d[5] === 127 && d.length === 7) throw new Error("the device refused the request");
+  const first = d[5] | d[6] << 7, count = d[7];
+  if (d.length !== 9 + count * 8) throw new Error("reply of an unexpected length");
+  for (let i = 0; i < count; i++) {
+    const r = d.subarray(8 + i * 8, 16 + i * 8);
+    let crc = 0; for (let k = 0; k < 5; k++) crc += r[3 + k] * 2 ** (7 * k);
+    result.set(first + i, { st: r[0], used: r[1] | r[2] << 7, crc: crc % 2 ** 32 });
+  }
+}
+async function scan() {
+  $("scan").disabled = true; result.clear(); redraw();
+  try {
+    for (let s = LO; s <= HI; s += PER) {
+      const n = Math.min(PER, HI - s + 1);
+      say(`Reading 0x${hex(s * 4096, 5)}…`);
+      let d;
+      try { d = await request(s, n); }
+      catch (e) { d = await request(s, n); }          // one retry
+      parse(d); redraw();
+    }
+    const e = [...result.values()].filter(r => r.st === 0).length;
+    say(`Done: ${result.size} sectors, ${e} erased.`);
+  } catch (e) {
+    say(e.message === "timeout" ? "No reply. Is a Felucca-OPX build with FLASH_SCAN installed, and is no other app using the FM-1?"
+                                : "Stopped: " + e.message);
+  }
+  $("scan").disabled = false;
+}
+
+$("connect").onclick = async () => {
+  if (!navigator.requestMIDIAccess) { say("This browser has no Web MIDI. On iPad / iPhone, open this page in Web MIDI Browser."); return; }
+  try {
+    midi = await navigator.requestMIDIAccess({ sysex: true });
+    midi.onstatechange = fillPorts;
+    fillPorts();
+  } catch (e) { say("MIDI access was refused: " + e.message); }
+};
+$("inport").onchange = bindPorts;
+$("outport").onchange = bindPorts;
+$("scan").onclick = scan;
+redraw();
+</script>
+</body>
+</html>

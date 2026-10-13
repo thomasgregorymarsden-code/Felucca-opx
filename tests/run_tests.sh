@@ -168,6 +168,10 @@ CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
 fail=0
 run() { echo "== $1"; shift; "$@" || fail=1; }
 
+$CC -o "$OUT/flashscan_test" tests/flashscan_test.c
+run "OPX fork: FLASH_SCAN against a simulated NOR (erased / used sectors, CRC, range, read-only)" "$OUT/flashscan_test"
+run "OPX fork: patch format (tools/opx_patch_spec.py): pack / unpack round trips" python3 tools/opx_patch_spec.py --test
+
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
 
@@ -291,6 +295,8 @@ if [ -f build/gen/felucca_tables.h ]; then
     $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/editor_test" tests/editor_test.c -lm
     run "editor: real C protocol, malformed transfers, queue recovery, MENU settings (writes build/host/menu.json)" \
         env MENU_JSON="$OUT/menu.json" "$OUT/editor_test"
+    $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/flashscan_proto_test" tests/flashscan_proto_test.c -lm
+    run "OPX fork: FLASH_SCAN (cmd 120) through the editor protocol" "$OUT/flashscan_proto_test"
     $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/robust_test" tests/robust_test.c -lm
     run "robustness: crafted sample slots, engine numbers, retained old projects, preset patterns, malformed requests" \
         "$OUT/robust_test"
