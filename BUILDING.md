@@ -151,7 +151,7 @@ after merging Felucca 1.6. Development builds say `v1.5.1-opx` (`firmware/src/fe
 (`FM-1_9XY`) comes from the base version, as upstream's does; the installers only use it to confirm, after an
 install, that the FM-1 runs the package just written.
 
-To make a release, from the GitHub web page (an iPad is enough):
+To make a release, from the GitHub web page (no local build is needed):
 
 1. Make sure the last run of **Build and publish** on `opx-engine` is green, and that [CHANGELOG.md](CHANGELOG.md)
    has the release's entry.
