@@ -8999,10 +8999,10 @@ static int test_bench(void)
     frame();
     ok &= ui.menu == 4 && bench_state >= 1u;
     frames(3);
-    ok &= bench_state == 3u && bench_n == 2u + 1u + 1u + 18u + 3u && !bench_mute;
+    ok &= bench_state == 3u && bench_n == 2u + 1u + 1u + 18u + 2u && !bench_mute;
     if (!ok)
         printf("ui: bench: menu %u state %u rows %u mute %u\n", ui.menu, bench_state, bench_n, bench_mute);
-    bad += check("bench: INFO, OCT+: RUNNING, then 25 rows (idle, heading, FM6, OPX heading and 18 waves, 3 MAC)", ok);
+    bad += check("bench: INFO, OCT+: RUNNING, then 24 rows (idle, heading, FM6, OPX heading and 18 waves, 2 MAC)", ok);
     ok = trk[0].eng_req == before.eng_req && trk[0].engine == before.engine &&
          !memcmp(trk[0].p, before.p, sizeof before.p) && !memcmp(fm6_patch[0], fm6p, sizeof fm6p) && opx_own[0] == own;
     for (i = 0; i < NVOICE; i++)
@@ -9018,8 +9018,8 @@ static int test_bench(void)
     }
     bad += check("bench: track 1 as it was after (engine, values, FM6 patch, OPX patch); no voice left", ok);
     ok = bench_row[1].kind == BR_HEAD && str_eq(bench_row[2].name, "FM6 F1") && bench_row[3].kind == BR_SUB && str_eq(bench_row[4].name, "SIN") &&
-         str_eq(bench_row[bench_n - 1u].name, "FLOAT MAC") && bench_row[bench_n - 1u].kind == BR_NS;
-    bad += check("bench: the rows named (FM6 F1, OPX SIN .., FLOAT MAC)", ok);
+         str_eq(bench_row[bench_n - 1u].name, "INT64 MAC") && bench_row[bench_n - 1u].kind == BR_NS;
+    bad += check("bench: the rows named (FM6 F1, OPX SIN .., INT64 MAC)", ok);
     press(B_OCTDN);
     frame();
     ok = ui.menu == 3;

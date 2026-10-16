@@ -66,6 +66,26 @@ jobs:
           fi
           b                                            # (the development build: build/felucca.fwsc)
 
+      - name: Toolchain float options (diagnostic, OPX fork; to be removed)
+        shell: bash
+        continue-on-error: true
+        run: |
+          tc=~/.jieli/toolchain/pi32v2/bin
+          ls $tc | head -40 | tr '\n' ' ' | sed 's/^/::notice::bin: /'; echo
+          ($tc/llc -march=pi32v2 -mattr=help 2>&1 || $tc/clang -target pi32v2 -mattr=help 2>&1) | grep -iE "fp|float|dsp|mac" | head -20 | sed 's/^/::notice::mattr: /'
+          ($tc/clang -target pi32v2 -mcpu=help 2>&1; $tc/llc -march=pi32v2 -mcpu=help 2>&1) | head -12 | sed 's/^/::notice::mcpu: /'
+          grep -rhoE -- "-m[a-z0-9_=,.-]+" ~/fw-AC79_AIoT_SDK --include="Makefile*" --include="*.mk" --include="*.lua" 2>/dev/null | sort | uniq -c | sort -rn | head -25 | sed 's/^/::notice::sdk flag: /'
+          grep -rlE "fprev|hard-float|mfpu|__fp|fpu" ~/fw-AC79_AIoT_SDK --include="Makefile*" --include="*.mk" --include="*.h" 2>/dev/null | head -8 | sed 's/^/::notice::sdk fpu file: /'
+          grep -rhE "fprev|mfpu|hard-float|float-abi" ~/fw-AC79_AIoT_SDK --include="Makefile*" --include="*.mk" 2>/dev/null | head -8 | sed 's/^/::notice::sdk fpu line: /'
+          echo 'float f(float a, float b) { return a * b + 1.0f; }' > /tmp/f.c
+          for o in "" "-mfprev1" "-mhard-float" "-mfloat-abi=hard"; do
+            if $tc/clang -target pi32v2 -Os $o -c /tmp/f.c -o /tmp/f.o 2>/tmp/f.err; then
+              ~/.jieli/toolchain/common/bin/objdump -d /tmp/f.o 2>&1 | grep -vE "^$|file format|Disassembly" | head -8 | tr -s ' \t' ' ' | tr '\n' '|' | sed "s/^/::notice::float [$o]: /"; echo
+            else
+              head -2 /tmp/f.err | tr '\n' ' ' | sed "s/^/::notice::float [$o] refused: /"; echo
+            fi
+          done
+
       - name: Emscripten (browser emulator)
         uses: mymindstorm/setup-emsdk@v14
         with:

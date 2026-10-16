@@ -1294,7 +1294,6 @@ static void setup(int s)
             bench_line(BR_PCT, N_OPX_WAVE[W[i]], 412 + 61 * i, (412 + 61 * i) / 6u);
         bench_line(BR_NS, "INT32 MAC", 42, 0);
         bench_line(BR_NS, "INT64 MAC", 125, 0);
-        bench_line(BR_NS, "FLOAT MAC", 1033, 0);
         ui.menu = 4; bench_state = 3;
         ui.menu_scroll = s == S_BENCH ? 0 : (uint16_t)menu_scroll_max();
         break;
