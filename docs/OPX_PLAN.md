@@ -86,7 +86,19 @@ The manual gives no curve for these, so each is a reasonable guess:
 
 On the host, six OPX voices cost about 1.8 times six FM6 voices (`opx_test` prints the ratio). With waveforms on
 all six operators (M2a) the host measures: SAW 2.0, SAW HD 2.5, SQR HD 3.2, ADTV 12345 4.1, NOISE PINK 2.7 times FM6.
-Whether the heavy ones fit six voices on the device is not yet measured: MENU > SYSTEM > INFO shows the CPU load. FM6 runs six voices on
+Whether the heavy ones fit six voices on the device is not yet measured: MENU > SYSTEM > INFO shows the CPU load.
+
+**On the device:** MENU > SYSTEM > INFO, OCT+ runs a benchmark (`firmware/src/bench.c`): with the transport stopped it
+times the mix on the FM-1 itself (track 1 borrowed and put back, the audio silent for a few seconds) and lists the share
+of real time six held notes take for FM6 and for OPX with each waveform, plus 32- and 64-bit multiply-adds. The audio
+drops a voice above 85 % (`audio.c`).
+
+**Floating point:** Felucca is compiled for the compiler's generic pi32v2 core, where `float` becomes a call to a
+software routine that the firmware does not link. JieLi's SDK compiles for `-mcpu=r3`, the AC79's core, and there a
+float multiply-add is two FPU instructions. `FELUCCA_CPU=r3` builds that way (CI publishes it as `dev-r3/`), and its
+benchmark adds a float row. Comparing the two builds' benchmarks shows what r3 gains for the existing integer code too.
+Before using float in the audio code: the audio interrupt (`hal/fm1_isr.S`) does not save FPU registers, so float in an
+interrupt is only safe while nothing it interrupts uses the FPU. FM6 runs six voices on
 the device, so OPX has the same six-voice cap (`OPX_POLY`); on the device, six held OPX notes play without dropouts.
 The compiled render loop's cost is tracked by `tests/target_budget.py` (`opx_render` in `tests/target_budget.txt`).
 M2–M5 add work per sample, so each of them needs the device checked again with six voices held.
