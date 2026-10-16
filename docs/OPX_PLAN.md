@@ -30,11 +30,11 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
 - **Order and timing.** Each sample, the operators run from 6 down to 1. An input from a higher-numbered operator is this sample's output. An input from a lower-numbered one, as in the loops of algorithms 4, 6 and 34 or an upward link in USER, is the previous sample's.
 - **Waveforms (M2a)** replace the operator's sine; a plain sine with WIDTH OFF takes M1's path unchanged, sample for
   sample. Every periodic wave is a 1024-point table read the way the sine is (`eng_opx.c` `opx_wt_build`,
-  `opx_table`), so it costs about what the sine costs. The tables (about 70 KB of RAM, and 4 KB to build them) are built once in the main
+  `opx_table`), so it costs about what the sine costs. The tables (about 64 KB of RAM) are built once in the main
   loop, after boot; until then every wave plays as a sine.
   - SIN 12BIT / 8BIT, TRI and the eleven ADTV waves: one table each. The ADTV ones are sums of sines scaled to a
     full-scale peak.
-  - SAW and SQR: ten tables each, with 1, 2, 4 … 512 harmonics at 1/n. Each block, the operator's pitch picks the
+  - SAW and SQR: nine tables each, with 1, 2, 4 … 256 harmonics at 1/n. Each block, the operator's pitch picks the
     table whose harmonics stay under 10 kHz; the HD versions go to 20 kHz. So none of them aliases unless FM pushes it
     (`opx_test`: aliases 96–99 dB down at 2.2 kHz). SAW is at 83 % of full scale and SQR at 77 %, so the highest table
     peaks stay in range.

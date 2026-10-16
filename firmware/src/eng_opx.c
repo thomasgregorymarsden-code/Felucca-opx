@@ -318,7 +318,7 @@ static void opx_build(const track_t *t, opx_rt_t *r)
  *   ADTV              sums of sines: SAW3 1 + 1/2 + 1/3, SQR3 1 + 1/3 (3rd) + 1/5 (5th), TRI3 1 - 1/9 + 1/25,
  *                     12345 the first five harmonics at one level, 1+n the fundamental and harmonic n at one level;
  *                     each scaled to a full-scale peak
- *   SAW, SQR          band-limited: a table per power of two of harmonics (1, 2, 4 .. 512), the one for the operator's
+ *   SAW, SQR          band-limited: a table per power of two of harmonics (1, 2, 4 .. 256), the one for the operator's
  *                     pitch picked each block, its harmonics up to 10 kHz; the HD ones up to 20 kHz: "richer high-end
  *                     overtones" (p.84; the CPU cost is the same here). The harmonics at 1/n; SAW at 83 %, SQR at 77 %
  *                     of full scale: the highest peak of any table (SAW's Gibbs overshoot, 1.177; SQR's lone
@@ -331,7 +331,7 @@ static void opx_build(const track_t *t, opx_rt_t *r)
  * Every periodic wave is one table read a sample, as the sine (the device's benchmark, MENU > SYSTEM > INFO: one big
  * per-sample switch over the waves cost as much again as the sine itself). The tables are built once, in the main loop
  * (opx_wt_build, from opx_poll), in RAM; until then every wave plays the sine */
-#define OPX_MIP 10                                     /* SAW / SQR: 1, 2, 4 .. 512 harmonics */
+#define OPX_MIP 9                                      /* SAW / SQR: 1, 2, 4 .. 256 harmonics */
 enum { WT_SIN12, WT_SIN8, WT_TRI, WT_ADTV, WT_SAW = WT_ADTV + (OPX_W_A18 - OPX_W_ASAW3 + 1), WT_SQR = WT_SAW + OPX_MIP,
        WT_COUNT = WT_SQR + OPX_MIP };
 static int16_t opx_wt[WT_COUNT][1025] __attribute__((section(".pool")));   /* 1024 points and a guard, as SINE */
@@ -363,11 +363,10 @@ static int32_t opx_adtv(uint32_t w, uint32_t i)
         return (s * OPX_A1N_GAIN[(w - OPX_W_A12) % 7u]) >> 15;
     }
 }
-/* the tables (main loop, once: ~1.3 M table reads) */
+/* the tables (main loop, once: ~1 M table reads) */
 static void opx_wt_build(void)
 {
-    static int32_t acc[1024] __attribute__((section(".pool")));
-    uint32_t i, w, set, l, h, n0;
+    uint32_t i, w, set, l, h;
     if (opx_wt_ok)
         return;
     for (i = 0; i < 1024u; i++) {
@@ -378,26 +377,19 @@ static void opx_wt_build(void)
             opx_wt[WT_ADTV + w - OPX_W_ASAW3][i] = (int16_t)opx_adtv(w, i);
     }
     /* SAW: 0.83 x (2 / pi) sum (-1)^(n+1) sin(nx) / n (rising through 0 at phase 0, as the sine); SQR: 0.77 x (4 / pi)
-     * sum over odd n of sin(nx) / n. Level l: harmonics 1 .. 2^l, each level the one before and its new harmonics */
+     * sum over odd n of sin(nx) / n. Level l: harmonics 1 .. 2^l (256 at most: 4 points a cycle of the table) */
     for (set = 0; set < 2u; set++) {
         int32_t amp = set ? (int32_t)(0.77 * 4.0 * 32767.0 / 3.14159265358979 * 256.0)   /* x 256 (constants: */
                           : (int32_t)(0.83 * 2.0 * 32767.0 / 3.14159265358979 * 256.0);  /* no float on the device) */
-        for (i = 0; i < 1024u; i++)
-            acc[i] = 0;
-        for (l = 0, n0 = 1; l < OPX_MIP; l++) {
-            uint32_t top = 1u << l;
-            for (h = n0; h <= top; h++) {
-                int32_t c;
-                if (set && !(h & 1u))
-                    continue;
-                c = (int32_t)((uint32_t)amp / h) * (set || (h & 1u) ? 1 : -1);   /* (an unsigned divide, as the firmware links) */
-                for (i = 0; i < 1024u; i++)
-                    acc[i] += (int32_t)(((int64_t)sine_i((i << 22) * h) * c) >> 15);
+        for (l = 0; l < OPX_MIP; l++)
+            for (i = 0; i < 1024u; i++) {
+                int32_t acc = 0;
+                for (h = 1; h <= 1u << l; h += set ? 2u : 1u) {
+                    int32_t c = (int32_t)((uint32_t)amp / h);   /* (an unsigned divide, as the firmware links) */
+                    acc += (int32_t)(((int64_t)sine_i((i << 22) * h) * (set || (h & 1u) ? c : -c)) >> 15);
+                }
+                opx_wt[(set ? WT_SQR : WT_SAW) + l][i] = (int16_t)opx_sq15(acc >> 8);
             }
-            n0 = top + 1u;
-            for (i = 0; i < 1024u; i++)
-                opx_wt[(set ? WT_SQR : WT_SAW) + l][i] = (int16_t)opx_sq15(acc[i] >> 8);
-        }
     }
     for (i = 0; i < WT_COUNT; i++)
         opx_wt[i][1024] = opx_wt[i][0];                /* (the guard: the reads need no mask) */
