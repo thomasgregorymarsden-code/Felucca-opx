@@ -29,15 +29,15 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
   - `tests/opx_test.c` checks every chart against a table written separately from the engine, and renders every algorithm against a floating-point reference implementation. They agree to better than −45 dB.
 - **Order and timing.** Each sample, the operators run from 6 down to 1. An input from a higher-numbered operator is this sample's output. An input from a lower-numbered one, as in the loops of algorithms 4, 6 and 34 or an upward link in USER, is the previous sample's.
 - **Waveforms (M2a)** replace the operator's sine; a plain sine with WIDTH OFF takes M1's path unchanged, sample for
-  sample. Every periodic wave is a 1024-point table read the way the sine is (`eng_opx.c` `opx_wt_build`,
-  `opx_table`), so it costs about what the sine costs. The tables (about 64 KB of RAM) are built once in the main
-  loop, after boot; until then every wave plays as a sine.
-  - SIN 12BIT / 8BIT, TRI and the eleven ADTV waves: one table each. The ADTV ones are sums of sines scaled to a
-    full-scale peak.
-  - SAW and SQR: nine tables each, with 1, 2, 4 … 256 harmonics at 1/n. Each block, the operator's pitch picks the
-    table whose harmonics stay under 10 kHz; the HD versions go to 20 kHz. So none of them aliases unless FM pushes it
-    (`opx_test`: aliases 96–99 dB down at 2.2 kHz). SAW is at 83 % of full scale and SQR at 77 %, so the highest table
-    peaks stay in range.
+  sample. Every periodic wave is read from a table the way the sine is (`eng_opx.c` `opx_wt_build`, `opx_table`), so
+  it should cost about what the sine costs. The tables (16 KB of RAM: the pool had about 32 KB free) are built once
+  in the main loop, after boot; until then every wave plays as a sine.
+  - SIN 12BIT / 8BIT: the sine with its low 4 / 8 bits cleared. TRI: a table of four straight lines, exact.
+  - The eleven ADTV waves: a 256-point table each, sums of sines scaled to a full-scale peak.
+  - SAW: nine tables, with 1, 2, 4 … 256 harmonics at 1/n. Each block, the operator's pitch picks the table whose
+    harmonics stay under 10 kHz; SAW HD goes to 20 kHz. SQR is the SAW table minus itself half a cycle later, which
+    cancels the even harmonics, so it costs two reads. Each table has 32 points per cycle of its top harmonic (128 to
+    1024 points). `opx_test` at 2.2 kHz: aliases and table images 79–88 dB below the fundamental.
   - The noises are made a block (32 samples) at a time per operator per voice. S/H follows the operator's own pitch,
     without FM.
   - Assumptions: WIDTH squeezes the cycle into its first WIDTH % and is silent after (from the manual's pictures);

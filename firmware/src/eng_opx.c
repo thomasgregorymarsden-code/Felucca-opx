@@ -313,37 +313,41 @@ static void opx_build(const track_t *t, opx_rt_t *r)
 /* M2: the opsix's 23 waveforms (Waveform List p.84), in its order, and WIDTH (p.43). How they are made, the manual not
  * saying:
  *   SIN               the sine table (dsp.c sine_i's), as M1
- *   SIN 12BIT / 8BIT  the sine table at 12 / 8 bits
- *   TRI               a triangle table
+ *   SIN 12BIT / 8BIT  the sine, its low 4 / 8 bits cleared
+ *   TRI               a triangle: a table of 4 lines (exact, read between its points)
  *   ADTV              sums of sines: SAW3 1 + 1/2 + 1/3, SQR3 1 + 1/3 (3rd) + 1/5 (5th), TRI3 1 - 1/9 + 1/25,
  *                     12345 the first five harmonics at one level, 1+n the fundamental and harmonic n at one level;
- *                     each scaled to a full-scale peak
- *   SAW, SQR          band-limited: a table per power of two of harmonics (1, 2, 4 .. 256), the one for the operator's
- *                     pitch picked each block, its harmonics up to 10 kHz; the HD ones up to 20 kHz: "richer high-end
- *                     overtones" (p.84; the CPU cost is the same here). The harmonics at 1/n; SAW at 83 %, SQR at 77 %
- *                     of full scale: the highest peak of any table (SAW's Gibbs overshoot, 1.177; SQR's lone
- *                     fundamental, 4 / pi) stays in range
+ *                     each scaled to a full-scale peak; tables of 256 points
+ *   SAW, SQR          band-limited: a SAW table per power of two of harmonics (1, 2, 4 .. 256), the one for the
+ *                     operator's pitch picked each block, its harmonics up to 10 kHz; the HD ones up to 20 kHz:
+ *                     "richer high-end overtones" (p.84; the CPU cost is the same here). The harmonics at 1/n, 77 % of
+ *                     full scale. SQR is the SAW table less itself half a cycle on (the even harmonics cancel, the odd
+ *                     ones double: 0.77 x 4 / pi x the odd ones' 1/n); its lone fundamental, the highest peak, stays in
+ *                     range. Each table at 32 points a cycle of its top harmonic (128 at least, 1024 at most): the
+ *                     reading's images 60 dB under that harmonic, under it at 1024 points
  *   NOISE             S/H: a random level held for each cycle of the operator (its pitch, unmodulated: the "musical"
  *                     noise); WHITE flat; PINK -3 dB / octave (Paul Kellet's three-pole filter on white); BLUE pink's
  *                     difference (+9 dB over 4 octaves). Made a block at a time; they ignore FM, FB and WIDTH
  *   WIDTH             1..99 %: the whole wave in that part of the cycle, silence in the rest (p.43's pictures: OFF,
  *                     50 %, 25 %). An assumption from the pictures; WIDTH OFF is the full cycle
- * Every periodic wave is one table read a sample, as the sine (the device's benchmark, MENU > SYSTEM > INFO: one big
- * per-sample switch over the waves cost as much again as the sine itself). The tables are built once, in the main loop
- * (opx_wt_build, from opx_poll), in RAM; until then every wave plays the sine */
-#define OPX_MIP 9                                      /* SAW / SQR: 1, 2, 4 .. 256 harmonics */
-enum { WT_SIN12, WT_SIN8, WT_TRI, WT_ADTV, WT_SAW = WT_ADTV + (OPX_W_A18 - OPX_W_ASAW3 + 1), WT_SQR = WT_SAW + OPX_MIP,
-       WT_COUNT = WT_SQR + OPX_MIP };
-static int16_t opx_wt[WT_COUNT][1025] __attribute__((section(".pool")));   /* 1024 points and a guard, as SINE */
+ * Every periodic wave is a table read a sample (SQR two), as the sine (the device's benchmark, MENU > SYSTEM > INFO:
+ * one big per-sample switch over the waves cost as much again as the sine itself). The tables (16 KB of RAM) are built
+ * once, in the main loop (opx_wt_build, from opx_poll); until then every wave plays the sine */
+#define OPX_MIP 9                                      /* SAW: 1, 2, 4 .. 256 harmonics */
+#define OPX_NADTV (OPX_W_A18 - OPX_W_ASAW3 + 1u)
+#define OPX_MIP_LOG2(l) ((l) < 2u ? 7u : (l) > 5u ? 10u : (l) + 5u)   /* SAW level l: 2^this points */
+enum { WT_ADTV = 5, WT_SAW = WT_ADTV + OPX_NADTV * 257u,   /* (the triangle first: 4 lines and a guard) */
+       WT_COUNT = WT_SAW + 3u * 129u + 257u + 513u + 4u * 1025u };
+static int16_t opx_wt[WT_COUNT] __attribute__((section(".pool")));
+static uint16_t opx_wt_saw[OPX_MIP];                  /* where each SAW level starts in opx_wt */
 static volatile uint8_t opx_wt_ok;
 /* the ADTV 1+n waves' gain to a full-scale peak, n = 2..8 (the peak of sin x + sin nx: 1.760 1.540 1.928 2 1.967 1.903
  * 1.981) */
 static const uint16_t OPX_A1N_GAIN[7] = {18615, 21282, 16993, 16383, 16659, 17219, 16539};
 static int32_t opx_sq15(int32_t v) { return v > 32767 ? 32767 : v < -32767 ? -32767 : v; }
-/* point i of an ADTV wave (w: OPX_W_ASAW3 ..) */
-static int32_t opx_adtv(uint32_t w, uint32_t i)
+/* an ADTV wave (w: OPX_W_ASAW3 ..) at phase p */
+static int32_t opx_adtv(uint32_t w, uint32_t p)
 {
-    uint32_t p = i << 22;
     int32_t s;
     switch (w) {
     case OPX_W_ASAW3:
@@ -363,63 +367,76 @@ static int32_t opx_adtv(uint32_t w, uint32_t i)
         return (s * OPX_A1N_GAIN[(w - OPX_W_A12) % 7u]) >> 15;
     }
 }
-/* the tables (main loop, once: ~1 M table reads) */
+/* the tables (main loop, once: ~0.3 M sine reads) */
 static void opx_wt_build(void)
 {
-    uint32_t i, w, set, l, h;
+    /* SAW: 0.77 x (2 / pi) sum (-1)^(n+1) sin(nx) / n, rising through 0 at phase 0 as the sine; x 256 (a constant: no
+     * float on the device) */
+    const int32_t amp = (int32_t)(0.77 * 2.0 * 32767.0 / 3.14159265358979 * 256.0);
+    uint32_t i, w, l, h, at = WT_SAW;
+    int16_t *t;
     if (opx_wt_ok)
         return;
-    for (i = 0; i < 1024u; i++) {
-        opx_wt[WT_SIN12][i] = (int16_t)(SINE[i] & ~15);
-        opx_wt[WT_SIN8][i] = (int16_t)(SINE[i] & ~255);
-        opx_wt[WT_TRI][i] = (int16_t)opx_sq15(osc_tri((i << 22) + 0x40000000u));   /* (from 0 rising, as the sine) */
-        for (w = OPX_W_ASAW3; w <= OPX_W_A18; w++)
-            opx_wt[WT_ADTV + w - OPX_W_ASAW3][i] = (int16_t)opx_adtv(w, i);
+    opx_wt[0] = 0, opx_wt[1] = 32767, opx_wt[2] = 0, opx_wt[3] = -32767, opx_wt[4] = 0;   /* TRI */
+    for (w = 0; w < OPX_NADTV; w++) {
+        t = opx_wt + WT_ADTV + w * 257u;
+        for (i = 0; i < 256u; i++)
+            t[i] = (int16_t)opx_adtv(OPX_W_ASAW3 + w, i << 24);
+        t[256] = t[0];                                 /* (the guard: the reads need no mask) */
     }
-    /* SAW: 0.83 x (2 / pi) sum (-1)^(n+1) sin(nx) / n (rising through 0 at phase 0, as the sine); SQR: 0.77 x (4 / pi)
-     * sum over odd n of sin(nx) / n. Level l: harmonics 1 .. 2^l (256 at most: 4 points a cycle of the table) */
-    for (set = 0; set < 2u; set++) {
-        int32_t amp = set ? (int32_t)(0.77 * 4.0 * 32767.0 / 3.14159265358979 * 256.0)   /* x 256 (constants: */
-                          : (int32_t)(0.83 * 2.0 * 32767.0 / 3.14159265358979 * 256.0);  /* no float on the device) */
-        for (l = 0; l < OPX_MIP; l++)
-            for (i = 0; i < 1024u; i++) {
-                int32_t acc = 0;
-                for (h = 1; h <= 1u << l; h += set ? 2u : 1u) {
-                    int32_t c = (int32_t)((uint32_t)amp / h);   /* (an unsigned divide, as the firmware links) */
-                    acc += (int32_t)(((int64_t)sine_i((i << 22) * h) * (set || (h & 1u) ? c : -c)) >> 15);
-                }
-                opx_wt[(set ? WT_SQR : WT_SAW) + l][i] = (int16_t)opx_sq15(acc >> 8);
+    for (l = 0; l < OPX_MIP; l++) {
+        uint32_t lg = OPX_MIP_LOG2(l), np = 1u << lg;
+        opx_wt_saw[l] = (uint16_t)at;
+        t = opx_wt + at;
+        for (i = 0; i < np; i++) {
+            int32_t acc = 0;
+            for (h = 1; h <= 1u << l; h++) {
+                int32_t c = (int32_t)((uint32_t)amp / h);   /* (an unsigned divide, as the firmware links) */
+                acc += (int32_t)(((int64_t)sine_i((i << (32u - lg)) * h) * (h & 1u ? c : -c)) >> 15);
             }
+            t[i] = (int16_t)opx_sq15(acc >> 8);
+        }
+        t[np] = t[0];
+        at += np + 1u;
     }
-    for (i = 0; i < WT_COUNT; i++)
-        opx_wt[i][1024] = opx_wt[i][0];                /* (the guard: the reads need no mask) */
     opx_wt_ok = 1;
 }
-/* wave w's table for a phase step of inc (SAW / SQR: the level its pitch allows); the noises: 0 */
-static const int16_t *opx_table(uint32_t w, uint32_t inc)
+typedef struct {                 /* an operator's wave for a block (opx_render) */
+    const int16_t *t;            /* its table; 0: this block's noise */
+    uint32_t sh;                 /* the phase's shift to a point: 32 - log2 of the table's points */
+    uint32_t sq;                 /* SQR: the table less itself half a cycle on */
+    int32_t mk;                  /* SIN 12BIT / 8BIT: the bits kept */
+} opx_wsel_t;
+/* wave w's table for a phase step of inc (SAW / SQR: the level its pitch allows); the noises: no table */
+static void opx_table(uint32_t w, uint32_t inc, opx_wsel_t *v)
 {
     uint32_t hmax, l;
+    v->t = SINE, v->sh = 22, v->sq = 0, v->mk = -1;
     if (!opx_wt_ok || w == OPX_W_SIN)
-        return SINE;
-    if (w >= OPX_W_NOISE_SH)
-        return 0;
-    if (w <= OPX_W_TRI)
-        return opx_wt[WT_SIN12 + w - OPX_W_SIN12];
-    if (w >= OPX_W_ASAW3)
-        return opx_wt[WT_ADTV + w - OPX_W_ASAW3];
-    /* SAW SAW HD SQR SQR HD: harmonics up to 10 / 20 kHz: hmax = limit / f = limit x 2^32 / (44100 x inc) */
-    hmax = (w == OPX_W_SAWHD || w == OPX_W_SQRHD ? (uint32_t)(20000ull * 4294967296ull / 44100u)
-                                                 : (uint32_t)(10000ull * 4294967296ull / 44100u)) / (inc ? inc : 1u);
-    for (l = 0; l + 1u < OPX_MIP && (2u << l) <= hmax; l++)
-        ;
-    return opx_wt[(w == OPX_W_SAW || w == OPX_W_SAWHD ? WT_SAW : WT_SQR) + l];
+        return;
+    if (w >= OPX_W_NOISE_SH) {
+        v->t = 0;
+    } else if (w == OPX_W_SIN12 || w == OPX_W_SIN8) {
+        v->mk = w == OPX_W_SIN12 ? ~15 : ~255;
+    } else if (w == OPX_W_TRI) {
+        v->t = opx_wt, v->sh = 30;
+    } else if (w >= OPX_W_ASAW3) {
+        v->t = opx_wt + WT_ADTV + (w - OPX_W_ASAW3) * 257u, v->sh = 24;
+    } else {   /* SAW SAW HD SQR SQR HD: harmonics up to 10 / 20 kHz: hmax = limit / f = limit x 2^32 / (44100 x inc) */
+        hmax = (w == OPX_W_SAWHD || w == OPX_W_SQRHD ? (uint32_t)(20000ull * 4294967296ull / 44100u)
+                                                     : (uint32_t)(10000ull * 4294967296ull / 44100u)) / (inc ? inc : 1u);
+        for (l = 0; l + 1u < OPX_MIP && (2u << l) <= hmax; l++)
+            ;
+        v->t = opx_wt + opx_wt_saw[l], v->sh = 32u - OPX_MIP_LOG2(l);
+        v->sq = w == OPX_W_SQR || w == OPX_W_SQRHD;
+    }
 }
-/* table t at phase p, linearly between its points (as sine_i) */
-static inline int32_t opx_tab(const int16_t *t, uint32_t p)
+/* table t (2^(32 - sh) points) at phase p, linearly between its points (as sine_i) */
+static inline int32_t opx_tab(const int16_t *t, uint32_t sh, uint32_t p)
 {
-    uint32_t i = p >> 22;
+    uint32_t i = p >> sh;
     int32_t a = t[i], b = t[i + 1u];
-    return a + (((b - a) * (int32_t)((p >> 7) & 0x7FFFu)) >> 15);
+    return a + (((b - a) * (int32_t)((p << (32u - sh)) >> 17)) >> 15);
 }
 typedef struct {                 /* an operator's noise state (a voice's) */
     uint32_t rng, lastp;         /* the generator; S/H: the last phase (a wrap = a new level) */
@@ -468,16 +485,20 @@ static void opx_noise_block(uint32_t w, opx_noise_t *z, uint32_t ph, uint32_t in
     }
 }
 /* operator k's wave at phase p: its table (with its WIDTH), or this block's noise sample nb */
-static inline int32_t opx_wave(const opx_rt_t *r, uint32_t k, const int16_t *t, uint32_t p, int32_t nb)
+static inline int32_t opx_wave(const opx_rt_t *r, uint32_t k, const opx_wsel_t *v, uint32_t p, int32_t nb)
 {
-    if (!t)
+    int32_t s;
+    if (!v->t)
         return nb;
     if (r->wr[k]) {                                      /* WIDTH: the cycle squeezed into its first WIDTH % */
         if (p >= r->wlim[k])
             return 0;
         p = (uint32_t)(((uint64_t)p * r->wr[k]) >> 16);
     }
-    return opx_tab(t, p);
+    s = opx_tab(v->t, v->sh, p);
+    if (v->sq)
+        s -= opx_tab(v->t, v->sh, p + 0x80000000u);
+    return s & v->mk;
 }
 
 /* ------------------------------------------------------------- the voice --- */
@@ -609,7 +630,7 @@ static int opx_done(track_t *t, voice_t *v)
 static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *restrict r, int32_t *restrict out,
     const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
-    const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const int16_t *const *tb,
+    const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const opx_wsel_t *tb,
     const int16_t (*nb)[CTL], int waves)
 {
     uint32_t i, q;
@@ -622,7 +643,7 @@ static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *re
             for (c = 0; c < nin; c++)
                 mod += (r->amt[kk][c] * y[r->src[kk][c]]) >> 15;
             p = ph[kk] + ((uint32_t)mod << 18) + (uint32_t)(((y[kk] + yp[kk]) >> 1) * fbq[kk]);
-            s = waves ? opx_wave(r, kk, tb[kk], p, nb[kk][i]) : sine_i(p);
+            s = waves ? opx_wave(r, kk, &tb[kk], p, nb[kk][i]) : sine_i(p);
             yp[kk] = y[kk];
             y[kk] = (s * g[kk]) >> 15;
             g[kk] += dg[kk];
@@ -640,7 +661,7 @@ static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *re
 static int32_t __attribute__((noinline)) opx_loop_wave(const opx_rt_t *restrict r, int32_t *restrict out,
     const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
-    const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const int16_t *const *tb,
+    const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const opx_wsel_t *tb,
     const int16_t (*nb)[CTL])
 {
     return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb, nb, 1);
@@ -699,13 +720,13 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
         for (q = 0; q < nact; q++)
             wv |= r->wv[ord[q]];
         if (wv) {
-            const int16_t *tb[OPX_NOP];
+            opx_wsel_t tb[OPX_NOP];
             int16_t nb[OPX_NOP][CTL];
             for (q = 0; q < nact; q++) {
                 uint32_t kk = ord[q], w = r->wv[kk] & ~OPX_W_NARROW;
                 uint32_t fi = r->wr[kk] ? (uint32_t)(((uint64_t)inc[kk] * r->wr[kk]) >> 16) : inc[kk];   /* (WIDTH) */
-                tb[kk] = opx_table(w, fi);
-                if (!tb[kk])
+                opx_table(w, fi, &tb[kk]);
+                if (!tb[kk].t)
                     opx_noise_block(w, &n->nz[kk], ph[kk], inc[kk], nb[kk]);
             }
             dc = opx_loop_wave(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb,

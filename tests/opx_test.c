@@ -390,6 +390,8 @@ static void test_waves(void)
     uint32_t i, h;
     int ok;
     char what[160];
+    check("waves: the tables fill opx_wt exactly (TRI, ADTV, the SAW levels)",
+          opx_wt_ok && opx_wt_saw[0] == WT_SAW && opx_wt_saw[OPX_MIP - 1] + 1025u == WT_COUNT);
     check("waves: 23 names, SIN first, NOISE BLUE last", OPX_NWAVE == 23 && !strcmp(N_OPX_WAVE[0], "SIN") &&
           !strcmp(N_OPX_WAVE[OPX_NWAVE - 1], "NOISE BLUE") && !N_OPX_WAVE[OPX_NWAVE]);
     /* SAW, SAW HD: every harmonic 1/n (to 6); SQR, SQR HD: odd ones 1/n, no even ones; TRI: odd ones 1/n^2 */
@@ -457,6 +459,7 @@ static void test_waves(void)
     {
         opx_rt_t r;
         opx_noise_t z;
+        opx_wsel_t ws = {SINE, 22, 0, -1};
         int16_t nb[CTL];
         uint32_t p = 0, inc = 0x01000000u, steps = 0, j;
         int32_t last = 0, v;
@@ -476,13 +479,13 @@ static void test_waves(void)
         r.wlim[0] = 0x80000000u;
         ok = 1;
         for (p = 0; p < 0xFF000000u; p += 0x01000000u) {
-            int32_t a = opx_wave(&r, 0, SINE, p, 0);
+            int32_t a = opx_wave(&r, 0, &ws, p, 0);
             int32_t want = p < 0x80000000u ? sine_i(p * 2u) : 0;
             ok &= abs(a - want) <= 2;
         }
         r.wr[0] = (100u << 16) / 25u;
         r.wlim[0] = 0x40000000u;
-        ok &= opx_wave(&r, 0, SINE, 0x10000000u, 0) > 32000 && opx_wave(&r, 0, SINE, 0x50000000u, 0) == 0;
+        ok &= opx_wave(&r, 0, &ws, 0x10000000u, 0) > 32000 && opx_wave(&r, 0, &ws, 0x50000000u, 0) == 0;
         check("waves: WIDTH 50 % / 25 %: the whole cycle in the first half / quarter, silence after", ok);
         /* the engine: WIDTH 50 on a sine changes its sound; WIDTH OFF (0) is the plain sine to the bit */
         {
@@ -523,7 +526,7 @@ static void test_waves(void)
         hi[i] = harm_db(y, FS / 4, 8192, f * (i < 2u ? 8 : 7)) - h1;
         snprintf(what, sizeof what, "waves: %s at 2151 Hz: the strongest alias %.1f dB below the fundamental; harmonic %u %.1f dB",
                  N_OPX_WAVE[W[i]], -worst, i < 2u ? 8u : 7u, hi[i]);
-        check(what, worst < -40);
+        check(what, worst < -70);
         al[i] = worst;
     }
     (void)al;
