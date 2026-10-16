@@ -72,20 +72,18 @@ jobs:
         run: |
           set +e +o pipefail
           tc=~/.jieli/toolchain/pi32v2/bin
+          j() { tr -s ' \t\n' ' ' | cut -c1-3000; }
           echo 'int x;' > /tmp/x.c
-          $tc/clang -target pi32v2 -mattr=help -c /tmp/x.c -o /tmp/x.o 2>&1 | grep -iE "fp|float|dsp|mac|fpu" | head -20 | sed 's/^/::notice::mattr: /'
-          $tc/clang -target pi32v2 -mcpu=help -c /tmp/x.c -o /tmp/x.o 2>&1 | head -15 | sed 's/^/::notice::mcpu: /'
-          $tc/clang --help 2>&1 | grep -iE "float|fpu|fprev" | head -10 | sed 's/^/::notice::help: /'
-          strings $tc/clang 2>/dev/null | grep -iE "^(\+|-)?(fp|fpu|float|hard-float|soft-float|fprev)[a-z0-9_-]*$" | sort -u | head -20 | tr '\n' ' ' | sed 's/^/::notice::clang strings: /'; echo
-          grep -rhoE -- "-m[a-z0-9_=,.-]+" ~/fw-AC79_AIoT_SDK --include="Makefile*" --include="*.mk" --include="*.lua" 2>/dev/null | sort | uniq -c | sort -rn | head -25 | sed 's/^/::notice::sdk flag: /'
-          grep -rlE "fprev|hard-float|mfpu|__fp|fpu" ~/fw-AC79_AIoT_SDK --include="Makefile*" --include="*.mk" --include="*.h" 2>/dev/null | head -8 | sed 's/^/::notice::sdk fpu file: /'
-          grep -rhE "fprev|mfpu|hard-float|float-abi" ~/fw-AC79_AIoT_SDK --include="Makefile*" --include="*.mk" 2>/dev/null | head -8 | sed 's/^/::notice::sdk fpu line: /'
+          echo "::notice::mcpu: $($tc/clang -target pi32v2 -mcpu=help -c /tmp/x.c -o /tmp/x.o 2>&1 | grep -E '^ +[a-z0-9]+ +-' | awk '{print $1}' | j)"
+          echo "::notice::mattr: $($tc/clang -target pi32v2 -mattr=help -c /tmp/x.c -o /tmp/x.o 2>&1 | grep -E '^ +[a-z0-9.+-]+ +-' | j)"
+          echo "::notice::sdk flags: $(grep -rhoE -- '-m[a-z0-9_=,.+-]+' ~/fw-AC79_AIoT_SDK --include='Makefile*' --include='*.mk' 2>/dev/null | sort | uniq -c | sort -rn | head -30 | j)"
+          echo "::notice::sdk fpu lines: $(grep -rhE 'fprev|mfpu|hard-float|float-abi|FPU' ~/fw-AC79_AIoT_SDK --include='Makefile*' --include='*.mk' --include='*.h' 2>/dev/null | head -12 | j)"
           echo 'float f(float a, float b) { return a * b + 1.0f; }' > /tmp/f.c
-          for o in "" "-mfprev1" "-mhard-float" "-mfloat-abi=hard"; do
+          for o in "" "-mcpu=r3" "-mattr=+fpu" "-mfprev1" "-mhard-float"; do
             if $tc/clang -target pi32v2 -Os $o -c /tmp/f.c -o /tmp/f.o 2>/tmp/f.err; then
-              ~/.jieli/toolchain/common/bin/objdump -d /tmp/f.o 2>&1 | grep -vE "^$|file format|Disassembly" | head -8 | tr -s ' \t' ' ' | tr '\n' '|' | sed "s/^/::notice::float [$o]: /"; echo
+              echo "::notice::float [$o]: $(~/.jieli/toolchain/common/bin/objdump -d /tmp/f.o 2>&1 | grep -E '^ +[0-9a-f]+:' | cut -f3- | j)"
             else
-              head -2 /tmp/f.err | tr '\n' ' ' | sed "s/^/::notice::float [$o] refused: /"; echo
+              echo "::notice::float [$o] refused: $(head -2 /tmp/f.err | j)"
             fi
           done
 
