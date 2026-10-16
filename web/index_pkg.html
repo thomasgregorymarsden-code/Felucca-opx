@@ -46,6 +46,11 @@
     <p class="small" data-t="stockBackup"></p>
     <p class="small"><label><input id="stock-recovery" type="checkbox"> <span data-t="stockRecovery"></span></label></p>
   </details>
+  <div id="ask" hidden style="margin-top:16px">
+    <p class="small" id="ask-text"></p>
+    <p class="small" id="ask-save" hidden><a id="ask-save-link" style="color:inherit"></a></p>
+    <p><button id="ask-yes"></button> <button id="ask-no"></button></p>
+  </div>
   <progress id="bar" max="100" value="0"></progress>
   <p id="status"></p>
   <pre id="log"></pre>
@@ -73,6 +78,7 @@ const TEXT = {
     stockTitle: "公式V15に戻す", stockFile: "公式FM-1.fwsc", stockGo: "バックアップして公式V15へ戻す",
     stockBackup: "現在の曲・保存曲・音色バンク・サンプル・設定を先に保存します。全体バックアップ非対応版は、Feluccaを更新してから行ってください。復元はFeluccaを再インストールしてエディタから行います。",
     stockRecovery: "更新中断の再開：全体バックアップはすでにパソコンへ保存済み",
+    askYes: "続ける", askNo: "やめる", saveAgain: "バックアップをもう一度保存",
     stockValid: "公式V15を確認しました", stockConfirm: "全体バックアップファイルをパソコンに保存できましたか？ 続けると公式V15へ戻します。Feluccaの曲は公式V15では開けません。",
     stockNeedBackup: "書き込みモードからはバックアップできません。保存済みバックアップがある場合だけ、更新中断の再開にチェックしてください。",
     stockUnsupported: "このFeluccaは全体バックアップに未対応です。先に最新版をインストールしてください。",
@@ -104,6 +110,7 @@ const TEXT = {
     stockTitle: "Return to official V15", stockFile: "Official FM-1.fwsc", stockGo: "Back up and return to official V15",
     stockBackup: "Current music, saved music, sound banks, samples and settings are saved first. Older firmware needs a Felucca update for complete backups. To restore an archive later, reinstall Felucca and use the editor.",
     stockRecovery: "Resume an interrupted update: I already saved a complete backup to this computer",
+    askYes: "Continue", askNo: "Cancel", saveAgain: "Save the backup again",
     stockValid: "Official V15 verified", stockConfirm: "Has the complete backup file been saved to this computer? Continue to return to official V15. Official V15 cannot open Felucca music.",
     stockNeedBackup: "An update loader cannot export a backup. Only select resume if you already saved a complete backup.",
     stockUnsupported: "This Felucca does not support complete backups. Install the current Felucca first.",
@@ -166,13 +173,13 @@ $("go").addEventListener("click", async () => {
   catch (e) { sayK("denied"); lockInstaller(false); return; }
   try {
     const up = new Updater(midi, log);
-    const total = 74 + 1167;
+    const total = 74 + Math.ceil(image.length / 512);   /* (the write requests: 512 bytes each; the image's own size) */
     const step = (k, a) => {
       log(`${k} ${a ?? ""}`);
       if (k === "start") sayK("start");
-      if (k === "verify") { sayK("verify"); $("bar").value = (a / total) * 100; }
+      if (k === "verify") { sayK("verify"); $("bar").value = Math.min(99, (a / total) * 100); }
       if (k === "loader") sayK("loader");
-      if (k === "write") { sayK("write"); $("bar").value = ((74 + a) / total) * 100; }
+      if (k === "write") { sayK("write"); $("bar").value = Math.min(99, ((74 + a) / total) * 100); }
       if (k === "reboot") sayK("reboot");
       if (k === "done") { $("bar").value = 100; sayK("done"); }
     };
@@ -201,10 +208,27 @@ $("stock-file").addEventListener("change", async () => {
     stock = verified; sayK("stockValid"); lockInstaller(false);
   } catch (e) { if (epoch === stockFileEpoch) sayK("stockError", e.message); }
 });
+let archiveUrl = null;
 function saveArchive(archive) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(archive)], {type:"application/json"}));
-  const a = document.createElement("a"); a.href = url; a.download = `Felucca-backup-${new Date().toISOString().slice(0,10)}.json`;
-  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  if (archiveUrl) URL.revokeObjectURL(archiveUrl);
+  archiveUrl = URL.createObjectURL(new Blob([JSON.stringify(archive)], {type:"application/json"}));
+  const name = `Felucca-backup-${new Date().toISOString().slice(0,10)}.json`;
+  const a = document.createElement("a"); a.href = archiveUrl; a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  const l = $("ask-save-link"); l.href = archiveUrl; l.download = name; l.textContent = t("saveAgain");   /* (kept: ask()) */
+}
+/* a yes / no question on the page itself: window.confirm() answers "no" at once in some iOS Web MIDI apps
+ * (MIDIWeb Browser), which stopped "Return to official V15" after the backup without a word */
+function ask(text, withSave) {
+  return new Promise((done) => {
+    $("ask-text").textContent = text;
+    $("ask-save").hidden = !withSave;
+    $("ask-yes").textContent = t("askYes"); $("ask-no").textContent = t("askNo");
+    $("ask").hidden = false;
+    const end = (v) => { $("ask").hidden = true; $("ask-yes").onclick = $("ask-no").onclick = null; done(v); };
+    $("ask-yes").onclick = () => end(true);
+    $("ask-no").onclick = () => end(false);
+  });
 }
 function archiveInfo(a) {
   let pos = a.indexOf(0); if (pos < 0) throw new Error("Invalid INFO");
@@ -224,12 +248,18 @@ $("stock-go").addEventListener("click", async () => {
     let midi;
     try { midi = await navigator.requestMIDIAccess({sysex:true}); } catch (e) { sayK("denied"); return; }
     const up = new Updater(midi, log);
-    const step = (k, n) => { log(`${k} ${n ?? ""}`); if (["start","verify","loader","write","reboot","done"].includes(k)) sayK(k); if (k === "done") $("bar").value = 100; };
+    const total = 74 + Math.ceil(selected.image.length / 512);
+    const step = (k, n) => {
+      log(`${k} ${n ?? ""}`);
+      if (["start","verify","loader","write","reboot","done"].includes(k)) sayK(k);
+      if (k === "verify" || k === "write") $("bar").value = Math.min(99, ((k === "write" ? 74 : 0) + n) / total * 100);
+      if (k === "done") $("bar").value = 100;
+    };
     const loader = await up.find(id => id.model === "ota-FM-1");
     if (loader) {
       loader.link.close();
       if (!$("stock-recovery").checked) { sayK("stockNeedBackup"); return; }
-      if (!confirm(t("stockConfirm"))) return;
+      if (!await ask(t("stockConfirm"), false)) return;
       sayK(await up.resume(selected.image, step, selected.product) ? "done" : "stopped");
     } else {
       const device = await up.find(id => id.model === "FM-1");
@@ -241,7 +271,7 @@ $("stock-go").addEventListener("click", async () => {
       const archive = await captureBackup((r,o) => link.request(r,o), info.version,
         (done,total) => sayK("backup", `${Math.round(done / Math.max(1,total) * 100)}%`));
       saveArchive(archive); link.close(); link = null;
-      if (!confirm(t("stockConfirm"))) return;
+      if (!await ask(t("stockConfirm"), true)) return;
       await up.install(selected.image, selected.product, step);
     }
   } catch (e) {
