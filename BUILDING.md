@@ -48,9 +48,9 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 `JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations
 (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
 
-`./build.sh --release 1.5.1-opx1` makes a release build: the package identity becomes `FM-1_915`
-and the version string `v1.5.1-opx1`; the package is `build/felucca-1.5.1-opx1.fwsc`, and
-`build/release-1.5.1-opx1/` holds what a release ships: the package, the app
+`./build.sh --release 0.1.0` makes a release build: the package identity becomes `FM-1_901`
+and the version string `v0.1.0`; the package is `build/felucca-0.1.0.fwsc`, and
+`build/release-0.1.0/` holds what a release ships: the package, the app
 (`felucca-1.0-app.bin`), `SHA256SUMS`, the sample attribution, `LICENSE`, `LICENSING.md` and
 `LICENSES/` (the package contains Apache-2.0 SDK files, so the licence texts travel with it).
 
@@ -145,18 +145,19 @@ starts, recovery needs [FM-1-transporter](https://github.com/kurogedelic/FM-1-tr
 
 ## Versions and releases
 
-A Felucca-OPX version names the Felucca release it is based on and the fork's own release on top: **`1.5.1-opx1`**
-is Felucca 1.5.1 with the first OPX release; `1.5.1-opx2` the next one on the same base; `1.6-opx1` the first one
-after merging Felucca 1.6. Development builds say `v1.5.1-opx` (`firmware/src/felucca.c`). The package identity
-(`FM-1_9XY`) comes from the base version, as upstream's does; the installers only use it to confirm, after an
-install, that the FM-1 runs the package just written.
+Felucca-OPX has its own version numbers, starting at **`0.0.1`** (the first release, on Felucca 1.5.1); 0.x while the
+OPX engine is incomplete. Which Felucca release a version is based on is in [CHANGELOG.md](CHANGELOG.md).
+Development builds say the next release + `-dev`, e.g. `v0.0.2-dev` (`firmware/src/felucca.c`); raise it after each
+release. Each part is one digit (`0.9.9` is followed by `1.0.0`, not `0.10.0`). The package identity (`FM-1_9XY`)
+comes from the first two parts (0.0.x: `FM-1_900`, as development builds); the installers only use it to confirm,
+after an install, that the FM-1 runs the package just written.
 
 To make a release, from the GitHub web page (no local build is needed):
 
 1. Make sure the last run of **Build and publish** on `opx-engine` is green, and that [CHANGELOG.md](CHANGELOG.md)
    has the release's entry.
-2. **Releases > Draft a new release**. Tag: `v` + the version, e.g. `v1.5.1-opx1`, created on `opx-engine`. Title:
-   `Felucca-OPX 1.5.1-opx1`. Paste the release's CHANGELOG entry as the description.
+2. **Releases > Draft a new release**. Tag: `v` + the version, e.g. `v0.0.2`, created on `opx-engine`. Title:
+   `Felucca-OPX 0.0.2`. Paste the release's CHANGELOG entry as the description.
 3. **Publish release.** The workflow builds `--release` with that version, runs the tests, attaches the package, the
    app, `SHA256SUMS` and the licence files to the release, then runs on `opx-engine` again so that the site's
    installer offers the new release. If the tests fail, nothing is attached: delete the release and its tag, fix,

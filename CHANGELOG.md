@@ -3,9 +3,9 @@
 Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork is based on, are in
 [docs/FELUCCA_HISTORY.md](docs/FELUCCA_HISTORY.md).
 
-## 1.5.1-opx1
+## 0.0.1 (2026-10-16)
 
-The first release: Felucca 1.5.1 with the OPX engine. Everything Felucca 1.5.1 does works as before.
+The first release, based on Felucca 1.5.1: Felucca with the OPX engine. Everything Felucca 1.5.1 does works as before.
 
 **New: the OPX engine** (engine 15), an altered-FM engine after the Korg opsix, in FM mode so far.
 

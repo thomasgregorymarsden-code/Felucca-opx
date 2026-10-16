@@ -1,7 +1,7 @@
 name: Build and publish
 
 # A push to opx-engine: build, test, publish the site (its installer offers the latest published release; this
-# build's installer is under dev/). A release published on GitHub (tag vX.Y.Z-opxN): build it as that version, test
+# build's installer is under dev/). A release published on GitHub (tag vX.Y.Z): build it as that version, test
 # it, attach the package and its licence files to the release, then run this workflow on opx-engine, which publishes
 # the site with it. (The site is deployed from the branch only: GitHub Pages' environment takes the default branch.)
 on:

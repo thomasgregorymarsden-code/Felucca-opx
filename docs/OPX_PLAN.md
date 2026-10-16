@@ -12,7 +12,7 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M0 | Engine slot 15 (14 reserved), presets, the tables every engine appears in, relocatable storage region | done |
 | M1 | Six operators in FM mode (sine), all 40 algorithms plus USER, ratio and fixed pitch, per-operator FB, ALG FB loops, per-operator ATK/DEC/SUS/REL/CURVE envelopes, level velocity; device macros; cost against FM6 | done |
 | M1.5 | Operator editing on the device (algorithm charts, USER matrix, OPERATORS list, scope); each track's patch kept in the stored format; saved with projects and the autosave | done |
-| | **First release, `1.5.1-opx1`: M0, M1 and M1.5** | |
+| | **First release, `0.0.1`: M0, M1 and M1.5** | |
 | M2 | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; the 23 waveforms and WIDTH; level key tracking | |
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | |
 | M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |

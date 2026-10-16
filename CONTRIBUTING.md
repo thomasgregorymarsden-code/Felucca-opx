@@ -14,7 +14,7 @@ support it.
 
 Please include:
 
-- the version (MENU > SYSTEM > ABOUT, e.g. `v1.5.1-opx1`);
+- the version (MENU > SYSTEM > ABOUT, e.g. `v0.0.1`);
 - whether the track plays OPX, and which SLOT (F1–F7 or OWN) and ALG;
 - your computer's OS and browser, if the installer, the editor or USB is involved;
 - the steps to reproduce it, what you expected and what happened. A photo or a short video helps.
