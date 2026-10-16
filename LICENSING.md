@@ -1,4 +1,8 @@
-# Felucca licensing
+# Felucca-OPX licensing
+
+Felucca-OPX is a fork of Felucca and is licensed exactly as Felucca is: GPL-3.0-only, with the bundled and
+ported parts below keeping their own licences. The fork's additions are listed at the end
+([Felucca-OPX's additions](#felucca-opxs-additions)).
 
 Felucca is free software, licensed under the GNU General Public License, version 3 only
 (`GPL-3.0-only`, full text in `LICENSE`). That covers the code and its own assets. A few
@@ -99,3 +103,23 @@ by those owners.
 ## Radio
 
 Felucca never enables the Bluetooth / Wi-Fi radio of the hardware.
+
+## Felucca-OPX's additions
+
+Copyright (C) 2026 the Felucca-OPX contributors. GPL-3.0-only, like the rest of the tree.
+
+| What | Where |
+| --- | --- |
+| The OPX engine: its synthesis, factory patches, patch format and storage | `firmware/src/eng_opx.c`, `opx_patch.c`, `opx_store.c`, `opx_map.h`; `tools/opx_patch_spec.py` |
+| Its pages (the algorithm charts, the USER matrix, the OPERATORS list) and its changes to upstream files | the `FELUCCA_OPX` and "OPX fork" blocks in `firmware/src/` |
+| The flash survey (a read-only SysEx command and its page) | `firmware/src/editor_flashscan.c`, `web/opx/flashscan.html` |
+| Their tests | `tests/opx_test.c`, `tests/opx_store_test.c`, `tests/flashscan_test.c`, `tests/flashscan_proto_test.c` and the OPX parts of the other tests |
+| The CI and release workflow | `.github/` |
+
+The OPX engine is written from the Korg opsix's published Owner's Manual: its algorithm charts and
+parameter ranges follow them. No Korg code, data or sounds are used, and the factory patches are the fork's own.
+Korg and opsix are trademarks of Korg Inc.; Felucca-OPX is not affiliated with or endorsed by Korg, by
+Hügelton Instruments or by M-VAVE.
+
+As with Felucca: if you distribute Felucca-OPX, or firmware derived from it, give your recipients its complete
+corresponding source under the same licence. Each release on GitHub carries the source archive of its tag.

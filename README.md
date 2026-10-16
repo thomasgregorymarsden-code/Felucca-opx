@@ -1,36 +1,135 @@
-# Felucca
+# Felucca-OPX
 
-**Felucca-OPX** is a fork of [Felucca](https://github.com/hugelton/Felucca) that adds an Opsix-style altered-FM
-engine (work in progress, on the `opx-engine` branch). The installer, editor, issues and discussions linked below are
-this fork's; links marked *(upstream)* exist only in the original project.
+**Felucca-OPX** is custom firmware for the M-VAVE FM-1: [Felucca](https://github.com/hugelton/Felucca) 1.5.1, the
+multi-engine synthesizer firmware by Hügelton Instruments, with one more engine, **OPX**, an altered-FM engine
+after the Korg opsix. Everything Felucca does is here unchanged; OPX is added beside it.
+
+This is an unofficial fork. Please report its problems [here](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues),
+not to Felucca's authors, who did not write the OPX engine.
 
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
-![Felucca 1.0](docs/felucca-1.0.png)
+![OPX on the FM-1: an algorithm chart, the USER matrix and the OPERATORS list](docs/opx-screens.png)
 
-**TL;DR:** Felucca 1.5.1 — SEQ > DETAIL for a step's chance, ratchet, nudge and velocity, MIDI Program Change, dotted delay times, REV / ECHO THROW, on top of 1.5's INSERT effects, MIDI LEARN, ANALOG's band-pass and high-pass, ENV SYNC, note lengths and per-step velocity. Connect your FM-1 to a computer by USB,
-open the [web installer](https://thomasgregorymarsden-code.github.io/Felucca-opx/) in Chrome or Edge, and press Install;
-no extra hardware is needed. Installing is at your own risk: M-VAVE's updater or the installer's
-**Return to official V15** takes you back. Coming from 1.1.5.x? Read [⚠ Coming from 1.1.5](#-coming-from-115) first:
-projects saved by 1.4 or later do not open on 1.1.5.x. Going back from 1.5.x to 1.4.1? Read
-[⚠ New in 1.5](#new-in-15) first: projects saved by 1.5 do not open on 1.2 to 1.4.1. Want to look around first?
-[Try it in your browser](https://thomasgregorymarsden-code.github.io/Felucca-opx/try/), no FM-1 needed.
+- **Install:** connect the FM-1 by USB, open the [web installer](https://thomasgregorymarsden-code.github.io/Felucca-opx/)
+  in Chrome or Edge and press Install. No extra hardware is needed. Read [Before you install](#before-you-install)
+  first. The installer's **Return to official V15** goes back to M-VAVE's firmware.
+- **Try it first:** [Felucca-OPX in your browser](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/try/),
+  the same firmware compiled to WebAssembly, with the panel on screen (mouse, touch, computer keyboard, Web MIDI in).
+- **Editor:** [web editor](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/editor/) (Felucca's; it has
+  no page for OPX's operators yet).
+- **Releases:** [Releases](https://github.com/thomasgregorymarsden-code/Felucca-opx/releases) (packages and
+  checksums), [CHANGELOG.md](CHANGELOG.md).
+- **Build:** [BUILDING.md](BUILDING.md). Every push is built and tested by GitHub Actions.
 
-Multi-engine synthesizer firmware for the M-VAVE FM-1. Please report what you find in
-[Issues](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues).
+Installing custom firmware is at your own risk.
 
-- Install: [web installer](https://thomasgregorymarsden-code.github.io/Felucca-opx/) (Chrome or Edge, USB), or `tools/fm1_install.py` from a terminal
-- Try: [Felucca in your browser](https://thomasgregorymarsden-code.github.io/Felucca-opx/try/): the same firmware compiled to
-  WebAssembly, with the panel on screen (mouse, touch, computer keyboard, Web MIDI in)
-- Editor: [web editor](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/editor/); its development has moved to
-  [Felucca-WebApp](https://github.com/hugelton/Felucca-WebApp)
-- Build: [BUILDING.md](BUILDING.md)
+## Before you install
 
-<a href="https://hugelton.itch.io/felucca"><img src="https://static.itch.io/images/badge-color.svg" alt="Available on itch.io" width="74"></a>
+- **Projects and user presets without an OPX track** move between Felucca 1.5.1 and Felucca-OPX both ways.
+- **A project with an OPX track opens only on Felucca-OPX.** On Felucca or the official firmware its slot shows
+  EMPTY; the data stays in flash until something is saved into that slot there. The same holds for a user preset of
+  an OPX sound, and for the autosave (RESTORE LAST) when it holds an OPX track.
+- **User sample slot 3 holds 40 KB** (about 3.7 s) instead of 80 KB: the OPX patches use the other half. A longer
+  sample already in slot 3 must be uploaded again, shorter or into slot 1 or 2. Slots 1 and 2 are unchanged.
+- **Not yet saved:** an OPX track's own patch in a user preset or in the editor's backup archive. A user preset keeps
+  the OPX sound's macros and SLOT, and comes back with that SLOT's factory patch. Projects and the autosave keep the
+  patch.
+- **Kept when installing:** projects, user presets, samples, settings and MIDI LEARN assignments.
+- **Coming from an older Felucca:** Felucca's own warnings apply. Projects saved by 1.4 or later do not open on
+  1.1.5.x, and projects saved by 1.5 or later do not open on 1.2 to 1.4.1. See
+  [Felucca's release history](docs/FELUCCA_HISTORY.md).
+
+## The OPX engine
+
+OPX is modelled on the opsix's FM mode: six sine operators per voice, routed by an algorithm, each with its own
+pitch, level and envelope. It plays up to six voices. The opsix's other operator modes, waveforms, extra envelopes,
+LFOs, filter and effects are not implemented yet ([plan](docs/OPX_PLAN.md)).
+
+To use it, hold **EDIT** and press **A3**, the third white key from F3 (ANALOG, FM6, OPX, …; the layer's map shows
+them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD and X-MOD.
+
+### What it plays
+
+- **Algorithms:** the opsix's 40 (1–32 are the DX7's, 33–40 the opsix's own) and **USER**, a 6 × 6 matrix: how much
+  each operator modulates each other one (0–100 %), its self feedback on the diagonal, and which operators are heard.
+  Algorithms 4, 6 and 34 have a feedback loop across operators, set by **ALG FB**.
+- **Per operator:** RATIO (1/128 to 32) or a FIXED frequency, FINE, DTUN (cents), TRANS (semitones), LEVEL, an
+  ATK DEC SUS REL envelope with CURVE (LIN, 1–9, EXP), velocity to level (VEL) and feedback (FB).
+- **A patch** is all of that for six operators plus the algorithm. Each track has its own. SLOT F1–F7 loads a
+  factory patch; editing any value makes it the track's own (**SLOT OWN**).
+
+### The pages
+
+On an OPX track, EDIT goes **EDIT 1, EDIT 2, OPERATORS**, then VOICE, VOICE 2 and VOICE 3 as on every engine.
+
+**EDIT 1 (ALGO)** shows the algorithm on the left and a small oscilloscope on the right. The scope shows two periods
+of the note the track is playing (or the last note played).
+
+| Knob | A preset algorithm | USER |
+|---|---|---|
+| 1 | ALG: PAT (the patch's own algorithm), 1–40, USR | ALG |
+| 2 | ATK | the matrix's row (the operator receiving, 1–6, then OUT) |
+| 3 | DEC | the column (the operator sending, 1–6) |
+| 4 | MLVL | the amount, 0–100 % (the diagonal: self feedback). On OUT: the operator's output level, 0–100, and below 0 OFF (not heard; turning up again restores its level) |
+
+With a preset algorithm EDIT 1 draws its chart; with USER it draws the matrix, a dot per connection sized by its
+amount.
+
+**EDIT 2 (MOD)** has FB, MRAT, DTUN and SLOT, with the same algorithm picture.
+
+**OPERATORS** lists every parameter of the selected operator, then the patch's own, in one scrolling list. The list
+moves up under the selection; "…" marks rows hidden above or below.
+
+| Knob | Selects |
+|---|---|
+| 1 | the operator, 1–6 |
+| 2 | a section per click: PITCH, EG, OSC, USER, ALGO |
+| 3 | the row |
+| 4 | the row's value |
+
+| Section | Rows |
+|---|---|
+| PITCH | MODE (RATIO / FIXED), RATIO (in FIXED mode FREQ, a semitone per click), FINE (in FIXED mode a cent per click), DTUN, TRANS |
+| EG | LEVEL, ATK, DEC, SUS, REL, CURVE, VEL |
+| OSC | FB |
+| USER | TO OP1 … TO OP6: what this operator sends to each, as exact numbers (its own row reads "(SELF)" and is its self feedback); OUT, as on EDIT 1. Dimmed unless the track plays USER |
+| ALGO | ALG (the patch's algorithm), ALG FB |
+
+**SAVE held** undoes the last knob gesture, the patch and SLOT included; held again it redoes.
+
+### The macros
+
+The EDIT 1 and EDIT 2 knobs, apart from USER's matrix knobs, are macros: they change the sound on top of the patch
+without changing it. They are the OPX controls that automation, step locks and MIDI CC reach.
+
+| Macro | Effect |
+|---|---|
+| ALG | PAT plays the patch's algorithm; 1–40 or USR override it |
+| ATK, DEC | shorten or lengthen every operator's attack, and its decay and release |
+| MLVL | the level of the operators that are not heard (the modulators), ±24 dB: brighter or softer. MIDI CC74 |
+| FB | adds to every operator's feedback and to ALG FB. MIDI CC71 |
+| MRAT | moves the modulators' RATIO up or down by steps |
+| DTUN | spreads the heard operators apart in pitch, up to ±12.5 cents |
+| SLOT | F1–F7 load a factory patch; OWN is the track's own |
+
+HOME's four knobs on an OPX track are MLVL, FB, DEC and SLOT.
+
+### How close to an opsix
+
+The algorithms, the matrix and the parameter ranges follow the opsix's Owner's Manual. The manual does not give the
+curves of LEVEL, envelope CURVE, velocity or the depth of modulation. Those are reasoned guesses
+([listed here](docs/OPX_PLAN.md#assumptions-to-check-by-ear)), not measurements of an opsix. Patches cannot be
+exchanged with an opsix.
+
+## Everything else: Felucca 1.5.1
+
+The rest of this README is Felucca's own documentation of version 1.5.1, adjusted where OPX adds something.
+Felucca's release history is in [docs/FELUCCA_HISTORY.md](docs/FELUCCA_HISTORY.md).
 
 ## Features
 
-- **Thirteen engines** (below), each with its own factory presets; every factory sound has a category (BASS, LEAD,
+- **Fourteen engines** (below: Felucca's thirteen and OPX), each with its own factory presets; every factory sound has a category (BASS, LEAD,
   PAD, PLUCK, KEYS, DRUM, FX, OTHER) to browse by
 - **Four tracks**, one synth part each with its own engine and sound (drums are the DRUM engine);
   8 voices shared between them. ALGORITHM selects the track on every page
@@ -83,7 +182,7 @@ Multi-engine synthesizer firmware for the M-VAVE FM-1. Please report what you fi
   keep the layer open; one-step undo (SAVE held); REC on every page; OCT+ confirms, OCT- goes back; what can be
   pressed breathes softly instead of blinking
 - **Presets:** factory presets, 32 user preset slots and 4 projects, named on the device (an FM6
-  sound keeps its own patch in both); user presets get a category, and a project can get a random name; projects
+  sound keeps its own patch in both; an OPX sound keeps its patch in projects only, for now); user presets get a category, and a project can get a random name; projects
   from every earlier version load. The PRESETS knob changes the sound from every page that is not a list.
   Turn the FM-1 off and on and the music is as you left it (MENU > RESTORE LAST, an autosave of its own,
   written only when stopped and idle)
@@ -111,109 +210,8 @@ Multi-engine synthesizer firmware for the M-VAVE FM-1. Please report what you fi
   number in PRESETS
 - **Web:** editor for every parameter (with a 6-operator FM patch editor that also sends a whole 32-voice bank),
   step grid, mixer, preset library, sample upload and recording with trim, the MENU settings; full backup and restore
-  (everything but the FM6 voice bank: keep its .syx file);
+  (everything but the FM6 voice bank, keep its .syx file, and OPX tracks' own patches);
   return to the official firmware; Felucca itself running in the browser
-
-## New in 1.5.1
-
-- **SEQ > DETAIL** (Discussion #199): SEQ now goes STEP, **DETAIL**, AUTOMATION. DETAIL is the STEP page (the same
-  cursor, the same piano roll or drum grid) with KNOB 1–4 as the cursor step's **CHANCE**, **RATCH**, **NUDGE** and
-  **VEL**; PRESETS walks the steps, and on a DRUM track a white key picks its step. The four are drawn as lanes over
-  the steps; EDIT puts the step's four back. On STEP and the drum grid a step with a CHANCE, RATCH or NUDGE gets a
-  small mark. These are the values AUTOMATION lists (EDIT there still deletes a row): nothing new is stored.
-- **MIDI Program Change** (PR #179 by [renebohne](https://github.com/renebohne)): a Program Change on a track's
-  channel (routed as notes by MENU > MIDI > MIDI IN) loads that track's sound, numbered from 0 as PRESETS lists
-  the engine's sounds. DRUM: its kits (0–5: STD, 80, 10, 66, 55, 77). FM6: 0–7 its presets (F1–F8), 8–39 the voice
-  bank's B1–B32 that hold a voice. A number past the last is ignored; the engine never changes. SAVE held undoes it.
-- **Dotted delay times:** the DLY page's TIME has **1/4D, 1/8D and 1/16D**, and the knob steps them by length
-  (… 1/2, 1/4D, 1/4, 1/8D, 1/8, 1/16D, 8T …). The delay holds 1.49 s, so 1/4D is held to that at 60 BPM and below.
-- **REV THROW and ECHO THROW** in the FX layer, on **D5** and **E5** by default: while held, every track's reverb
-  send (REV THROW) or delay send (ECHO THROW) is full, gliding in and out without a click; ECHO THROW also lifts the
-  delay's FDBK to 70 % if it is lower. Let go and the tails ring out. Nothing is saved or recorded. If you had set
-  D5 or E5 to NONE, they now hold the throws: set them to NONE again (hold the key in the FX layer, turn PRESETS).
-- Fixed: turning KNOB 4 (LIST) or KNOB 3 (FAV) on PRESETS made all the LEDs flash; the change is now saved once you
-  leave the page or after 10 s idle (#197). MOMENTARY (LFO held) now works on MIXER too: LEVEL, PAN, REV and MUTE go
-  back when LFO is let go (#195).
-- USB audio: the descriptors list the audio streaming interface before the MIDI one, for the USB audio driver of
-  older macOS, where the audio input did not appear (#67; expected to fix macOS 15 and earlier, to be confirmed).
-- 1.5.1 keeps 1.5's formats: projects, presets and settings move between 1.5 and 1.5.1 both ways (on 1.5 a
-  dotted delay TIME plays as 4BAR).
-
-## New in 1.5
-
-- **An INSERT effect on every track, with a dry / wet MIX** (Discussions #78, #177): FX → INSERT. KNOB 1 TYPE: SOFT,
-  HARD, FOLD, FUZZ (drives: DRIVE, TONE, LEVEL), CRUSH (BITS, RATE, LPF), PHASR, FLANG, CHOR (RATE, DEPTH, FDBK);
-  INSERT 2: MIX. It comes after DIST and before the SLICER, is part of the sound (user presets and projects keep it)
-  and works with automation and locks. TYPE OFF, the default, plays exactly as before.
-- **MIDI LEARN** (Discussion #170): on any page hold GLO and press D4 (MIDI LEARN ON), turn the FM-1 knob of a
-  parameter, then move a knob or fader on your controller: that CC now sets the parameter (the header says e.g.
-  "CC74 -> T1 CUT"). Turn the next knob and move the next control; OCT− clears the picked parameter's CC, OCT+ (or
-  GLO + D4 again) ends it. Up to 16 CCs, kept with the settings; **MENU > MIDI > LEARN CLEAR** (OCT+) clears them all.
-  Nothing changes for anyone who never learns.
-- **ANALOG's filter TYPE: LP, BP, HP** (Discussion #104): EDIT → FILTER, a page an ANALOG track has after EDIT 2:
-  KNOB 1 TYPE (LP the low-pass as before, BP band-pass, HP high-pass), KNOB 2–4 CUT, RES, KTR.
-- **ENV SYNC** (Discussion #175): ENV DEST's KNOB 4 (ESYNC) makes ENV's ATK, DEC and REL note values of the tempo
-  (1/64T to 4 bars, dotted and triplets) instead of milliseconds; they follow the tempo and an external clock.
-- **A note's length on the piano roll** (Discussions #178, #173): on SEQ → STEP, KNOB 3 on a note step is its **LEN**:
-  right ties the steps after it on, left takes them back. It stops before the next note ("NOTE AHEAD").
-- **Per-step velocity** (Discussion #173): SEQ → AUTOMATION, **+ ADD VEL** (OCT+: SHOW) lists every note step's
-  velocity, KNOB 4 sets it (1–127). Steps entered by hand play 96, steps recorded live keep how hard you played.
-- **HELP** (Discussion #156; MENU > SYSTEM > HELP, OFF by default): ON shows a short hint, key caps and a few words, in
-  the footer for about 2 s when a page opens, and under a quick layer's map while it shows.
-- **SAVE reaches PRESETS on its second tap** (#173): SAVE's pages go USER, PRESETS, PHRASES, PROJECT, TOOLS. The quick
-  save (SAVE, OCT+, OCT+) is unchanged.
-- **The FX layer's map alternates light and dark columns** (#173), so neighbouring effects are told apart at a glance.
-- **HOME LEVELS** (#134): MENU > DISPLAY > HOME has a third value, LEVELS: HOME shows the four tracks' rows and
-  KNOB 1–4 set the LEVEL of T1–T4.
-- ⚠ **SAMPLE's PIANO is the full piano again** (five notes, as in 1.0 to 1.1.5): sounds and projects made on 1.4 or
-  1.4.1 that use PIANO play the full piano. PIANO HD in a user slot is no longer needed.
-- Fixed: the arpeggiator follows TRN, ROOT, SCALE and QNT on held and latched notes (#191); MENU > DISPLAY > ANIM no
-  longer changes HOME.
-- ⚠ The INSERT, the filter TYPE and ENV SYNC are new sound parameters (OFF, LP, OFF by default): everything saved
-  before plays as before. But **a project saved by 1.5 does not open on 1.2 to 1.4.1**: its slot shows EMPTY there
-  (the data stays in flash until you save something into that slot there), and a backup that holds one is refused.
-  User presets saved by 1.5 load there without the new values. The full backup still does not include the FM6
-  voice bank.
-
-## New in 1.4.1
-
-- **Engine quick actions on the EDIT layer's black keys.** Hold EDIT: the black keys do what the selected track's
-  engine offers, and the map shows it. On a DRUM track, black keys 1–8 (F#3 … A#4) mute its lanes KICK, SNARE, CLAP,
-  HATCL, HATOP, TOM, RIM and BELL, one press to mute, the next to unmute. The LEDs show which lanes sound, the drum
-  grid dims a muted lane. A muted lane keeps playing unheard, so unmuting brings it back in time. The mutes are for
-  live play: never saved, not recorded, not undone; a sound or project load clears them, OCT− in the layer puts them
-  back as they were when it opened. Other engines have no quick actions yet.
-- **FM6 voice bank** (Discussion #168). The web editor's 6-OP FM tab sends a whole 32-voice SysEx bank (the standard
-  4096-byte file) to the FM-1 in one go, with its name. On an FM6 track SLOT (EDIT 2, KNOB 4) now goes F1–F8, OWN,
-  then **B1–B32**, the bank's voices; the algorithm chart shows the voice's name. Picking a voice copies it into the
-  track, as F1–F8 do, so a project or user preset saved with it keeps that sound after you send another bank (it
-  loads with SLOT OWN). With no bank sent, SLOT stops at OWN as before. The bank has its own flash sector and is only
-  replaced once a new one arrived whole; projects, presets, samples and settings are not touched. **The full backup
-  does not include the bank: keep the .syx file.**
-- 1.4.1 opens and saves everything 1.4 does, in the same formats.
-
-## ⚠ Coming from 1.1.5
-
-1.4 is the first release since 1.1.5.1 and holds a lot (all of this holds for 1.4.1 and 1.5 too). Everything you saved loads and sounds as before, except
-where marked here:
-
-- **Projects are saved in a new format (FUN10).** 1.4 opens every older project, but **1.1.5.x and older cannot
-  open a project saved by 1.4 or later**: they show its slot as empty (the data stays in flash until you save something into
-  that slot there), and refuse a backup that holds one. User presets saved by 1.4 load on 1.1.5.x without the five
-  new values (LFO 2's SYNC, TRIG and POL, QUANTIZE, SPREAD).
-- **ARP ORD now plays the held notes in the order you pressed them** (up to 1.1.5 it played them as UP): a sound
-  or project using ORD sounds different when its notes were pressed in another order than low to high.
-- **SAMPLE's PIANO** was a lighter lo-fi piano in 1.4 and 1.4.1; since 1.5 it is the full piano of 1.1.5 again.
-- **The pages moved** (Discussion #153): see Controls below. In short: SEQ is STEP and AUTOMATION; **SEQ held is SEQ
-  TOOLS on every page** (it no longer opens SONG); **GLO opens SONG**; PHRASES is on SAVE; HOME goes round HOME,
-  MIXER and CLOCK (BPM, swing, clock source); TUNE is MENU > AUDIO, MIDI IN (ROUT) is MENU > MIDI, and the USB state
-  and CPU load are MENU > SYSTEM > INFO. REC held is the REC layer as before.
-- **SONG has a lane per track**: older songs load with all four tracks on each row's slot and play as before; its
-  knobs are KNOB 1 SECTION, 2 TRACK, 3 PAT, 4 REPS, and on SONG the white keys A3 B3 C4 D4 set the slot.
-- **A fresh start uses the HALL reverb** (up to 1.1.5: ROOM). Saved projects keep their reverb TYPE.
-- **BASS+ (MENU > SPEAKER EQ) is softer:** its added harmonics are at half the level, so a full-scale kick no longer
-  distorts (#180).
-- **The web editor** needs its update for the new features; use the one on the site.
 
 ## Controls
 
@@ -236,7 +234,7 @@ The pages by button:
 | GLO | SONG | the GLO layer (mutes, solos, levels, TAP tempo, D4: MIDI LEARN) |
 | SAVE | USER, PRESETS, PHRASES (the pattern loader), PROJECT, TOOLS | UNDO |
 | LFO | LFO, LFO 2, LFO DEST, MOD | MOMENTARY (with a knob) |
-| EDIT | EDIT 1, EDIT 2, VOICE, VOICE 2, VOICE 3 (FM6 adds OPERATOR, OP ENV, OPERATOR 2; DRUM LANES; SLICE SLICES; ANALOG FILTER) | the EDIT layer (the engines; on DRUM the black keys mute lanes) |
+| EDIT | EDIT 1, EDIT 2, VOICE, VOICE 2, VOICE 3 (FM6 adds OPERATOR, OP ENV, OPERATOR 2; OPX OPERATORS; DRUM LANES; SLICE SLICES; ANALOG FILTER) | the EDIT layer (the engines; on DRUM the black keys mute lanes) |
 | FX, SCL, ENV, ARP | their pages (FX: INSERT and INSERT 2 after the SLICER) | FX and SCL: their layers |
 | REC | arms the track | the REC layer (CLEAR, CLICK, COUNT-IN, CLICK LEVEL) |
 
@@ -320,9 +318,11 @@ In the order the device lists them:
   web editor (which imports .syx files) or on the device: EDIT > OPERATOR (ratio or fixed frequency, fine, level),
   OP ENV (each stage's rate and level, drawn as the envelope) and OPERATOR 2 (mode, detune, velocity), one
   operator at a time on the algorithm chart; macros on top; SLOT picks a factory patch (F1–F8), the track's own (OWN) or a voice of the bank the web editor sent (B1–B32)
+- **OPX** (Felucca-OPX): altered FM after the Korg opsix, six operators, 40 algorithms and a USER matrix; see
+  [The OPX engine](#the-opx-engine)
 - **PHASE**: phase distortion (ported from CrispyZebra)
 - **LOFI**: chiptune; pulse, triangle, saw, noise and a 4-bit wave RAM, stepped envelope, sweep, arpeggio
-- **SAMPLE**: multisampled instruments (PIANO, FLUTE, SAX) and 3 user sample slots
+- **SAMPLE**: multisampled instruments (PIANO, FLUTE, SAX) and 3 user sample slots (on Felucca-OPX slot 3 holds 40 KB)
 - **VOICE**: formant oscillator, sung vowels
 - **TRIO**: 3 oscillators with ring modulation and sync, multimode filter
 - **WHEEL**: tonewheel-style organ; drawbar registrations, percussion, key click, drive, rotary speaker
@@ -385,8 +385,9 @@ sevenths, or a fixed shape) and VOIC the voicing.
 | `firmware/` | firmware sources: `src/` app, `hal/` hardware layer, `loader/` update loader |
 | `tools/` | build script, generators, package maker, installer and sample uploader |
 | `assets/` | UI font, icon names, CC0 instrument samples |
-| `web/` | the web installer, the earlier editor and the browser emulator (`web/emu/`); the new editor: [Felucca-WebApp](https://github.com/hugelton/Felucca-WebApp) |
+| `web/` | the web installer, the editor and the browser emulator (`web/emu/`); `web/opx/`: the flash survey page used to place OPX's storage |
 | `tests/` | tests that run on the build machine |
+| `docs/` | OPX's design and plan (`OPX_PLAN.md`), its flash storage (`OPX_STORAGE.md`), Felucca's release history |
 | `LICENSES/` | licence texts of the bundled fonts, icons, ported DSP and SDK files |
 
 ## If the FM-1 does not start
@@ -404,21 +405,25 @@ the FM-1 can be brought back:
 ## Support
 
 Felucca itself is the work of Hügelton Instruments. If it is useful to you, [sponsoring its author on GitHub](https://github.com/sponsors/hugelton)
-*(upstream)* or a donation on [itch.io](https://hugelton.itch.io/felucca) *(upstream)* helps keep its development going.
+or a donation on [itch.io](https://hugelton.itch.io/felucca) helps keep its development going.
 
-Issues are for reproducible bugs (one per issue). Ideas and requests go to
-[Discussions](https://github.com/thomasgregorymarsden-code/Felucca-opx/discussions), and feature requests posted as issues will be
-moved there. Pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+Felucca-OPX's [Issues](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues) are for bugs you can
+reproduce (one per issue) and ideas for OPX. A bug that also happens on Felucca 1.5.1 itself belongs in
+[Felucca's Issues](https://github.com/hugelton/Felucca/issues). Pull requests are welcome: see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## AI disclaimer
 
-Felucca is developed with the assistance of AI coding agents. These tools are used for coding, testing, documentation, translation, and maintenance.
-The instrument's design, features, sound design, and overall direction are determined by the maintainer or community.
-No generative AI is used to create music, icons, or visual artwork for this project.
-For more details, see [On AI-Assisted Development and Responsibility](https://github.com/hugelton/Felucca/discussions/166) *(upstream)*.
+Felucca is developed with the assistance of AI coding agents (see
+[On AI-Assisted Development and Responsibility](https://github.com/hugelton/Felucca/discussions/166)). The OPX engine,
+its pages and its storage were written by an AI coding agent (Claude), directed and tested on the device by this
+fork's maintainer, who decides its design and features. No generative AI is used to create music, icons or visual
+artwork.
 
 ## Credits
 
+- **Felucca-OPX:** the OPX engine, its pages and storage, by the Felucca-OPX contributors. The algorithms and
+  parameters follow the Korg opsix Owner's Manual; no Korg code, data or sounds are used
 - **[Hügelton Instruments](https://hugelton.com)** (Leo Kuroshita, [@kurogedelic](https://github.com/kurogedelic)):
   Felucca itself; the PHASE engine's waveforms (a C port of the oscillator of
   [CrispyZebra](https://github.com/hugelton/CrispyZebra), GPL-3.0); the DRUM voices and kits; the Hügelton Sample
@@ -442,9 +447,11 @@ For more details, see [On AI-Assisted Development and Responsibility](https://gi
 
 ## Licence
 
-Free software: [GPL-3.0-only](LICENSE), the Hügelton Sample Pack included. The bundled fonts and the
+Free software: [GPL-3.0-only](LICENSE), the Hügelton Sample Pack included, Felucca-OPX's additions too. The bundled fonts and the
 ported DSP keep their own licences ([LICENSES/](LICENSES/)); details in [LICENSING.md](LICENSING.md).
 
-M-VAVE and FM-1 are trademarks of their respective owners. Felucca is not affiliated with or endorsed by them.
+M-VAVE, FM-1, Korg and opsix are trademarks of their respective owners. Felucca and Felucca-OPX are not affiliated
+with or endorsed by them, and Felucca-OPX is not affiliated with or endorsed by Hügelton Instruments.
 
-Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+Felucca: Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments.
+Felucca-OPX's additions: Copyright (C) 2026 the Felucca-OPX contributors.

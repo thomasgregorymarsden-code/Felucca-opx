@@ -1,19 +1,24 @@
 name: Bug report
-description: Something in Felucca doesn't work as it should (one bug per issue)
+description: Something in Felucca-OPX doesn't work as it should (one bug per issue)
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Issues are for reproducible bugs only. Feature ideas go to [Discussions › Ideas](https://github.com/hugelton/Felucca/discussions/categories/ideas), questions to [Q&A](https://github.com/hugelton/Felucca/discussions/categories/q-a).
+        One bug per issue. For an idea, open a blank issue instead. Please report Felucca-OPX problems here, not to upstream Felucca.
   - type: input
     id: version
     attributes:
-      label: Felucca version
-      description: Hold HOME > ABOUT on the FM-1
-      placeholder: "v1.0.2"
+      label: Felucca-OPX version
+      description: MENU (hold HOME) > SYSTEM > ABOUT on the FM-1
+      placeholder: "v1.5.1-opx1"
     validations:
       required: true
+  - type: input
+    id: opx
+    attributes:
+      label: OPX track? (SLOT and ALG, if so)
+      placeholder: "yes: SLOT OWN, ALG USR"
   - type: input
     id: system
     attributes:

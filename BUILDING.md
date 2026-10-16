@@ -1,4 +1,9 @@
-# Building Felucca
+# Building Felucca-OPX
+
+The build is upstream Felucca's; the fork adds the OPX engine (`FELUCCA_OPX`, below) and the release process at the
+end. Building needs a Linux x86-64 machine or Docker, but nobody has to build locally: every push to `opx-engine`
+is built and tested by GitHub Actions (`.github/workflows/build.yml`), and the package is kept as the run's
+`firmware` artifact.
 
 The build makes three files in `build/`:
 
@@ -43,9 +48,9 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 `JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations
 (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
 
-`./build.sh --release 1.0` makes a release build: the package identity becomes `FM-1_910`
-and the version string `v1.0`; the package is `build/felucca-1.0.fwsc`, and
-`build/release-1.0/` holds what a release ships: the package, the app
+`./build.sh --release 1.5.1-opx1` makes a release build: the package identity becomes `FM-1_915`
+and the version string `v1.5.1-opx1`; the package is `build/felucca-1.5.1-opx1.fwsc`, and
+`build/release-1.5.1-opx1/` holds what a release ships: the package, the app
 (`felucca-1.0-app.bin`), `SHA256SUMS`, the sample attribution, `LICENSE`, `LICENSING.md` and
 `LICENSES/` (the package contains Apache-2.0 SDK files, so the licence texts travel with it).
 
@@ -64,6 +69,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`, `c
 | `FELUCCA_SLICE` | 1 | the SLICE engine |
 | `FELUCCA_ICONS` | 1 | parameter icons on the knob cards |
 | `FELUCCA_FM4` | 0 | the retired DIGITAL engine (4-operator FM) instead of its FM6 conversion |
+| `FELUCCA_OPX` | 1 | the OPX engine (engine 15), its pages and its flash region (`firmware/src/opx_map.h`); `0` builds upstream Felucca's engine set and flash map |
 
 `FELUCCA_USB_LAYOUT` (`0` to `3`, default `0`) picks other USB descriptor layouts for testing; see
 `firmware/src/usb.c`.
@@ -88,7 +94,7 @@ python3 -m http.server -d build/emu 8790     # open http://localhost:8790/
 Emscripten compiles it to WebAssembly (`build/emu/felucca.wasm`, with `index.html`, `worklet.js` and the font in `fonts/`). The page
 keeps the flash's storage sectors (projects, user presets, settings) in the browser. Not emulated: USB (audio,
 MIDI out, the editor, updates), TRS MIDI and the user sample slots. A build of it is on the site:
-<https://hugelton.github.io/Felucca/webapp/try/>.
+<https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/try/>.
 
 ## Tests
 
@@ -115,7 +121,8 @@ does the same for the cost files.
 ## Install
 
 Use the web installer in Chrome or Edge:
-<https://hugelton.github.io/Felucca/webapp/installer/>. It installs the released package.
+<https://thomasgregorymarsden-code.github.io/Felucca-opx/>. It installs the latest published release; the latest
+build of `opx-engine` is at <https://thomasgregorymarsden-code.github.io/Felucca-opx/dev/>.
 
 From the command line (needs `pip3 install mido python-rtmidi`):
 
@@ -135,3 +142,25 @@ cd /tmp/felucca-site && python3 -m http.server 8000
 
 Installing firmware is at your own risk. If an install fails and the FM-1 no longer
 starts, recovery needs [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter).
+
+## Versions and releases
+
+A Felucca-OPX version names the Felucca release it is based on and the fork's own release on top: **`1.5.1-opx1`**
+is Felucca 1.5.1 with the first OPX release; `1.5.1-opx2` the next one on the same base; `1.6-opx1` the first one
+after merging Felucca 1.6. Development builds say `v1.5.1-opx` (`firmware/src/felucca.c`). The package identity
+(`FM-1_9XY`) comes from the base version, as upstream's does; the installers only use it to confirm, after an
+install, that the FM-1 runs the package just written.
+
+To make a release, from the GitHub web page (an iPad is enough):
+
+1. Make sure the last run of **Build and publish** on `opx-engine` is green, and that [CHANGELOG.md](CHANGELOG.md)
+   has the release's entry.
+2. **Releases > Draft a new release**. Tag: `v` + the version, e.g. `v1.5.1-opx1`, created on `opx-engine`. Title:
+   `Felucca-OPX 1.5.1-opx1`. Paste the release's CHANGELOG entry as the description.
+3. **Publish release.** The workflow builds `--release` with that version, runs the tests, attaches the package, the
+   app, `SHA256SUMS` and the licence files to the release, then runs on `opx-engine` again so that the site's
+   installer offers the new release. If the tests fail, nothing is attached: delete the release and its tag, fix,
+   and publish again.
+
+A tag that is not `v` + a version `tools/build.py --release` accepts (`X.Y`, `X.Y.Z` or `X.Y.Z.W`, one digit each,
+an optional `-suffix` of letters and digits) fails the build.

@@ -36,6 +36,10 @@ static void draw_about_qr(int32_t x, int32_t y)
 enum { MC_TEXT, MC_TITLE, MC_URL };
 typedef struct { const char *text; uint8_t kind; } menu_credit_t;
 static const menu_credit_t MENU_CREDITS[] = {
+    {"FELUCCA-OPX", MC_TITLE},             /* (OPX fork) the fork: the OPX engine, its pages and storage */
+    {"A fork of Felucca with an altered-FM engine after the Korg opsix. Not affiliated with Korg or H\xFCgelton.", MC_TEXT},
+    {"https://github.com/thomasgregorymarsden-code/Felucca-opx", MC_URL},
+    {"", MC_TEXT},
     {"H\xFCgelton Instruments", MC_TITLE},  /* Felucca's own: above; these are ours too */
     {"Leo Kuroshita", MC_TEXT},
     {"CrispyZebra (PHASE waveforms), the DRUM voices, the Sample Pack: GPL-3.0", MC_TEXT},
@@ -111,7 +115,7 @@ static int32_t menu_document(int32_t y, int draw)
 {
     uint32_t i;
     if (draw) {
-        cv_text(6, y + 2, &AF_L, "FELUCCA", T_THEME);
+        cv_text(6, y + 2, &AF_L, "FELUCCA-OPX", T_THEME);
         cv_text(6, y + 38, &AF_S, "Multi-engine synthesizer", T_TEXT);
         cv_text(6, y + 58, &AF_M, FELUCCA_VERSION, T_THEME);
         cv_text_r(232, y + 61, &AF_S, __DATE__, T_MID, T_BG);
@@ -138,7 +142,8 @@ static int32_t menu_document(int32_t y, int draw)
     y = menu_text("Fonts and icons: their licences travel with the source and the release files.", y, T_TEXT, draw);
     y = menu_text("NO WARRANTY", y, T_TEXT, draw);
     y = menu_text("Full notices in source:", y + 8, T_TEXT, draw);
-    y = menu_text("github.com/hugelton/Felucca", y, T_MID, draw);
+    y = menu_text("github.com/thomasgregorymarsden-code/Felucca-opx", y, T_MID, draw);   /* (OPX fork: this build's) */
+    y = menu_text("Felucca upstream: github.com/hugelton/Felucca", y, T_MID, draw);
     return y + 4;
 }
 static int32_t menu_scroll_max(void)

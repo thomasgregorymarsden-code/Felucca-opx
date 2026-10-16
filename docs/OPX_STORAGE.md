@@ -55,3 +55,4 @@ The reason is that upstream keeps the MIDI LEARN map in the favourites row of en
 - User sample slot 3 holds 40 KB instead of 80 KB, about 3.7 s at the editor's 22.05 kHz.
 - After installing this fork, a sample already in slot 3 that is longer than that is rejected as invalid and must be uploaded again, shorter or into slot 1 or 2. This is deliberate: the region would overwrite its tail.
 - SLICE slices already saved for a slot 3 sample are looked for in the new last sector of the slot, so they are lost once. The sample itself is kept if it fits.
+- A project, user preset or autosave with an OPX track stores engine 15, which Felucca and the official firmware do not have: they treat that record as empty (`proj_engines_ok`, `up_valid`) and leave it in flash. Records without an OPX track are byte-for-byte Felucca 1.5.1's.

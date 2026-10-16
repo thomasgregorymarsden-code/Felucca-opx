@@ -1,19 +1,25 @@
-# OPX: plan and status
+# OPX: design, status and plan
 
-OPX is an altered-FM engine modelled on the Korg opsix, built into Felucca as engine 15. The flash layout and engine number are covered in [OPX_STORAGE.md](OPX_STORAGE.md), and the bit-packed patch format in `tools/opx_patch_spec.py`.
+OPX is an altered-FM engine modelled on the Korg opsix, built into Felucca as engine 15. This document is for
+developers: how the engine works, what is stored where, what is assumed, and what comes next. How to play and edit
+it is in the [README](../README.md#the-opx-engine); the flash layout and the engine number are in
+[OPX_STORAGE.md](OPX_STORAGE.md); the bit-packed patch format is `tools/opx_patch_spec.py`.
 
 ## Milestones
 
 | | Scope | Status |
 |---|---|---|
 | M0 | Engine slot 15 (14 reserved), presets, the tables every engine appears in, relocatable storage region | done |
-| M1 | Six operators in FM mode (sine), all 40 algorithms plus USER, ratio and fixed pitch, per-operator FB, ALG FB loops, per-operator ATK/DEC/SUS/REL/CURVE envelopes, level velocity; device macros; cost against FM6 | **done (on-device listening and cost pending)** |
-| M1.5 | Operator editing on the device; each track's patch kept in the stored format; saved with projects and the autosave (pulled forward from M3/M4) | **done** |
+| M1 | Six operators in FM mode (sine), all 40 algorithms plus USER, ratio and fixed pitch, per-operator FB, ALG FB loops, per-operator ATK/DEC/SUS/REL/CURVE envelopes, level velocity; device macros; cost against FM6 | done |
+| M1.5 | Operator editing on the device (algorithm charts, USER matrix, OPERATORS list, scope); each track's patch kept in the stored format; saved with projects and the autosave | done |
+| | **First release, `1.5.1-opx1`: M0, M1 and M1.5** | |
 | M2 | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; the 23 waveforms and WIDTH; level key tracking | |
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | |
 | M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |
 | M5 | Main filter, effects 1–3, virtual patch, as far as the processor time allows | |
 
+Confirmed on a device so far: it installs and runs, and six OPX voices at once do not overload the processor. Not
+yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-by-ear)).
 ## How M1 works
 
 - **One renderer for every algorithm.** Each algorithm becomes a modulation matrix: for every pair of operators, how much one modulates the other, plus each operator's self-feedback and which operators are heard.
@@ -23,48 +29,32 @@ OPX is an altered-FM engine modelled on the Korg opsix, built into Felucca as en
 - **Order and timing.** Each sample, the operators run from 6 down to 1. An input from a higher-numbered operator is this sample's output. An input from a lower-numbered one, as in the loops of algorithms 4, 6 and 34 or an upward link in USER, is the previous sample's.
 - **Self-feedback** uses the mean of the operator's last two outputs (as the DX7 does), and is linear in FB: 100 % gives 2 rad. At 75 % the harmonics come out within 3 dB of a sawtooth's, which matches the manual's description.
 
-## Editing on the device (M1.5)
+## The device pages (M1.5): where the code is
 
-**EDIT 1 (ALGO) and EDIT 2** show the algorithm on the left and a small oscilloscope on the right.
+| Page | Code | Tests |
+|---|---|---|
+| EDIT 1 / EDIT 2: the algorithm chart (1–40: FM6's layouts for 1–32, `OPX_CELL` for 33–40), the USER matrix, the small scope | `ui_graph.c` `graph_opx_algo`, `graph_opx_chart`, `graph_opx_matrix`, `graph_scope_mini`; the matrix's knobs `ui_fm6op.c` `xmat_*` | `tests/ui_test.c` `test_opx_ops`; `tests/ui_render.c` `opx_*` screens and every chart |
+| OPERATORS: one 22-row rolling list (PITCH, EG, OSC, USER, ALGO) | `ui_fm6op.c` `xop_*` (the rows: `XL[]`), `ui_graph.c` `graph_opxlist` | the same |
+| Editing a field, OWN, undo | `opx_patch.c` `opx_edit`, `opx_poll`; `ui.c` (the undo snapshot keeps the patch and SLOT) | the same |
 
-- **A preset algorithm** is drawn as a chart in FM6's style. Algorithms 1–32 use FM6's layouts; the test suite checks that OPX's 1–32 route exactly as FM6's. 33–40 have layouts of their own. The ALG FB loop (algorithms 4, 6, 34) is drawn as a return path.
-- **USER** (ALG USR, or PAT on a patch whose algorithm is USER) is drawn as the opsix's FM MATRIX, in square cells:
-  - a column per sending operator, a row per receiving operator, and a dot sized by the amount;
-  - the diagonal is self feedback;
-  - the bottom row is OUT: a dot sized by the operator's LEVEL while it is heard, a dash while it is not.
-- **On EDIT 1 with USER**, knob 1 is still ALG; knob 2 picks the row, knob 3 the column, and knob 4 sets the amount (0–100 %). On the OUT row, knob 4 sets the operator's output level: 0–100 is its LEVEL (the same field as OPERATORS > LEVEL); turning below 0 gives OFF (not heard, the LEVEL kept), and turning up from OFF makes it heard again at that LEVEL. ATK, DEC and MLVL return when a preset algorithm is chosen.
-- **EDIT 2** shows the same matrix with nothing selected; its knobs keep their usual jobs (FB, MRAT, DTUN, SLOT).
-- **USER always plays the matrix.** One with no heard operator is silent, as on the opsix; it no longer falls back to the patch's preset algorithm.
-- **The scope's time scale** follows the pitch the selected track is sounding (its loudest voice; with none, the last note played): two periods across the scope above about 98 Hz, one period from there down to about 49 Hz, and the buffer's 20 ms below that; each trace starts at a rising zero crossing. The height is auto-scaled.
+Notes for changing them:
 
-On an OPX track, the page after EDIT 2 is **OPERATORS**: one long list over the track's own patch, styled like AUTOMATION's. Seven places are on screen. When rows are hidden below, the bottom place shows "…", and likewise at the top; the selected row moves down to the last whole row, then the list rolls up under it.
+- **The list's rows** are kinds (`XR_*`) in `XL[]`; `xop_rowf` maps a row to its field for the selected operator. The
+  USER rows start at `XL_TO0`; `TO OPn` is `opxf_ua(op, n - 1)`, the operator's own row its self feedback.
+- **OUT** on the matrix and in the list is one control, `xop_out` / `xop_out_turn`: the operator's LEVEL while its
+  OUT bit is set, OFF (the bit clear, LEVEL kept) below 0.
+- **The scope's time scale** is two periods of the selected track's sounding pitch (its loudest voice, else the last
+  note), one period below about 98 Hz, the buffer's 20 ms below about 49 Hz; triggered on a rising zero crossing.
+- **USER always plays the matrix**; one with no heard operator is silent, as on the opsix.
+- **The macros** (EDIT 1 / 2: ALG ATK DEC MLVL, FB MRAT DTUN SLOT) apply on top of the patch at every block
+  (`eng_opx.c` `opx_build`). They are the OPX controls that automation, step locks and MIDI CC reach (CC74 MLVL,
+  CC71 FB: `midi_control.c` `MIDI_CC_ENG`); the patch's own fields are not.
 
-| Knob | Selects |
-|---|---|
-| 1 | the operator (1–6; dimmed on ALGO's rows, which belong to the patch) |
-| 2 | a section per detent (PITCH, EG, OSC, USER, ALGO): to its first row; turning left goes to this section's first row, then the previous section's |
-| 3 | the row (1–22) |
-| 4 | the row's value |
-
-| Section | Rows (for the selected operator) |
-|---|---|
-| PITCH | MODE (RATIO / FIXED), RATIO (1/128–32) or FREQ in FIXED mode (a semitone per detent), FINE (×0.50–×2.00; in FIXED mode a cent per detent, shown to 0.01 Hz), DTUN (cents), TRANS (semitones) |
-| EG | LEVEL, ATK, DEC, SUS, REL, CURVE (LIN, 1–9, EXP), VEL |
-| OSC | FB (M2 adds MODE, WAVE and the mode settings here) |
-| USER | TO OP1–TO OP6: the amount (0–100 %) this operator sends to each; a fixed list, the selected operator's own row reads "(SELF)" and is its self feedback. OUT: its output level as on EDIT 1's matrix (its LEVEL while heard, OFF while not). These are the matrix's values as numbers, and are dimmed unless the track plays USER. |
-| ALGO | ALG (the patch's algorithm, 1–40 or USER), ALG FB |
-
-The user algorithm can be edited on either EDIT 1's matrix (an overview, dots sized by the amount) or the USER rows here (exact values). Both write the same fields.
-
-- **Editing makes the patch OWN.** SLOT then shows OWN, and SLOT F1–F7 loads a factory patch over it.
-- **Undo:** holding SAVE undoes the last knob gesture, patch and SLOT together; holding it again redoes.
-- **The macros on EDIT 1/2** still apply on top of the patch. They are the only OPX controls that can be automated, step-locked or mapped to MIDI CC, which is why EDIT 2 stays.
-
-### What is stored
+## What is stored
 
 Each track keeps its patch in the bit-packed format of `tools/opx_patch_spec.py`: 434 bytes, every opsix field. The C layout is generated from that spec at build time (`build/gen/opx_fields.h`), and fields the engine doesn't play yet are kept through every edit and save. `tests/opx_test.c --dump` with `opx_patch_spec.py --check-c` checks that the firmware's packer and the spec agree bit for bit.
 
-### Where it is stored
+## Where it is stored
 
 The four tracks' patches are saved beside the project, in its extension object (see [OPX_STORAGE.md](OPX_STORAGE.md)). The autosave gets its own extension. Each extension carries the CRC of the project record it belongs to:
 
@@ -87,4 +77,7 @@ The manual gives no curve for these, so each is a reasonable guess:
 
 ## Cost
 
-On the host, six OPX voices cost about 1.5–1.7 times six FM6 voices (`opx_test`). FM6 runs six voices on the device, so OPX starts with the same six-voice cap (`OPX_POLY`). The device itself is the real measurement: if notes drop or the audio glitches with many keys held, the cap or the inner loop needs work. The cost of the compiled render loop is tracked by `tests/target_budget.py`.
+On the host, six OPX voices cost about 1.8 times six FM6 voices (`opx_test` prints the ratio). FM6 runs six voices on
+the device, so OPX has the same six-voice cap (`OPX_POLY`); on the device, six held OPX notes play without dropouts.
+The compiled render loop's cost is tracked by `tests/target_budget.py` (`opx_render` in `tests/target_budget.txt`).
+M2–M5 add work per sample, so each of them needs the device checked again with six voices held.

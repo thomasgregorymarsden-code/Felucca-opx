@@ -676,6 +676,20 @@ static void state(void)                          /* a playing song with steps on
         scope_buf[i] = (int16_t)((int32_t)((i * 37u) % 128u) * 200 - 12800 + (int32_t)((i % 32u) < 16u ? 3000 : -3000));
     scope_w = 0;
 }
+#if FELUCCA_OPX
+/* a C4 (261.63 Hz) with its second harmonic in the scope, no voice sounding (the last note: 60): the OPX pages'
+ * small scope draws two periods of it */
+static void opx_scope_c4(void)
+{
+    uint32_t i;
+    last_note = 60;
+    for (i = 0; i < SCOPE_N; i++) {
+        double ph = 2.0 * 3.14159265358979 * 261.6256 * (double)i / 22050.0;
+        scope_buf[i] = (int16_t)(9000.0 * sin(ph) + 4000.0 * sin(2.0 * ph));
+    }
+    scope_w = 0;
+}
+#endif
 static void drum(uint32_t kit)
 {
     uint32_t i;
@@ -1241,21 +1255,16 @@ static void setup(int s)
     /* OPX's EDIT 1: E.PIANO's algorithm 5 (MLVL just turned: the modulators ACCENT), 34 (the 6-chain and its loop), 36;
      * USER: the matrix with X-MOD's values, the cell OP 3 -> OP 1 picked (its amount just turned), then OUT's row; EDIT 2 */
     case S_OPX_ALG5: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 0; go_title("EDIT 1"); ui.hot_col = 3; ui.hot_t = 30; break;
-    case S_OPX_ALG34: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 34; go_title("EDIT 1"); break;
+    case S_OPX_ALG34: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 34; opx_scope_c4(); go_title("EDIT 1"); break;
     case S_OPX_ALG36: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 36; go_title("EDIT 1"); break;
-    case S_OPX_MATRIX: eng(ENGI_OPX); TSEL->p[P_E7] = 6; opx_poll(); TSEL->p[P_E0] = 41; xmat_row = 0; xmat_col = 2;
+    case S_OPX_MATRIX: eng(ENGI_OPX); TSEL->p[P_E7] = 6; opx_poll(); TSEL->p[P_E0] = 41; xmat_row = 0; xmat_col = 2; opx_scope_c4();
         go_title("EDIT 1"); ui.hot_col = 3; ui.hot_t = 30; break;
     case S_OPX_MATRIX_OUT: eng(ENGI_OPX); TSEL->p[P_E7] = 6; opx_poll(); TSEL->p[P_E0] = 41; xmat_row = 6; xmat_col = 1;
         go_title("EDIT 1"); break;
     case S_OPX_MATRIX_E2: eng(ENGI_OPX); TSEL->p[P_E7] = 6; opx_poll(); TSEL->p[P_E0] = 41; go_title("EDIT 2"); break;
     /* the small scope's time scale: a C4 (261.63 Hz) with its second harmonic, no voice sounding (the last note: 60):
      * two periods across the scope */
-    case S_OPX_SCOPE: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 0; last_note = 60;
-        for (uint32_t i = 0; i < SCOPE_N; i++) {
-            double ph = 2.0 * 3.14159265358979 * 261.6256 * (double)i / 22050.0;
-            scope_buf[i] = (int16_t)(9000.0 * sin(ph) + 4000.0 * sin(2.0 * ph));
-        }
-        go_title("EDIT 1"); break;
+    case S_OPX_SCOPE: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 0; opx_scope_c4(); go_title("EDIT 1"); break;
 #endif
     case S_CONFIRM_SEQ: ui.confirm = CF_CLEAR_SEQ; ui.confirm_trk = 2; break;
     case S_CONFIRM_PROJ: ui.confirm = CF_OVR_PROJ; ui.confirm_trk = 0; break;

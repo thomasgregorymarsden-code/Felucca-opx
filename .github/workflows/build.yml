@@ -1,8 +1,14 @@
 name: Build and publish
 
+# A push to opx-engine: build, test, publish the site (its installer offers the latest published release; this
+# build's installer is under dev/). A release published on GitHub (tag vX.Y.Z-opxN): build it as that version, test
+# it, attach the package and its licence files to the release, then run this workflow on opx-engine, which publishes
+# the site with it. (The site is deployed from the branch only: GitHub Pages' environment takes the default branch.)
 on:
   push:
     branches: [opx-engine]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -48,7 +54,14 @@ jobs:
           key: jieli-deps-v1
 
       - name: Build firmware
-        run: ./build.sh
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = release ]; then
+            ver="${GITHUB_REF_NAME#v}"
+            ./build.sh --release "$ver"
+            echo "REL=$ver" >> "$GITHUB_ENV"
+          fi
+          ./build.sh                                   # (the development build: build/felucca.fwsc)
 
       - name: Emscripten (browser emulator)
         uses: mymindstorm/setup-emsdk@v14
@@ -60,15 +73,34 @@ jobs:
         run: EMU_PREVIEW=0 sh web/emu/build.sh
 
       - name: Make installer site
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site
+          # the site's installer: the latest published release, else this build
+          if gh release download --repo "$GITHUB_REPOSITORY" --pattern 'felucca-*.fwsc' --dir rel 2>/dev/null; then
+            pkg=$(ls rel/felucca-*.fwsc | head -1)
+            ver=$(basename "$pkg" .fwsc); ver="${ver#felucca-}"
+            python3 web/make_site.py "$pkg" "$ver" _site
+          else
+            python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site
+          fi
+          python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site/dev   # this build's, always
           mkdir -p _site/opx && cp web/opx/*.html _site/opx/
-          mkdir -p _site/try && cp -R build/emu/. _site/try/
+          mkdir -p _site/webapp/try && cp -R build/emu/. _site/webapp/try/
+          mkdir -p _site/try                                # (the older address)
+          printf '%s\n' '<!doctype html><meta charset="utf-8"><title>Felucca-OPX</title><meta http-equiv="refresh" content="0; url=../webapp/try/"><a href="../webapp/try/">Felucca-OPX in your browser</a>' > _site/try/index.html
 
       - uses: actions/upload-artifact@v6
         with:
           name: firmware
           path: build/felucca.fwsc
+
+      - if: env.REL != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: release
+          path: build/release-${{ env.REL }}/
 
       - uses: actions/upload-pages-artifact@v5
         with:
@@ -76,6 +108,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -140,3 +173,29 @@ jobs:
           grep -a -E "FAIL|OVER BUDGET|no budget" host_tests.log | grep -av "TESTS FAILED" | head -40 | sed 's/^/::error::/' || true
           grep -a -E "^opx: cost|target: .*opx" host_tests.log | head -10 | sed 's/^/::notice::/' || true
           exit $rc
+
+  # a published release: its files once the tests pass, then a run on opx-engine for the site
+  release-files:
+    needs: [build, test]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: release
+          path: release
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd release
+          zip -qr LICENSES.zip LICENSES
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber \
+            felucca-*.fwsc felucca-*-app.bin SHA256SUMS LICENSE LICENSING.md LICENSES.zip $(ls ATTRIBUTION.txt 2>/dev/null)
+      - name: Publish the site with it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref opx-engine
