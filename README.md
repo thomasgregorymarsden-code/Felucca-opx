@@ -58,8 +58,8 @@ them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SA
   ATK DEC SUS REL envelope with CURVE (LIN, 1–9, EXP), velocity to level (VEL), feedback (FB), a WAVE and its WIDTH.
 - **Waveforms:** the opsix's 23: SIN, SIN 12BIT, SIN 8BIT, TRI, SAW, SAW HD, SQR, SQR HD, ADTV SAW3, ADTV SQR3,
   ADTV TRI3, ADTV 12345, ADTV 1+2 … 1+8 (the fundamental and one harmonic, like two organ drawbars), NOISE S/H
-  (a random level held for each cycle of the operator), NOISE WHITE, PINK and BLUE. The HD versions alias less and
-  cost more processor time. **WIDTH** (OFF, 1–99 %) squeezes the whole wave into that part of each cycle and leaves
+  (a random level held for each cycle of the operator), NOISE WHITE, PINK and BLUE. SAW and SQR are band-limited to
+  10 kHz, the HD versions to 20 kHz. **WIDTH** (OFF, 1–99 %) squeezes the whole wave into that part of each cycle and leaves
   the rest silent. A noise ignores pitch, FM, FB and WIDTH.
 - **A patch** is all of that for six operators plus the algorithm. Each track has its own. SLOT F1–F7 loads a
   factory patch; editing any value makes it the track's own (**SLOT OWN**).

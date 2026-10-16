@@ -65,18 +65,7 @@ jobs:
             echo "REL=$ver" >> "$GITHUB_ENV"
           fi
           b                                            # (the development build: build/felucca.fwsc)
-          grep -a -E "^app |^package " build.log | tail -2 | sed 's/^/::notice::size: /' || true   # (the app's room: 0x8DFBC = 581564 B, firmware/app.ld XIP)
-
-      - name: Build firmware for the r3 core (OPX fork, an experiment)
-        shell: bash
-        run: |
-          # the same firmware compiled for the AC79's core (-mcpu=r3, as JieLi's SDK: its FPU): installer under dev-r3/
-          set -o pipefail
-          cp build/felucca.fwsc felucca-generic.fwsc
-          FELUCCA_CPU=r3 ./build.sh 2>&1 | tee build-r3.log || { grep -a -iE "error|undefined|FAIL" build-r3.log | head -30 | sed 's/^/::error::/'; exit 1; }
-          grep -a -E "^target: opx|^  ok .*cost" build-r3.log | head -5 | sed 's/^/::notice::r3: /' || true
-          cp build/felucca.fwsc felucca-r3.fwsc
-          cp felucca-generic.fwsc build/felucca.fwsc
+          grep -a -E "^app |^package |  ok +image " build.log | tail -3 | sed 's/^/::notice::size: /' || true   # (the app's room: 0x8DFBC = 581564 B, firmware/app.ld XIP)
 
       - name: Emscripten (browser emulator)
         uses: mymindstorm/setup-emsdk@v14
@@ -101,7 +90,6 @@ jobs:
             python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site
           fi
           python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site/dev   # this build's, always
-          python3 web/make_site.py felucca-r3.fwsc "opx-${GITHUB_SHA::7}-r3" _site/dev-r3   # .. built for the r3 core
           mkdir -p _site/opx && cp web/opx/*.html _site/opx/
           mkdir -p _site/webapp/try && cp -R build/emu/. _site/webapp/try/
           mkdir -p _site/try                                # (the older address)

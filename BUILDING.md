@@ -69,7 +69,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`, `c
 | `FELUCCA_SLICE` | 1 | the SLICE engine |
 | `FELUCCA_ICONS` | 1 | parameter icons on the knob cards |
 | `FELUCCA_FM4` | 0 | the retired DIGITAL engine (4-operator FM) instead of its FM6 conversion |
-| `FELUCCA_CPU` | (unset) | OPX fork: the core to compile for. Unset: the compiler's generic one, as upstream. `r3`: the AC79's own (as JieLi's SDK), with its hardware floating point (`FELUCCA_HWFLOAT`); an experiment, published as `dev-r3/` |
+| `FELUCCA_CPU` | (unset) | OPX fork: the core to compile for. Unset: the compiler's generic one, as upstream. `r3`: the AC79's own (as JieLi's SDK), with its hardware floating point (`FELUCCA_HWFLOAT`, a float row in the benchmark). An experiment: no gain measured (docs/OPX_PLAN.md, Cost) |
 | `FELUCCA_OPX` | 1 | the OPX engine (engine 15), its pages and its flash region (`firmware/src/opx_map.h`); `0` builds upstream Felucca's engine set and flash map |
 
 `FELUCCA_USB_LAYOUT` (`0` to `3`, default `0`) picks other USB descriptor layouts for testing; see

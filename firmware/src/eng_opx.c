@@ -2,7 +2,7 @@
 /* OPX (OPX fork): altered FM after the Korg opsix. Milestone M1: the six operators in FM mode, the 40 preset
  * algorithms and the user algorithm, ratio / fixed pitch, per-operator feedback, the loop feedback of algorithms
  * 4, 6 and 34 (ALG FB), per-operator level envelopes (ATK DEC SUS REL, CURVE LIN..EXP), level velocity. M2 (so far):
- * the 23 waveforms and WIDTH (opx_osc). The other operator modes, key tracking, EG1-3, LFOs, the filter, effects and
+ * the 23 waveforms and WIDTH (opx_wt_build, opx_table). The other operator modes, key tracking, EG1-3, LFOs, the filter, effects and
  * the virtual patch come later
  * (docs/OPX_PLAN.md); so does the patch's storage (docs/OPX_STORAGE.md: M3). Until then a track plays one of the
  * factory patches below (SLOT).
@@ -39,7 +39,7 @@
 #define OPX_NOP 6
 #define OPX_NALG 40              /* preset algorithms; 40 = USER */
 #define OPX_USER 40u
-/* M2: the waveforms (opx_osc, below) */
+/* M2: the waveforms (opx_table, below) */
 enum { OPX_W_SIN, OPX_W_SIN12, OPX_W_SIN8, OPX_W_TRI, OPX_W_SAW, OPX_W_SAWHD, OPX_W_SQR, OPX_W_SQRHD, OPX_W_ASAW3,
        OPX_W_ASQR3, OPX_W_ATRI3, OPX_W_A12345, OPX_W_A12, OPX_W_A13, OPX_W_A14, OPX_W_A15, OPX_W_A16, OPX_W_A17,
        OPX_W_A18, OPX_W_NOISE_SH, OPX_W_WHITE, OPX_W_PINK, OPX_W_BLUE, OPX_NWAVE };
@@ -310,30 +310,127 @@ static void opx_build(const track_t *t, opx_rt_t *r)
 }
 
 /* --------------------------------------------------------- the waveforms --- */
-/* M2: the opsix's 23 waveforms (Waveform List p.84), in its order, and WIDTH (p.43). Q15, phase p a Q32 cycle,
- * inc the phase step a sample (the alias suppression of SAW / SQR). How they are made, the manual not saying:
- *   SIN 12BIT / 8BIT  the sine at 12 / 8 bits
- *   TRI               plain (its harmonics fall at 12 dB / octave: little aliasing)
- *   SAW, SQR          polyBLEP (dsp.c blep, two samples at each step): alias-reduced, cheap
- *   SAW HD, SQR HD    a cubic B-spline BLEP over four samples (opx_blep4): aliases 20 to 60 dB lower in the audible
- *                     band for more work ("more CPU", p.84), the harmonics above ~15 kHz a little softer. The manual's
- *                     "richer high-end overtones" read as a cleaner high end: an assumption
+/* M2: the opsix's 23 waveforms (Waveform List p.84), in its order, and WIDTH (p.43). How they are made, the manual not
+ * saying:
+ *   SIN               the sine table (dsp.c sine_i's), as M1
+ *   SIN 12BIT / 8BIT  the sine table at 12 / 8 bits
+ *   TRI               a triangle table
  *   ADTV              sums of sines: SAW3 1 + 1/2 + 1/3, SQR3 1 + 1/3 (3rd) + 1/5 (5th), TRI3 1 - 1/9 + 1/25,
  *                     12345 the first five harmonics at one level, 1+n the fundamental and harmonic n at one level;
  *                     each scaled to a full-scale peak
- *   NOISE             S/H: a random level held for each cycle of the operator (its pitch: the "musical" noise);
- *                     WHITE flat; PINK -3 dB / octave (Paul Kellet's three-pole filter on white); BLUE +3 dB / octave
- *                     (pink's difference); the noises ignore pitch, FM and WIDTH
+ *   SAW, SQR          band-limited: a table per power of two of harmonics (1, 2, 4 .. 512), the one for the operator's
+ *                     pitch picked each block, its harmonics up to 10 kHz; the HD ones up to 20 kHz: "richer high-end
+ *                     overtones" (p.84; the CPU cost is the same here). The harmonics at 1/n; SAW at 83 %, SQR at 77 %
+ *                     of full scale: the highest peak of any table (SAW's Gibbs overshoot, 1.177; SQR's lone
+ *                     fundamental, 4 / pi) stays in range
+ *   NOISE             S/H: a random level held for each cycle of the operator (its pitch, unmodulated: the "musical"
+ *                     noise); WHITE flat; PINK -3 dB / octave (Paul Kellet's three-pole filter on white); BLUE pink's
+ *                     difference (+9 dB over 4 octaves). Made a block at a time; they ignore FM, FB and WIDTH
  *   WIDTH             1..99 %: the whole wave in that part of the cycle, silence in the rest (p.43's pictures: OFF,
- *                     50 %, 25 %). An assumption from the pictures; WIDTH OFF is the full cycle */
+ *                     50 %, 25 %). An assumption from the pictures; WIDTH OFF is the full cycle
+ * Every periodic wave is one table read a sample, as the sine (the device's benchmark, MENU > SYSTEM > INFO: one big
+ * per-sample switch over the waves cost as much again as the sine itself). The tables are built once, in the main loop
+ * (opx_wt_build, from opx_poll), in RAM; until then every wave plays the sine */
+#define OPX_MIP 10                                     /* SAW / SQR: 1, 2, 4 .. 512 harmonics */
+enum { WT_SIN12, WT_SIN8, WT_TRI, WT_ADTV, WT_SAW = WT_ADTV + (OPX_W_A18 - OPX_W_ASAW3 + 1), WT_SQR = WT_SAW + OPX_MIP,
+       WT_COUNT = WT_SQR + OPX_MIP };
+static int16_t opx_wt[WT_COUNT][1025] __attribute__((section(".pool")));   /* 1024 points and a guard, as SINE */
+static volatile uint8_t opx_wt_ok;
 /* the ADTV 1+n waves' gain to a full-scale peak, n = 2..8 (the peak of sin x + sin nx: 1.760 1.540 1.928 2 1.967 1.903
  * 1.981) */
 static const uint16_t OPX_A1N_GAIN[7] = {18615, 21282, 16993, 16383, 16659, 17219, 16539};
+static int32_t opx_sq15(int32_t v) { return v > 32767 ? 32767 : v < -32767 ? -32767 : v; }
+/* point i of an ADTV wave (w: OPX_W_ASAW3 ..) */
+static int32_t opx_adtv(uint32_t w, uint32_t i)
+{
+    uint32_t p = i << 22;
+    int32_t s;
+    switch (w) {
+    case OPX_W_ASAW3:
+        s = sine_i(p) + (sine_i(p * 2u) >> 1) + sine_i(p * 3u) / 3;
+        return (s * 22710) >> 15;
+    case OPX_W_ASQR3:
+        s = sine_i(p) + sine_i(p * 3u) / 3 + sine_i(p * 5u) / 5;
+        return opx_sq15((s * 35107) >> 15);
+    case OPX_W_ATRI3:
+        s = sine_i(p) - sine_i(p * 3u) / 9 + sine_i(p * 5u) / 25;
+        return (s * 28465) >> 15;
+    case OPX_W_A12345:
+        s = sine_i(p) + sine_i(p * 2u) + sine_i(p * 3u) + sine_i(p * 4u) + sine_i(p * 5u);
+        return (s * 8269) >> 15;
+    default:                                           /* 1+2 .. 1+8 */
+        s = sine_i(p) + sine_i(p * (w - OPX_W_A12 + 2u));
+        return (s * OPX_A1N_GAIN[(w - OPX_W_A12) % 7u]) >> 15;
+    }
+}
+/* the tables (main loop, once: ~1.3 M table reads) */
+static void opx_wt_build(void)
+{
+    static int32_t acc[1024] __attribute__((section(".pool")));
+    uint32_t i, w, set, l, h, n0;
+    if (opx_wt_ok)
+        return;
+    for (i = 0; i < 1024u; i++) {
+        opx_wt[WT_SIN12][i] = (int16_t)(SINE[i] & ~15);
+        opx_wt[WT_SIN8][i] = (int16_t)(SINE[i] & ~255);
+        opx_wt[WT_TRI][i] = (int16_t)opx_sq15(osc_tri((i << 22) + 0x40000000u));   /* (from 0 rising, as the sine) */
+        for (w = OPX_W_ASAW3; w <= OPX_W_A18; w++)
+            opx_wt[WT_ADTV + w - OPX_W_ASAW3][i] = (int16_t)opx_adtv(w, i);
+    }
+    /* SAW: 0.83 x (2 / pi) sum (-1)^(n+1) sin(nx) / n (rising through 0 at phase 0, as the sine); SQR: 0.77 x (4 / pi)
+     * sum over odd n of sin(nx) / n. Level l: harmonics 1 .. 2^l, each level the one before and its new harmonics */
+    for (set = 0; set < 2u; set++) {
+        int32_t amp = (int32_t)((set ? 0.77 * 4.0 : 0.83 * 2.0) * 32767.0 / 3.14159265358979 * 256.0);   /* x 256 */
+        for (i = 0; i < 1024u; i++)
+            acc[i] = 0;
+        for (l = 0, n0 = 1; l < OPX_MIP; l++) {
+            uint32_t top = 1u << l;
+            for (h = n0; h <= top; h++) {
+                int32_t c;
+                if (set && !(h & 1u))
+                    continue;
+                c = amp / (int32_t)h * (set || (h & 1u) ? 1 : -1);
+                for (i = 0; i < 1024u; i++)
+                    acc[i] += (int32_t)(((int64_t)sine_i((i << 22) * h) * c) >> 15);
+            }
+            n0 = top + 1u;
+            for (i = 0; i < 1024u; i++)
+                opx_wt[(set ? WT_SQR : WT_SAW) + l][i] = (int16_t)opx_sq15(acc[i] >> 8);
+        }
+    }
+    for (i = 0; i < WT_COUNT; i++)
+        opx_wt[i][1024] = opx_wt[i][0];                /* (the guard: the reads need no mask) */
+    opx_wt_ok = 1;
+}
+/* wave w's table for a phase step of inc (SAW / SQR: the level its pitch allows); the noises: 0 */
+static const int16_t *opx_table(uint32_t w, uint32_t inc)
+{
+    uint32_t hmax, l;
+    if (!opx_wt_ok || w == OPX_W_SIN)
+        return SINE;
+    if (w >= OPX_W_NOISE_SH)
+        return 0;
+    if (w <= OPX_W_TRI)
+        return opx_wt[WT_SIN12 + w - OPX_W_SIN12];
+    if (w >= OPX_W_ASAW3)
+        return opx_wt[WT_ADTV + w - OPX_W_ASAW3];
+    /* SAW SAW HD SQR SQR HD: harmonics up to 10 / 20 kHz: hmax = limit / f = limit x 2^32 / (44100 x inc) */
+    hmax = (uint32_t)(((w == OPX_W_SAWHD || w == OPX_W_SQRHD ? 20000ull : 10000ull) << 32) / 44100u / (inc ? inc : 1u));
+    for (l = 0; l + 1u < OPX_MIP && (2u << l) <= hmax; l++)
+        ;
+    return opx_wt[(w == OPX_W_SAW || w == OPX_W_SAWHD ? WT_SAW : WT_SQR) + l];
+}
+/* table t at phase p, linearly between its points (as sine_i) */
+static inline int32_t opx_tab(const int16_t *t, uint32_t p)
+{
+    uint32_t i = p >> 22;
+    int32_t a = t[i], b = t[i + 1u];
+    return a + (((b - a) * (int32_t)((p >> 7) & 0x7FFFu)) >> 15);
+}
 typedef struct {                 /* an operator's noise state (a voice's) */
     uint32_t rng, lastp;         /* the generator; S/H: the last phase (a wrap = a new level) */
     int32_t hold;                /* S/H: the level held */
     int32_t pk[3], prev;         /* PINK / BLUE: the filter's poles (Q15 x ~8), the last raw pink */
-    uint32_t rcp;                /* HD: 2^32 / the phase step, set once a block (opx_blep4: no divide a sample) */
 } opx_noise_t;
 static int32_t opx_white(opx_noise_t *z)
 {
@@ -348,87 +445,45 @@ static int32_t opx_pink_raw(opx_noise_t *z)
     z->pk[2] = (int32_t)(((int64_t)z->pk[2] * 37355 + (int64_t)w * 68989) >> 16);   /* 0.57000, 1.0526913 */
     return z->pk[0] + z->pk[1] + z->pk[2] + ((w * 12111) >> 16);                    /* + 0.1848 white */
 }
-static int32_t opx_sq15(int32_t v) { return v > 32767 ? 32767 : v < -32767 ? -32767 : v; }
-/* the step a saw takes at a wrap of phase q (down by 65536), smoothed over two samples either side by the integral
- * of a cubic B-spline: the correction to add to the plain saw, Q15 x 2 (65536 = the whole step). rcp: 2^32 / inc */
-static int32_t opx_blep4(uint32_t q, uint32_t inc, uint32_t rcp)
+/* a block of noise w (OPX_W_NOISE_SH ..) into b; S/H at the operator's own phase ph, step inc */
+static void opx_noise_block(uint32_t w, opx_noise_t *z, uint32_t ph, uint32_t inc, int16_t *b)
 {
-    uint64_t w = (uint64_t)inc * 2u;
-    uint32_t dist, u;
-    int32_t d, sgn;
-    if (!inc)
-        return 0;
-    if (q < w)
-        dist = q, sgn = 1;                               /* just after the wrap */
-    else if ((uint64_t)(0u - q) < w && q)
-        dist = 0u - q, sgn = -1;                         /* just before it */
-    else
-        return 0;
-    u = (uint32_t)(((uint64_t)dist * rcp) >> 17);      /* samples from the wrap, Q15: 0 .. 2 */
-    if (u > 65535u)
-        u = 65535u;
-    if (u < 32768u) {                                    /* 1/2 + (-4u + 2u^3 - 3u^4 / 4) / 6 */
-        int32_t t = (int32_t)u, t3 = (int32_t)(((int64_t)t * t >> 15) * t >> 15), t4 = (int32_t)((int64_t)t3 * t >> 15);
-        d = 16384 + (int32_t)(((int64_t)(-4 * t + 2 * t3 - ((3 * t4) >> 2)) * 10923) >> 16);   /* (/ 6) */
-    } else {                                             /* (2 - u)^4 / 24 */
-        int32_t v = 65536 - (int32_t)u, v2 = (int32_t)((int64_t)v * v >> 15);
-        d = (int32_t)((((int64_t)v2 * v2 >> 15) * 2731) >> 16);                         /* (/ 24) */
+    uint32_t i;
+    for (i = 0; i < CTL; i++, ph += inc) {
+        int32_t v;
+        switch (w) {
+        case OPX_W_NOISE_SH:
+            if (ph < z->lastp)                           /* a new cycle (the phase wrapped) */
+                z->hold = opx_white(z);
+            z->lastp = ph;
+            v = z->hold;
+            break;
+        case OPX_W_WHITE:
+            v = opx_white(z);
+            break;
+        case OPX_W_PINK:
+            v = (int32_t)(((int64_t)opx_pink_raw(z) * 13107) >> 16);   /* (/ 5) */
+            break;
+        default: {                                       /* BLUE */
+            int32_t x = opx_pink_raw(z);
+            v = (x - z->prev) >> 1;
+            z->prev = x;
+        }
+        }
+        b[i] = (int16_t)opx_sq15(v);
     }
-    return sgn * d * 2;
 }
-static int32_t opx_saw4(uint32_t p, uint32_t inc, uint32_t rcp)   /* the HD saw: 0 at phase 0, rising, as the sine */
+/* operator k's wave at phase p: its table (with its WIDTH), or this block's noise sample nb */
+static inline int32_t opx_wave(const opx_rt_t *r, uint32_t k, const int16_t *t, uint32_t p, int32_t nb)
 {
-    uint32_t q = p + 0x80000000u;
-    return ((int32_t)(q >> 16) - 32768) + opx_blep4(q, inc, rcp);
-}
-/* waveform w (OPX_W_*, | OPX_W_NARROW with a WIDTH) of operator k at phase p (inlined into opx_loop_wave only) */
-static inline __attribute__((always_inline)) int32_t opx_osc(const opx_rt_t *r, uint32_t k, uint32_t w, uint32_t p, uint32_t inc, opx_noise_t *z)
-{
-    int32_t s;
-    if (w & OPX_W_NARROW) {                              /* WIDTH: the cycle squeezed into its first WIDTH % */
+    if (!t)
+        return nb;
+    if (r->wr[k]) {                                      /* WIDTH: the cycle squeezed into its first WIDTH % */
         if (p >= r->wlim[k])
             return 0;
         p = (uint32_t)(((uint64_t)p * r->wr[k]) >> 16);
-        inc = (uint32_t)(((uint64_t)inc * r->wr[k]) >> 16);
-        w &= ~OPX_W_NARROW;
     }
-    switch (w) {
-    case OPX_W_SIN12: return sine_i(p) & ~15;
-    case OPX_W_SIN8: return sine_i(p) & ~255;
-    case OPX_W_TRI: return osc_tri(p + 0x40000000u);     /* (from 0 rising, as the sine) */
-    case OPX_W_SAW: return osc_saw(p + 0x80000000u, inc);   /* (0 at phase 0, rising, as the sine) */
-    case OPX_W_SAWHD: return opx_sq15(opx_saw4(p, inc, z->rcp));
-    case OPX_W_SQR: return opx_sq15(osc_saw(p, inc) - osc_saw(p + 0x80000000u, inc));
-    case OPX_W_SQRHD: return opx_sq15(opx_saw4(p + 0x80000000u, inc, z->rcp) - opx_saw4(p, inc, z->rcp));
-    case OPX_W_ASAW3:
-        s = sine_i(p) + (sine_i(p * 2u) >> 1) + ((sine_i(p * 3u) * 21845) >> 16);          /* (/ 3: a multiply) */
-        return (s * 22710) >> 15;
-    case OPX_W_ASQR3:
-        s = sine_i(p) + ((sine_i(p * 3u) * 21845) >> 16) + ((sine_i(p * 5u) * 13107) >> 16);
-        return opx_sq15((s * 35107) >> 15);
-    case OPX_W_ATRI3:
-        s = sine_i(p) - ((sine_i(p * 3u) * 7282) >> 16) + ((sine_i(p * 5u) * 2621) >> 16);
-        return (s * 28465) >> 15;
-    case OPX_W_A12345:
-        s = sine_i(p) + sine_i(p * 2u) + sine_i(p * 3u) + sine_i(p * 4u) + sine_i(p * 5u);
-        return (s * 8269) >> 15;
-    case OPX_W_A12: case OPX_W_A13: case OPX_W_A14: case OPX_W_A15: case OPX_W_A16: case OPX_W_A17: case OPX_W_A18:
-        s = sine_i(p) + sine_i(p * (w - OPX_W_A12 + 2u));
-        return (s * OPX_A1N_GAIN[w - OPX_W_A12]) >> 15;
-    case OPX_W_NOISE_SH:
-        if (p < z->lastp && z->lastp - p > 0x80000000u)  /* a new cycle (the phase wrapped forwards) */
-            z->hold = opx_white(z);
-        z->lastp = p;
-        return z->hold;
-    case OPX_W_WHITE: return opx_white(z);
-    case OPX_W_PINK: return opx_sq15((int32_t)(((int64_t)opx_pink_raw(z) * 13107) >> 16));   /* (/ 5) */
-    case OPX_W_BLUE: {
-        int32_t x = opx_pink_raw(z), d = (x - z->prev) >> 1;
-        z->prev = x;
-        return opx_sq15(d);
-    }
-    default: return sine_i(p);
-    }
+    return opx_tab(t, p);
 }
 
 /* ------------------------------------------------------------- the voice --- */
@@ -555,12 +610,13 @@ static int opx_done(track_t *t, voice_t *v)
 
 /* a block's samples (opx_render): the operators that sound, 6 down to 1, each its inputs, its feedback, its wave;
  * the heard ones mixed, high-passed, through the voice's amplitude ramp. Two copies: M1's sine loop as it was, inlined
- * in opx_render (every patch without a waveform), and opx_loop_wave with the waveforms inlined (M2; a function of its
- * own, its own line in tests/target_budget.txt). Returns the high-pass's state */
-static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *restrict r, opx_note_t *restrict n,
-    int32_t *restrict out, const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph,
-    const uint32_t *restrict inc, int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y,
-    int32_t *restrict yp, const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, int waves)
+ * in opx_render (every patch without a waveform), and opx_loop_wave (M2): the same with a table (or a block of noise)
+ * per operator; a function of its own, its own line in tests/target_budget.txt. Returns the high-pass's state */
+static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *restrict r, int32_t *restrict out,
+    const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
+    int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
+    const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const int16_t *const *tb,
+    const int16_t (*nb)[CTL], int waves)
 {
     uint32_t i, q;
     for (i = 0; i < CTL; i++) {
@@ -572,7 +628,7 @@ static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *re
             for (c = 0; c < nin; c++)
                 mod += (r->amt[kk][c] * y[r->src[kk][c]]) >> 15;
             p = ph[kk] + ((uint32_t)mod << 18) + (uint32_t)(((y[kk] + yp[kk]) >> 1) * fbq[kk]);
-            s = waves && r->wv[kk] ? opx_osc(r, kk, r->wv[kk], p, inc[kk], &n->nz[kk]) : sine_i(p);
+            s = waves ? opx_wave(r, kk, tb[kk], p, nb[kk][i]) : sine_i(p);
             yp[kk] = y[kk];
             y[kk] = (s * g[kk]) >> 15;
             g[kk] += dg[kk];
@@ -587,13 +643,13 @@ static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *re
     }
     return dc;
 }
-#define OPX_LOOP_ARGS const opx_rt_t *restrict r, opx_note_t *restrict n, int32_t *restrict out, \
-    const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc, \
-    int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp, \
-    const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc
-static int32_t __attribute__((noinline)) opx_loop_wave(OPX_LOOP_ARGS)
+static int32_t __attribute__((noinline)) opx_loop_wave(const opx_rt_t *restrict r, int32_t *restrict out,
+    const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
+    int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
+    const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const int16_t *const *tb,
+    const int16_t (*nb)[CTL])
 {
-    return opx_loop(r, n, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, 1);
+    return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb, nb, 1);
 }
 
 static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const vmod_t *m)
@@ -620,10 +676,6 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
         if (!f)
             f = (uint32_t)(((uint64_t)((uint32_t)fm6_freq(lf + r->lg[k]) << 8) * r->fine[k]) >> 16);
         inc[k] = f;
-        if ((r->wv[k] & ~OPX_W_NARROW) == OPX_W_SAWHD || (r->wv[k] & ~OPX_W_NARROW) == OPX_W_SQRHD) {
-            uint32_t fe = r->wv[k] & OPX_W_NARROW ? (uint32_t)(((uint64_t)f * r->wr[k]) >> 16) : f;   /* (WIDTH: faster) */
-            n->nz[k].rcp = fe > 1u ? 0xFFFFFFFFu / fe : 0xFFFFFFFFu;   /* (M2: HD's 1 / step, a divide a block) */
-        }
         g2 = (int32_t)(((int64_t)mulq15(r->amp[k], n->vg[k]) * lvl) >> 24);
         if (mf != 32768 && !((heard >> k) & 1u))
             g2 = (int32_t)clamp((int32_t)(((int64_t)g2 * mf) >> 15), 0, 32767);
@@ -648,14 +700,25 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     a = mulq15(m->amp0, k);
     da = (mulq15(m->amp1, k) - a) >> CTL_LOG2;
     dc = n->dc;
-    {   /* the samples: M1's sine loop, or (M2) the same with the waveforms, chosen for the block */
+    {   /* the samples: M1's sine loop, or (M2) the same with a table or a block of noise per operator */
         uint32_t wv = 0;
         for (q = 0; q < nact; q++)
             wv |= r->wv[ord[q]];
-        if (wv)
-            dc = opx_loop_wave(r, n, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc);
-        else                                         /* (inlined: M1's loop, here as it was) */
-            dc = opx_loop(r, n, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, 0);
+        if (wv) {
+            const int16_t *tb[OPX_NOP];
+            int16_t nb[OPX_NOP][CTL];
+            for (q = 0; q < nact; q++) {
+                uint32_t kk = ord[q], w = r->wv[kk] & ~OPX_W_NARROW;
+                uint32_t fi = r->wr[kk] ? (uint32_t)(((uint64_t)inc[kk] * r->wr[kk]) >> 16) : inc[kk];   /* (WIDTH) */
+                tb[kk] = opx_table(w, fi);
+                if (!tb[kk])
+                    opx_noise_block(w, &n->nz[kk], ph[kk], inc[kk], nb[kk]);
+            }
+            dc = opx_loop_wave(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb,
+                               (const int16_t (*)[CTL])nb);
+        } else {                                     /* (inlined: M1's loop, here as it was) */
+            dc = opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, 0, 0, 0);
+        }
     }
     n->dc = dc;
     for (k = 0; k < OPX_NOP; k++) {

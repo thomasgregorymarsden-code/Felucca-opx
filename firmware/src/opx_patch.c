@@ -172,9 +172,11 @@ static void opx_edit(uint32_t tr, uint32_t f, int32_t v)
 }
 
 /* main loop: SLOT turned to F n -> that factory patch; at power-on every track gets F1 (or its SLOT's) */
+static void opx_wt_build(void);                       /* (eng_opx.c) */
 static void opx_poll(void)
 {
     uint32_t tr;
+    opx_wt_build();                                    /* (M2: the waveform tables, once: eng_opx.c) */
     for (tr = 0; tr < NTRK; tr++) {
         int32_t s = trk[tr].p[P_E7];
         if (opx_slot[tr] == 0xFFu)                     /* (first time: a patch to edit even before OPX is picked) */

@@ -13,7 +13,7 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M1 | Six operators in FM mode (sine), all 40 algorithms plus USER, ratio and fixed pitch, per-operator FB, ALG FB loops, per-operator ATK/DEC/SUS/REL/CURVE envelopes, level velocity; device macros; cost against FM6 | done |
 | M1.5 | Operator editing on the device (algorithm charts, USER matrix, OPERATORS list, scope); each track's patch kept in the stored format; saved with projects and the autosave | done |
 | | **First release, `0.0.1`: M0, M1 and M1.5** | |
-| M2a | The 23 waveforms and WIDTH | done (device cost to be measured) |
+| M2a | The 23 waveforms and WIDTH | done (device cost: see [Cost](#cost)) |
 | M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | |
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | |
 | M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |
@@ -28,12 +28,21 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
   - USER is the patch's own matrix.
   - `tests/opx_test.c` checks every chart against a table written separately from the engine, and renders every algorithm against a floating-point reference implementation. They agree to better than −45 dB.
 - **Order and timing.** Each sample, the operators run from 6 down to 1. An input from a higher-numbered operator is this sample's output. An input from a lower-numbered one, as in the loops of algorithms 4, 6 and 34 or an upward link in USER, is the previous sample's.
-- **Waveforms (M2a)** replace the operator's sine (`eng_opx.c` `opx_osc`); a plain sine with WIDTH OFF takes
-  M1's path unchanged, sample for sample. SAW and SQR use a polyBLEP, the HD ones a cubic B-spline BLEP over four
-  samples (about 9 dB less aliasing at 2.2 kHz, 20–60 dB less lower in the band, `opx_test`); the ADTV ones are sums
-  of sines scaled to a full-scale peak; the noises keep a state per operator per voice. Assumptions: WIDTH squeezes
-  the cycle into its first WIDTH % and is silent after (from the manual's pictures); HD means a cleaner high end
-  (the manual says "richer"); BLUE is pink noise's difference (+9 dB over 4 octaves, short of +12 near Nyquist).
+- **Waveforms (M2a)** replace the operator's sine; a plain sine with WIDTH OFF takes M1's path unchanged, sample for
+  sample. Every periodic wave is a 1024-point table read the way the sine is (`eng_opx.c` `opx_wt_build`,
+  `opx_table`), so it costs about what the sine costs. The tables (about 70 KB of RAM, and 4 KB to build them) are built once in the main
+  loop, after boot; until then every wave plays as a sine.
+  - SIN 12BIT / 8BIT, TRI and the eleven ADTV waves: one table each. The ADTV ones are sums of sines scaled to a
+    full-scale peak.
+  - SAW and SQR: ten tables each, with 1, 2, 4 … 512 harmonics at 1/n. Each block, the operator's pitch picks the
+    table whose harmonics stay under 10 kHz; the HD versions go to 20 kHz. So none of them aliases unless FM pushes it
+    (`opx_test`: aliases 96–99 dB down at 2.2 kHz). SAW is at 83 % of full scale and SQR at 77 %, so the highest table
+    peaks stay in range.
+  - The noises are made a block (32 samples) at a time per operator per voice. S/H follows the operator's own pitch,
+    without FM.
+  - Assumptions: WIDTH squeezes the cycle into its first WIDTH % and is silent after (from the manual's pictures);
+    HD means more high harmonics (the manual says "richer high-end overtones"); BLUE is pink noise's difference (+9 dB
+    over 4 octaves, short of +12 near Nyquist).
 - **Self-feedback** uses the mean of the operator's last two outputs (as the DX7 does), and is linear in FB: 100 % gives 2 rad. At 75 % the harmonics come out within 3 dB of a sawtooth's, which matches the manual's description.
 
 ## The device pages (M1.5): where the code is
@@ -84,21 +93,42 @@ The manual gives no curve for these, so each is a reasonable guess:
 
 ## Cost
 
-On the host, six OPX voices cost about 1.8 times six FM6 voices (`opx_test` prints the ratio). With waveforms on
-all six operators (M2a) the host measures: SAW 2.0, SAW HD 2.5, SQR HD 3.2, ADTV 12345 4.1, NOISE PINK 2.7 times FM6.
-Whether the heavy ones fit six voices on the device is not yet measured: MENU > SYSTEM > INFO shows the CPU load.
+On the host, six OPX voices cost about 1.8 times six FM6 voices (`opx_test` prints the ratio and the cost of the
+heavier waves).
 
 **On the device:** MENU > SYSTEM > INFO, OCT+ runs a benchmark (`firmware/src/bench.c`): with the transport stopped it
 times the mix on the FM-1 itself (track 1 borrowed and put back, the audio silent for a few seconds) and lists the share
 of real time six held notes take for FM6 and for OPX with each waveform, plus 32- and 64-bit multiply-adds. The audio
 drops a voice above 85 % (`audio.c`).
 
+Measured on a device, 2026-10-16, 0.0.2-dev, before the waveforms became tables (six notes, all six operators on the
+wave; "one" is one note):
+
+| | All six | One |
+|---|---|---|
+| Idle (the mix, effects, no voice) | 12.3 % | |
+| FM6, F1 | 26.8 % | 4.4 % |
+| OPX, SIN | 56.7 % | 9.4 % |
+| OPX, SIN 12BIT / 8BIT | 100.5 / 100.4 % | |
+| OPX, TRI / SAW / SQR | 87.2 / 101.0 / 116.5 % | |
+| OPX, SAW HD / SQR HD | 135.2 / 165.5 % | |
+| OPX, ADTV (SAW3 … 1+8) | 104.5–125.7 % | |
+| OPX, NOISE S/H / WHITE / PINK / BLUE | 99.1 / 94.7 / 128.7 / 128.7 % | |
+| 32-bit / 64-bit multiply-add | 33.3 / 52.7 ns | |
+
+SIN 12BIT is the sine with a mask, yet it cost 44 points more: the waves' per-sample switch made the loop too big for
+the code cache (the firmware runs from flash through a cache). That is why the periodic waves are now table reads and
+the noises are made a block at a time. The table version still has to be measured on the device.
+
 **Floating point:** Felucca is compiled for the compiler's generic pi32v2 core, where `float` becomes a call to a
-software routine that the firmware does not link. JieLi's SDK compiles for `-mcpu=r3`, the AC79's core, and there a
-float multiply-add is two FPU instructions. `FELUCCA_CPU=r3` builds that way (CI publishes it as `dev-r3/`), and its
-benchmark adds a float row. Comparing the two builds' benchmarks shows what r3 gains for the existing integer code too.
-Before using float in the audio code: the audio interrupt (`hal/fm1_isr.S`) does not save FPU registers, so float in an
-interrupt is only safe while nothing it interrupts uses the FPU. FM6 runs six voices on
-the device, so OPX has the same six-voice cap (`OPX_POLY`); on the device, six held OPX notes play without dropouts.
-The compiled render loop's cost is tracked by `tests/target_budget.py` (`opx_render` in `tests/target_budget.txt`).
+software routine that the firmware does not link. JieLi's SDK compiles for `-mcpu=r3`, the AC79's core, with an FPU.
+`FELUCCA_CPU=r3` builds that way and adds a float row to the benchmark. Measured once (2026-10-16): the r3 build ran
+everything within about 1 % of the generic build (FM6 27.0 %, OPX SIN 57.1 %, SQR HD 163.7 %); a 32-bit multiply-add
+took 30.5 ns, a float one 27.7 ns. So r3 gains nothing for the integer code, and float is no faster than integer;
+the DSP stays integer and CI no longer publishes an r3 build. Float in the audio code would also need the audio
+interrupt (`hal/fm1_isr.S`) to save the FPU registers, which it does not.
+
+FM6 runs six voices on the device, so OPX has the same six-voice cap (`OPX_POLY`); on the device, six held OPX sine
+notes play without dropouts. The compiled render loops' cost is tracked by `tests/target_budget.py` (`opx_render` and
+`opx_loop_wave` in `tests/target_budget.txt`).
 M2–M5 add work per sample, so each of them needs the device checked again with six voices held.

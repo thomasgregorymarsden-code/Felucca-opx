@@ -340,7 +340,7 @@ static void test_feedback(void)
           err_db(z, y, CTL, FS / 4) > -20.0);
 }
 
-/* M2: the waveforms (eng_opx.c opx_osc). One operator heard (algorithm 32, the others at 0), C4, no feedback; the
+/* M2: the waveforms (eng_opx.c opx_table, opx_noise_block, opx_wave). One operator heard (algorithm 32, the others at 0), C4, no feedback; the
  * levels of its harmonics against the fundamental (dB), and the noises' spectra */
 static double wave_h[9];
 static void wave_render(uint32_t w, uint32_t width, uint32_t note, double *y, uint32_t n)
@@ -453,33 +453,36 @@ static void test_waves(void)
         check(what, near(d[0], 0, 2) && near(d[1], -12, 2) && near(d[2], 9, 2));   /* (BLUE: pink's difference falls short
                                                                                          of +3 dB / octave near Nyquist) */
     }
-    /* the waveform alone (opx_osc): NOISE S/H holds a level for a cycle; WIDTH 50 % the whole cycle in its first half */
+    /* the waveform alone: NOISE S/H holds a level for a cycle; WIDTH 50 % the whole cycle in its first half */
     {
         opx_rt_t r;
         opx_noise_t z;
-        uint32_t p = 0, inc = 0x01000000u, steps = 0;
+        int16_t nb[CTL];
+        uint32_t p = 0, inc = 0x01000000u, steps = 0, j;
         int32_t last = 0, v;
         memset(&r, 0, sizeof r);
         memset(&z, 0, sizeof z);
         z.rng = 1;
-        for (i = 0; i < 256u * 10u; i++, p += inc) {
-            v = opx_osc(&r, 0, OPX_W_NOISE_SH, p, inc, &z);
-            steps += i && v != last;
-            last = v;
+        for (i = 0; i < 256u * 10u / CTL; i++, p += inc * CTL) {
+            opx_noise_block(OPX_W_NOISE_SH, &z, p, inc, nb);
+            for (j = 0; j < CTL; j++) {
+                v = nb[j];
+                steps += (i || j) && v != last;
+                last = v;
+            }
         }
         check("waves: NOISE S/H: a new level each cycle, held through it (10 cycles: 9 or 10 changes)", steps >= 9u && steps <= 10u);
         r.wr[0] = (100u << 16) / 50u;
         r.wlim[0] = 0x80000000u;
         ok = 1;
         for (p = 0; p < 0xFF000000u; p += 0x01000000u) {
-            int32_t a = opx_osc(&r, 0, OPX_W_SIN | OPX_W_NARROW, p, inc, &z);
+            int32_t a = opx_wave(&r, 0, SINE, p, 0);
             int32_t want = p < 0x80000000u ? sine_i(p * 2u) : 0;
             ok &= abs(a - want) <= 2;
         }
         r.wr[0] = (100u << 16) / 25u;
         r.wlim[0] = 0x40000000u;
-        ok &= opx_osc(&r, 0, OPX_W_SIN | OPX_W_NARROW, 0x10000000u, inc, &z) > 32000 &&
-              opx_osc(&r, 0, OPX_W_SIN | OPX_W_NARROW, 0x50000000u, inc, &z) == 0;
+        ok &= opx_wave(&r, 0, SINE, 0x10000000u, 0) > 32000 && opx_wave(&r, 0, SINE, 0x50000000u, 0) == 0;
         check("waves: WIDTH 50 % / 25 %: the whole cycle in the first half / quarter, silence after", ok);
         /* the engine: WIDTH 50 on a sine changes its sound; WIDTH OFF (0) is the plain sine to the bit */
         {
@@ -496,10 +499,11 @@ static void test_waves(void)
             check("waves: SIN, WIDTH OFF = M1's sine to the bit; WIDTH 50 % changes it", ok && memcmp(z0, z1, sizeof z0));
         }
     }
-    /* aliasing: SAW, SAW HD, SQR at FIXED 2151.2 Hz (44100 / 20.5): every alias falls halfway between two harmonics,
-     * where nothing else is; the strongest one against the fundamental */
+    /* aliasing: SAW, SAW HD, SQR, SQR HD at FIXED 2151.2 Hz (44100 / 20.5): every alias falls halfway between two
+     * harmonics, where nothing else is; the strongest one against the fundamental. And the HD ones' high end: harmonics
+     * up to 20 kHz (8 for SAW HD, 7 for SQR HD here), the others' up to 10 kHz (4, 3) */
     {
-    double al[4];
+    double al[4], hi[4];
     for (i = 0; i < 4u; i++) {
         static const uint8_t W[4] = {OPX_W_SAW, OPX_W_SAWHD, OPX_W_SQR, OPX_W_SQRHD};
         double f = 44100.0 / 20.5, h1, worst = -200;
@@ -516,11 +520,15 @@ static void test_waves(void)
         h1 = harm_db(y, FS / 4, 8192, f);
         for (b = 0; b < 10u; b++)
             worst = fmax(worst, harm_db(y, FS / 4, 8192, f * (b + 0.5)) - h1);
-        snprintf(what, sizeof what, "waves: %s at 2151 Hz: the strongest alias %.1f dB below the fundamental", N_OPX_WAVE[W[i]], -worst);
-        check(what, worst < -20);
+        hi[i] = harm_db(y, FS / 4, 8192, f * (i < 2u ? 8 : 7)) - h1;
+        snprintf(what, sizeof what, "waves: %s at 2151 Hz: the strongest alias %.1f dB below the fundamental; harmonic %u %.1f dB",
+                 N_OPX_WAVE[W[i]], -worst, i < 2u ? 8u : 7u, hi[i]);
+        check(what, worst < -40);
         al[i] = worst;
     }
-    check("waves: SAW HD and SQR HD alias at least 6 dB less than SAW and SQR", al[1] < al[0] - 6 && al[3] < al[2] - 6);
+    (void)al;
+    check("waves: SAW HD and SQR HD keep their harmonics to 20 kHz (8th: -18 dB, 7th: -17 dB), SAW and SQR stop at 10 kHz",
+          near(hi[1], -18.06, 1.0) && near(hi[3], -16.9, 1.0) && hi[0] < -60 && hi[2] < -60);
     }
 }
 
@@ -742,6 +750,7 @@ static void dump(void)
 int main(int argc, char **argv)
 {
     uint32_t pi;
+    opx_wt_build();                                    /* (the waveform tables: the firmware builds them in opx_poll) */
     if (argc > 1 && !strcmp(argv[1], "--dump")) {
         dump();
         return 0;
