@@ -380,7 +380,8 @@ static void opx_wt_build(void)
     /* SAW: 0.83 x (2 / pi) sum (-1)^(n+1) sin(nx) / n (rising through 0 at phase 0, as the sine); SQR: 0.77 x (4 / pi)
      * sum over odd n of sin(nx) / n. Level l: harmonics 1 .. 2^l, each level the one before and its new harmonics */
     for (set = 0; set < 2u; set++) {
-        int32_t amp = (int32_t)((set ? 0.77 * 4.0 : 0.83 * 2.0) * 32767.0 / 3.14159265358979 * 256.0);   /* x 256 */
+        int32_t amp = set ? (int32_t)(0.77 * 4.0 * 32767.0 / 3.14159265358979 * 256.0)   /* x 256 (constants: */
+                          : (int32_t)(0.83 * 2.0 * 32767.0 / 3.14159265358979 * 256.0);  /* no float on the device) */
         for (i = 0; i < 1024u; i++)
             acc[i] = 0;
         for (l = 0, n0 = 1; l < OPX_MIP; l++) {
@@ -389,7 +390,7 @@ static void opx_wt_build(void)
                 int32_t c;
                 if (set && !(h & 1u))
                     continue;
-                c = amp / (int32_t)h * (set || (h & 1u) ? 1 : -1);
+                c = (int32_t)((uint32_t)amp / h) * (set || (h & 1u) ? 1 : -1);   /* (an unsigned divide, as the firmware links) */
                 for (i = 0; i < 1024u; i++)
                     acc[i] += (int32_t)(((int64_t)sine_i((i << 22) * h) * c) >> 15);
             }
@@ -415,7 +416,8 @@ static const int16_t *opx_table(uint32_t w, uint32_t inc)
     if (w >= OPX_W_ASAW3)
         return opx_wt[WT_ADTV + w - OPX_W_ASAW3];
     /* SAW SAW HD SQR SQR HD: harmonics up to 10 / 20 kHz: hmax = limit / f = limit x 2^32 / (44100 x inc) */
-    hmax = (uint32_t)(((w == OPX_W_SAWHD || w == OPX_W_SQRHD ? 20000ull : 10000ull) << 32) / 44100u / (inc ? inc : 1u));
+    hmax = (w == OPX_W_SAWHD || w == OPX_W_SQRHD ? (uint32_t)(20000ull * 4294967296ull / 44100u)
+                                                 : (uint32_t)(10000ull * 4294967296ull / 44100u)) / (inc ? inc : 1u);
     for (l = 0; l + 1u < OPX_MIP && (2u << l) <= hmax; l++)
         ;
     return opx_wt[(w == OPX_W_SAW || w == OPX_W_SAWHD ? WT_SAW : WT_SQR) + l];
