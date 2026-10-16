@@ -84,7 +84,8 @@ static void bench_track(uint32_t e, uint32_t pi)
     for (i = 0; i < P_E0; i++)                         /* every value its default (no INSERT, SLICER, matrix ...) */
         t->p[i] = TP[i].def;
     t->eng_req = t->engine = (uint8_t)e;
-    eng_mem_owner[0] = 0;                              /* (zeroed at the next block: eng_mem_claim) */
+    eng_mem_owner[0] = 0;                              /* its state from zeros now, before the notes start (a claim at the
+                                                        * next block would wipe the notes' state: they would end at once) */
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = p->e[i];
     t->p[P_ATK] = p->env[0];
@@ -95,8 +96,10 @@ static void bench_track(uint32_t e, uint32_t pi)
     for (i = 0; i < 4u; i++)
         t->p[P_DIST + i] = (int16_t)(p->fx[i] ? p->fx[i] - 1 : FX_DEF[i]);
     t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;      /* (the sends: the engine alone) */
+    eng_mem_claim(t);
 }
 /* six notes on track 1, their attack past, then the share of real time above the idle mix (permille) */
+static uint32_t bench_voices;                         /* voices still sounding at the end of the last case */
 static uint32_t bench_notes(uint32_t idle)
 {
     uint32_t i, ticks, real = BENCH_BLOCKS * CTL * BENCH_TICKS_PER_SAMPLE;
@@ -104,9 +107,14 @@ static uint32_t bench_notes(uint32_t idle)
         trk_note_on(&trk[0], 48u + 3u * i, 100);
     bench_mix(16);                                     /* (the engine switch, the attacks) */
     ticks = bench_mix(BENCH_BLOCKS);
+    for (i = 0, bench_voices = 0; i < NVOICE; i++)    /* (still sounding at the end: the row is real) */
+        bench_voices += trk[0].v[i].active;
     bench_kill(&trk[0]);
     return ticks > idle ? (uint32_t)(((uint64_t)(ticks - idle) * 1000u) / real) : 0u;
 }
+/* a note's share; fewer than six still sounding at the end: BENCH_FEW | how many (ui_menu.c: "n OF 6") */
+#define BENCH_FEW 0xFFF0u
+static uint32_t bench_one(uint32_t pm) { return bench_voices >= 6u ? pm / 6u : BENCH_FEW | bench_voices; }
 /* the arithmetic: n dependent multiply-adds; ns per operation x 10 */
 static volatile int32_t bench_i32 = 3;
 static volatile int64_t bench_i64 = 3;
@@ -187,7 +195,7 @@ static int bench_run(void)
     bench_track(ENGI_FM6, 0);                          /* FM6: its first factory patch */
     fm6_load_slot(0, 0);
     pm = bench_notes(idle);
-    bench_line(BR_PCT, "FM6 F1", pm, pm / 6u);
+    bench_line(BR_PCT, "FM6 F1", pm, bench_one(pm));
     bench_line(BR_SUB, "OPX, THE WAVE ON ALL 6 OPS", 0, 0);
 
     memset(&bench_px, 0, sizeof bench_px);             /* OPX: algorithm 1, all six sounding, the sixth with feedback */
@@ -209,7 +217,7 @@ static int bench_run(void)
         opx_own[0] = &bench_px;
         pm = bench_notes(idle);
         str_cpy(name, N_OPX_WAVE[w], sizeof name);
-        bench_line(BR_PCT, name, pm, pm / 6u);
+        bench_line(BR_PCT, name, pm, bench_one(pm));
     }
     bench_math();
 

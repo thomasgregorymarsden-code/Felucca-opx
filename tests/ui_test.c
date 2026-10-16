@@ -9020,6 +9020,12 @@ static int test_bench(void)
     ok = bench_row[1].kind == BR_HEAD && str_eq(bench_row[2].name, "FM6 F1") && bench_row[3].kind == BR_SUB && str_eq(bench_row[4].name, "SIN") &&
          str_eq(bench_row[bench_n - 1u].name, "INT64 MAC") && bench_row[bench_n - 1u].kind == BR_NS;
     bad += check("bench: the rows named (FM6 F1, OPX SIN .., INT64 MAC)", ok);
+    for (i = 2, ok = 1; i < bench_n; i++)
+        if (bench_row[i].kind == BR_PCT && bench_row[i].one >= BENCH_FEW) {   /* (the host's clock stands still: no cost) */
+            printf("ui: bench: %s: all %u one %#x\n", bench_row[i].name, bench_row[i].all, bench_row[i].one);
+            ok = 0;
+        }
+    bad += check("bench: every engine row with its six notes sounding to the end (the engine state claimed before the notes)", ok);
     press(B_OCTDN);
     frame();
     ok = ui.menu == 3;

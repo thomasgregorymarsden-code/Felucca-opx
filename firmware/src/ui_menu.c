@@ -186,7 +186,11 @@ static int32_t bench_document(int32_t y, int draw)
         cv_text(6, y, &AF_S, bench_row[i].name, T_TEXT);
         bench_val(a, bench_row[i].all, k == BR_NS ? "ns" : "%");
         cv_text_r(170, y, &AF_S, a, T_THEME, T_BG);
-        if (k == BR_PCT && bench_row[i].one != 0xFFFFu) {
+        if (k == BR_PCT && bench_row[i].one >= BENCH_FEW && bench_row[i].one != 0xFFFFu) {   /* (notes ended early) */
+            o[0] = (char)('0' + (bench_row[i].one & 7u));
+            str_cpy(o + 1, " OF 6", 6);
+            cv_text_r(228, y, &AF_S, o, T_ACCENT, T_BG);
+        } else if (k == BR_PCT && bench_row[i].one != 0xFFFFu) {
             bench_val(o, bench_row[i].one, "%");
             cv_text_r(228, y, &AF_S, o, T_TEXT, T_BG);
         }
