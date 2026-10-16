@@ -146,9 +146,62 @@ static int32_t menu_document(int32_t y, int draw)
     y = menu_text("Felucca upstream: github.com/hugelton/Felucca", y, T_MID, draw);
     return y + 4;
 }
+#if FELUCCA_BENCH
+/* MENU > SYSTEM > INFO, OCT+ (OPX fork, ui.menu 4): the benchmark (bench.c). bench_state 1: asked (the page says
+ * RUNNING), 2: drawn so, run it on the next pass (menu_input), 3: its results */
+static uint8_t bench_state;
+/* a row: its name, then the share (all six notes) and per note at the right, in columns (S); a heading THEME */
+static void bench_val(char *b, uint32_t v10, const char *unit)
+{
+    uint32_t n;
+    fmt_int(b, (int32_t)(v10 / 10u));
+    n = str_len(b);
+    b[n++] = '.';
+    b[n++] = (char)('0' + v10 % 10u);
+    b[n++] = ' ';
+    str_cpy(b + n, unit, 4);
+}
+static int32_t bench_document(int32_t y, int draw)
+{
+    uint32_t i;
+    if (bench_state < 3u)
+        return menu_text("RUNNING: ABOUT 5 S. THE AUDIO IS SILENT MEANWHILE.", y + 4, T_TEXT, draw);
+    y = menu_text("Share of real time 6 held notes take, above the idle mix: all six, and one. The audio drops a voice "
+                  "above 85 % in all.", y + 4, T_MID, draw) + 6;
+    for (i = 0; i < bench_n; i++, y += 18) {
+        char a[12], o[12];
+        uint32_t k = bench_row[i].kind;
+        if (!draw || y + AF_S.h <= 0 || y >= MENU_DOC_H)
+            continue;
+        if (k == BR_HEAD) {
+            cv_text(6, y, &AF_S, bench_row[i].name, T_THEME);
+            cv_text_r(170, y, &AF_S, "ALL", T_MID, T_BG);
+            cv_text_r(228, y, &AF_S, "ONE", T_MID, T_BG);
+            continue;
+        }
+        if (k == BR_SUB) {
+            cv_text(6, y, &AF_S, bench_row[i].name, T_MID);
+            continue;
+        }
+        cv_text(6, y, &AF_S, bench_row[i].name, T_TEXT);
+        bench_val(a, bench_row[i].all, k == BR_NS ? "ns" : "%");
+        cv_text_r(170, y, &AF_S, a, T_THEME, T_BG);
+        if (k == BR_PCT && bench_row[i].one != 0xFFFFu) {
+            bench_val(o, bench_row[i].one, "%");
+            cv_text_r(228, y, &AF_S, o, T_TEXT, T_BG);
+        }
+    }
+    y = menu_text("MAC: one multiply-add, each depending on the last.", y + 6, T_MID, draw);
+    return y + 4;
+}
+#endif
 static int32_t menu_scroll_max(void)
 {
-    int32_t h = menu_document(0, 0);
+    int32_t h =
+#if FELUCCA_BENCH
+        ui.menu == 4 ? bench_document(0, 0) :
+#endif
+        menu_document(0, 0);
     return h > MENU_DOC_H ? h - MENU_DOC_H : 0;
 }
 
@@ -160,7 +213,8 @@ static void menu_head(void)
     GFX_HOOK_ALIGN(0, HEAD_MY + AF_M_CAP_Y, 0, HEAD_MY + AF_M_CAP_Y + AF_M_CAP_H, AL_V, "header icon on its title's line");
     cv_icon_mid(8, H_HEAD / 2, 16, ui.menu >= 2 ? ICON_X_INFO : ICON_X_COG, T_THEME, T_BG);   /* (as draw_head's) */
     GFX_HOOK_ALIGN(0, 0, 0, H_HEAD, AL_V, "header text on its middle");
-    cv_text(30, HEAD_MY, &AF_M, ui.menu == 3 ? "INFO" : ui.menu == 2 ? "ABOUT / CREDITS" : "MENU", T_TEXT);
+    cv_text(30, HEAD_MY, &AF_M, ui.menu == 4 ? "BENCHMARK" : ui.menu == 3 ? "INFO" : ui.menu == 2 ? "ABOUT / CREDITS" : "MENU",
+            T_TEXT);
     if (ui.menu >= 2) {                               /* the way back at the right, the REC mark before it (then */
         const char *w = song.rec ? 0 : "BACK";        /* the keycap goes without its word: no room for both) */
         int32_t x = 232 - kh_w(KC_OCTDN, w);
@@ -421,7 +475,11 @@ static void draw_menu(void)
           ui_prefs2 * 524287u + ui_idle * 1048573u +      /* (1.2: ANIM IDLE's value redraws its row) */
           ui_home_view * 7340033u +    /* (1.3: HOME) */
           (uint32_t)(song.g[G_TUNE] + 64) * 8191u + (uint32_t)song.g[G_ROUTE] * 27449u +   /* (1.2: the project's rows) */
-          (ui.menu == 2 ? ui.menu_scroll * 48611u : 0u) + (ui.menu == 3 ? info_sig() * 2654435761u : 0u);
+          (ui.menu == 2 || ui.menu == 4 ? ui.menu_scroll * 48611u : 0u) + (ui.menu == 3 ? info_sig() * 2654435761u : 0u)
+#if FELUCCA_BENCH
+          + bench_state * 1299709u
+#endif
+        ;
     if (!ui.force && sig == ui.menu_sig) {
         if (ui.menu == 1 && mt.pos != pos0) {          /* only the tabs slid: their strip */
             cv_begin(240, MP_Y - H_HEAD, T_BG);
@@ -441,12 +499,16 @@ static void draw_menu(void)
             cv_oy = -(int32_t)top_y;
             if (!pass)
                 info_rows();
+#if FELUCCA_BENCH
+            else
+                cv_key_hint(8, 240 - 6 - KC_H, KC_OCTUP, "BENCHMARK", 1, T_BG);   /* (OPX fork: bench.c; screen rows) */
+#endif
             cv_oy = 0;
             cv_blit(0, top_y);
         }
         return;
     }
-    if (ui.menu == 2) {
+    if (ui.menu == 2 || ui.menu == 4) {
         int32_t scroll = ui.menu_scroll, max = menu_scroll_max();
         int32_t thumb = MENU_DOC_H * MENU_DOC_H / (max + MENU_DOC_H);
         if (thumb < 12) thumb = 12;
@@ -454,6 +516,11 @@ static void draw_menu(void)
             cv_begin(240, pass ? MENU_DOC_H - 124u : 124u, T_BG);
             cv_oy = pass ? -124 : 0;
             cv_scroll = 1;
+#if FELUCCA_BENCH
+            if (ui.menu == 4)
+                bench_document(-scroll, 1);
+            else
+#endif
             menu_document(-scroll, 1);
             cv_scroll = 0;
             cv_rrect(235, 2, 3, MENU_DOC_H - 4, 1, T_LINE, T_BG);           /* the scroll bar */
@@ -464,6 +531,10 @@ static void draw_menu(void)
         cv_begin(240, 240 - (H_HEAD + MENU_DOC_H), T_BG);
         cv_key_hint(8, 4, KC_PRESETS, "SCROLL", 1, T_BG);
         cv_blit(0, H_HEAD + MENU_DOC_H);
+#if FELUCCA_BENCH
+        if (ui.menu == 4 && bench_state == 1u)
+            bench_state = 2;                           /* (RUNNING is on the screen: menu_input runs it) */
+#endif
         return;
     }
     first = mtab_first(menu_tab());
@@ -525,9 +596,38 @@ static void menu_input(uint32_t oct)                  /* oct: ui_input.c oct_tap
     uint32_t k, up = (oct >> 1) & 1u, dn = oct & 1u;
     if (ui.menu >= 2) {                                /* ABOUT: PRESETS scrolls (bounded); INFO, ABOUT: OCT- back to
                                                         * the tabs */
+#if FELUCCA_BENCH
+        if (ui.menu == 4 && bench_state == 2u) {       /* (the page said RUNNING: now) */
+            if (!bench_run())
+                ui_message("STOP FIRST");
+            bench_state = 3;
+            ui.menu_scroll = 0;
+            ui.force = 1;
+            enc_drop();
+            return;
+        }
+        if (ui.menu == 3 && up) {                      /* INFO, OCT+: the benchmark (bench.c) */
+            if (transport_busy()) {
+                ui_message("STOP FIRST");
+            } else {
+                ui.menu = 4;
+                bench_state = 1;
+                ui.menu_scroll = 0;
+                ui.force = 1;
+            }
+            enc_drop();
+            return;
+        }
+        if (ui.menu == 4 && dn) {                      /* (back to INFO) */
+            ui.menu = 3;
+            ui.force = 1;
+            enc_drop();
+            return;
+        }
+#endif
         if (dn)
             ui.menu = 1, ui.force = 1;
-        else if (ui.menu == 2 && (s = panel_enc(EN_PRESET)) != 0)
+        else if ((ui.menu == 2 || ui.menu == 4) && (s = panel_enc(EN_PRESET)) != 0)
             ui.menu_scroll = (uint16_t)clamp((int32_t)ui.menu_scroll + clamp(s, -128, 128) * 18, 0, menu_scroll_max());
         enc_drop();
         return;

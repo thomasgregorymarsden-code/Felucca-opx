@@ -114,7 +114,11 @@ static uint32_t oct_leds(void)
     if (layer_set_open())                               /* a SET layer: OCT- puts back (UNDO), OCT+ nothing */
         return 1u;
     if (ui.menu && !ui.confirm)
-        return ui.menu >= 2u ? 1u :                    /* (INFO, ABOUT: OCT- back, lit) */
+        return
+#if FELUCCA_BENCH
+               ui.menu == 3u ? 1u | OCT_BREATH :       /* (OPX fork: INFO, OCT+ the benchmark) */
+#endif
+               ui.menu >= 2u ? 1u :                    /* (INFO, ABOUT: OCT- back, lit) */
                ui.menu_sel == MI_LCLEAR ? (ml_count() ? OCT_BREATH : 0u) :   /* LEARN CLEAR: while CCs are learned */
                ui.menu_sel >= MI_VALUES ? OCT_BREATH :  /* CALIBRATION / INFO / ABOUT: OCT+ opens */
                (menu_step(ui.menu_sel, -1) != menu_get(ui.menu_sel) ? OCT_BREATH_DN : 0u) |   /* a value: each */

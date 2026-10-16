@@ -150,6 +150,7 @@ static struct { uint32_t stage; } felucca_dbg;
 #include "../firmware/src/icons.c"
 #include "../firmware/src/ui_graph.c"
 #include "../firmware/src/ui_draw.c"
+#include "../firmware/src/bench.c"   /* (OPX fork: the benchmark, INFO OCT+) */
 #include "../firmware/src/ui_menu.c"
 #include "../firmware/src/ui_input.c"
 #include "../firmware/src/ui_layer.c"
@@ -1774,7 +1775,11 @@ static int test_menu_tabs(void)
     frame();
     ok &= oct_leds() == OCT_BREATH;
     press(B_OCTDN); ok &= ui.menu == 1 && ui.menu_sel == MI_INFO;
+#if FELUCCA_BENCH
+    press(B_OCTUP); ok &= ui.menu == 3 && oct_leds() == (1u | OCT_BREATH);   /* (OPX fork: OCT+ the benchmark) */
+#else
     press(B_OCTUP); ok &= ui.menu == 3 && oct_leds() == 1u;
+#endif
     turn(EN_PRESET, 3); turn(EN_K1, 1); turn(EN_ALGO, 1);
     ok &= ui.menu == 3 && !ui.menu_scroll && ui.menu_sel == MI_INFO;
     press(B_OCTDN); ok &= ui.menu == 1 && ui.menu_sel == MI_INFO;
@@ -8966,6 +8971,68 @@ static int test_fm6_ops(void)
 }
 
 #if FELUCCA_OPX
+/* OPX fork: the benchmark (bench.c): MENU > SYSTEM > INFO, OCT+; the page says RUNNING, then the results; track 1
+ * (its sound, its FM6 and OPX patches) as it was after; refused while playing */
+static int test_bench(void)
+{
+    static track_t before;
+    uint8_t fm6p[FP_SIZE + 1u];
+    const opx_patch_t *own;
+    int bad = 0, ok;
+    uint32_t i;
+    ui_power_on();
+    song.sel = 0;
+    set_engine_of(TSEL, ENGI_FM6);
+    frame();
+    TSEL->p[P_E7] = 2;                               /* (FM6 SLOT F3) */
+    fm6_poll();                                      /* (its patch loaded, as the main loop does) */
+    frames(4);
+    memcpy(&before, &trk[0], sizeof before);
+    memcpy(fm6p, fm6_patch[0], sizeof fm6p);
+    own = opx_own[0];
+    hold(B_HOME);
+    ui.menu_sel = MI_INFO;
+    press(B_OCTUP);
+    frame();
+    ok = ui.menu == 3;
+    press(B_OCTUP);
+    frame();
+    ok &= ui.menu == 4 && bench_state >= 1u;
+    frames(3);
+    ok &= bench_state == 3u && bench_n == 2u + 1u + 1u + 18u + 3u && !bench_mute;
+    if (!ok)
+        printf("ui: bench: menu %u state %u rows %u mute %u\n", ui.menu, bench_state, bench_n, bench_mute);
+    bad += check("bench: INFO, OCT+: RUNNING, then 25 rows (idle, heading, FM6, OPX heading and 18 waves, 3 MAC)", ok);
+    ok = trk[0].eng_req == before.eng_req && trk[0].engine == before.engine &&
+         !memcmp(trk[0].p, before.p, sizeof before.p) && !memcmp(fm6_patch[0], fm6p, sizeof fm6p) && opx_own[0] == own;
+    for (i = 0; i < NVOICE; i++)
+        ok &= !trk[0].v[i].active;
+    if (!ok) {
+        for (i = 0; i < P_COUNT; i++)
+            if (trk[0].p[i] != before.p[i])
+                printf("ui: bench: p[%u] %d, was %d\n", i, trk[0].p[i], before.p[i]);
+        for (i = 0; i < FP_SIZE + 1u; i++)
+            if (fm6_patch[0][i] != fm6p[i]) { printf("ui: bench: fm6 byte %u: %u, was %u (slot %u, P_E7 %d)\n", i, fm6_patch[0][i], fm6p[i], fm6_slot[0], trk[0].p[P_E7]); break; }
+        printf("ui: bench: eng %u/%u was %u/%u fm6 %d own %d\n", trk[0].eng_req, trk[0].engine, before.eng_req, before.engine,
+               !memcmp(fm6_patch[0], fm6p, sizeof fm6p), opx_own[0] == own);
+    }
+    bad += check("bench: track 1 as it was after (engine, values, FM6 patch, OPX patch); no voice left", ok);
+    ok = bench_row[1].kind == BR_HEAD && str_eq(bench_row[2].name, "FM6 F1") && bench_row[3].kind == BR_SUB && str_eq(bench_row[4].name, "SIN") &&
+         str_eq(bench_row[bench_n - 1u].name, "FLOAT MAC") && bench_row[bench_n - 1u].kind == BR_NS;
+    bad += check("bench: the rows named (FM6 F1, OPX SIN .., FLOAT MAC)", ok);
+    press(B_OCTDN);
+    frame();
+    ok = ui.menu == 3;
+    song.playing = 1;
+    press(B_OCTUP);
+    frame();
+    ok &= ui.menu == 3 && msg_is("STOP FIRST");
+    song.playing = 0;
+    bad += check("bench: OCT- back to INFO; refused while playing (STOP FIRST)", ok);
+    ui_power_on();
+    return bad;
+}
+
 /* OPX fork: OPX's operator pages (ui_fm6op.c xop_*) over the track's packed patch (opx_patch.c) */
 static uint32_t opx_fields_diff(const uint8_t *a, const uint8_t *b, uint32_t *at)
 {
@@ -9942,6 +10009,7 @@ int main(void)
     bad += test_fm6_ops();
 #if FELUCCA_OPX
     bad += test_opx_ops();
+    bad += test_bench();
 #endif
     bad += test_home_tracks();
     bad += test_fx_map_columns();

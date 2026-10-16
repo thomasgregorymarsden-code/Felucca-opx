@@ -113,6 +113,12 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
 #if FELUCCA_UAC
         uac_render_start();
 #endif
+#if FELUCCA_BENCH
+        if (bench_mute)                                 /* (OPX fork: the benchmark has the tracks: silence) */
+            for (b = 0; b < HALF_WORDS; b++)
+                o[b] = 0;
+        else
+#endif
         for (b = 0; b < HALF_FRAMES; b += CTL) {
 #ifdef FM1_INPUT_LAT
             kb_out_tick = t0 + (HALF_FRAMES + b) * DAC_TICKS;   /* when this block plays (seq.c kb_lat) */

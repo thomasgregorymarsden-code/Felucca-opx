@@ -73,6 +73,7 @@
 #endif
 #include "song_chain.c"
 #include "seq.c"
+#include "bench.c"             /* OPX fork: the on-device benchmark (MENU > SYSTEM > INFO, OCT+) */
 #include "audio.c"
 
 /* -------------------------------------------------------------- UI --- */

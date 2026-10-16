@@ -757,7 +757,7 @@ enum { S_HOME, S_HOME_IDLE, S_MESSAGE, S_MESSAGE_KEY, S_MESSAGE_NOFILE, S_PRESET
        S_ALG1, S_ALG2, S_ALG3, S_ALG4, S_ALG5, S_ALG6, S_ALG7, S_ALG8, S_OP_LEVEL,
        S_FM6_ALG1, S_FM6_ALG5, S_FM6_ALG22, S_FM6_ALG32, S_FM6_OP, S_FM6_OP_FIXED, S_FM6_OP2, S_FM6_OP_ENV, S_FM6_OP_ENV_REL,
        S_OPX_PITCH, S_OPX_EG, S_OPX_USER, S_OPX_FIXED, S_OPX_ALGO, S_OPX_ALG5, S_OPX_ALG34, S_OPX_ALG36, S_OPX_MATRIX,
-       S_OPX_MATRIX_OUT, S_OPX_MATRIX_E2, S_OPX_SCOPE, S_OPX_USERL, S_OPX_OSC,
+       S_OPX_MATRIX_OUT, S_OPX_MATRIX_E2, S_OPX_SCOPE, S_OPX_USERL, S_OPX_OSC, S_INFO, S_BENCH_RUN, S_BENCH, S_BENCH_END,
        S_CONFIRM_SEQ, S_CONFIRM_PROJ, S_CONFIRM_USER, S_CONFIRM_PAT, S_CONFIRM_MOTION, S_CONFIRM_ERASE,
        S_MENU, S_MENU_SPEAKER, S_ABOUT, S_ABOUT_REC, S_ABOUT_CREDITS, S_ABOUT_END, S_UBOOT, S_CALIBRATION, S_SPLASH,
        S_BATT0, S_BATT1, S_BATT2, S_BATT3, S_BATT_USB, S_MOTION_REC, S_MOTION_OFF, S_MOTION_CARD, S_SONG_HOME,
@@ -786,7 +786,7 @@ static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "mes
     "voice", "clock", "menu_midi", "edit_analog", FELUCCA_FM4 ? "edit_digital" : "edit_fm6", "op_env", "edit_wheel", "edit_sample",
     "edit_grain", "edit_phys", "alg_1", "alg_2", "alg_3", "alg_4", "alg_5", "alg_6", "alg_7", "alg_8", "op_level", "fm6_alg_01", "fm6_alg_05", "fm6_alg_22", "fm6_alg_32", "fm6_op", "fm6_op_fixed", "fm6_op2", "fm6_op_env", "fm6_op_env_rel",
     "opx_pitch", "opx_eg", "opx_roll", "opx_fixed", "opx_algo", "opx_alg5", "opx_alg34", "opx_alg36", "opx_matrix",
-    "opx_matrix_out", "opx_matrix_e2", "opx_scope", "opx_userl", "opx_osc", "confirm_seq", "confirm_project", "confirm_user", "confirm_pattern",
+    "opx_matrix_out", "opx_matrix_e2", "opx_scope", "opx_userl", "opx_osc", "info", "bench_run", "bench", "bench_end", "confirm_seq", "confirm_project", "confirm_user", "confirm_pattern",
     "confirm_motion", "confirm_erase", "menu", "menu_speaker", "about", "about_rec", "about_credits", "about_end", "uboot", "calibration", "splash",
     "batt_0", "batt_1", "batt_2", "batt_3", "batt_usb", "motion_rec", "motion_off", "motion_card", "song_home",
     "perform_peek", "perform_held", "perform_wait", "perform_harm", "perform_mod", "perform_assign", "menu_hold", "menu_leds", "menu_end", "menu_system", "menu_slide", "reverb_spring",
@@ -1278,6 +1278,28 @@ static void setup(int s)
     case S_MENU: ui.menu = 1; ui.menu_sel = 0; song.rec = 1; break;
     case S_MENU_SPEAKER: ui.menu = 1; ui.menu_sel = MI_LOWCUT; settings.lowcut = 2; break;
     case S_ABOUT: ui.menu = 2; ui.menu_scroll = 0; break;
+#if FELUCCA_BENCH
+    /* INFO (its OCT+ BENCHMARK hint), the benchmark running, its results (bench.c; made-up figures) at the top, at the end */
+    case S_INFO: ui.menu = 3; break;
+    case S_BENCH_RUN: ui.menu = 4; bench_state = 1; ui.menu_scroll = 0; break;
+    case S_BENCH: case S_BENCH_END: {
+        static const uint8_t W[] = {OPX_W_SIN, OPX_W_SAW, OPX_W_SAWHD, OPX_W_SQRHD, OPX_W_A12345, OPX_W_NOISE_SH, OPX_W_BLUE};
+        uint32_t i;
+        bench_n = 0;
+        bench_line(BR_PCT, "IDLE MIX", 52, 0xFFFFu);
+        bench_line(BR_HEAD, "6 NOTES", 0, 0);
+        bench_line(BR_PCT, "FM6 F1", 287, 47);
+        bench_line(BR_SUB, "OPX, THE WAVE ON ALL 6 OPS", 0, 0);
+        for (i = 0; i < NELEM(W); i++)
+            bench_line(BR_PCT, N_OPX_WAVE[W[i]], 412 + 61 * i, (412 + 61 * i) / 6u);
+        bench_line(BR_NS, "INT32 MAC", 42, 0);
+        bench_line(BR_NS, "INT64 MAC", 125, 0);
+        bench_line(BR_NS, "FLOAT MAC", 1033, 0);
+        ui.menu = 4; bench_state = 3;
+        ui.menu_scroll = s == S_BENCH ? 0 : (uint16_t)menu_scroll_max();
+        break;
+    }
+#endif
     case S_ABOUT_REC: ui.menu = 2; ui.menu_scroll = 0; song.rec = 1; break;          /* the REC mark beside OCT- BACK */
     case S_ABOUT_CREDITS: ui.menu = 2; ui.menu_scroll = 360; break;
     case S_ABOUT_END: ui.menu = 2; ui.menu_scroll = (uint16_t)menu_scroll_max(); break;
