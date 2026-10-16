@@ -6,9 +6,8 @@
  *   - the mix with no note (every track idle): the base the others are measured against
  *   - six held notes of FM6 (its first factory patch) and of OPX: algorithm 1 with all six operators sounding, the
  *     sixth with feedback (as tests/opx_test.c's cost), with each of the 23 waveforms on all six operators
- *   - the arithmetic itself: a dependent chain of multiply-adds in 32-bit and 64-bit integers. (Float is not here: this
- *     build's compiler flags make `float` calls to a software routine (__mulsf3) the link does not have; whether the
- *     chip's FPU can be used is a question of the toolchain's options: docs/OPX_PLAN.md)
+ *   - the arithmetic itself: a dependent chain of multiply-adds in 32-bit and 64-bit integers, and in float when built
+ *     for the r3 core (FELUCCA_CPU=r3: the FPU; a generic build makes `float` a software routine it does not link)
  * Each engine row is the share of real time the six notes take on top of the idle mix (the audio sheds a voice above
  * 85 % for the whole mix: audio.c SHED_TICKS), and the same per note. OPX's rows are named by the waveform.
  *
@@ -111,6 +110,9 @@ static uint32_t bench_notes(uint32_t idle)
 /* the arithmetic: n dependent multiply-adds; ns per operation x 10 */
 static volatile int32_t bench_i32 = 3;
 static volatile int64_t bench_i64 = 3;
+#if FELUCCA_HWFLOAT
+static volatile float bench_f32 = 1.0001f;           /* (built for r3: the FPU) */
+#endif
 static uint32_t bench_ns10(uint32_t ticks, uint32_t n) { return (uint32_t)((uint64_t)ticks * 10000u / 24u / n); }
 static void bench_math(void)
 {
@@ -138,6 +140,19 @@ static void bench_math(void)
         bench_i64 = x;
         bench_line(BR_NS, "INT64 MAC", bench_ns10(t, N), 0);
     }
+#if FELUCCA_HWFLOAT
+    {
+        float a = bench_f32, x = 1.0f;
+        fm1_irq_off();
+        t0 = fm1_ticks();
+        for (i = 0; i < N; i++)
+            x = x * a + 0.5f;
+        t = fm1_ticks() - t0;
+        fm1_irq_on();
+        bench_f32 = x;
+        bench_line(BR_NS, "FLOAT MAC", bench_ns10(t, N), 0);
+    }
+#endif
     fm1_wdt_feed();
 }
 

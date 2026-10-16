@@ -32,7 +32,10 @@
 #define FELUCCA_ID "FM-1_900"    /* package identity (build.py: the .fwsc marker string) */
 #endif
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "v0.0.2-dev" /* (OPX fork: the next release + "-dev"; a release: build.py --release X.Y.Z)
+#ifndef FELUCCA_CPU_TAG
+#define FELUCCA_CPU_TAG ""              /* (OPX fork: build.py FELUCCA_CPU=r3 adds "-r3": the version says which core) */
+#endif
+#define FELUCCA_VERSION "v0.0.2-dev" FELUCCA_CPU_TAG /* (OPX fork: the next release + "-dev"; a release: build.py --release X.Y.Z)
                                         * shown in the menu, the console and the editor */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH

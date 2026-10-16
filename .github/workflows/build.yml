@@ -66,26 +66,16 @@ jobs:
           fi
           b                                            # (the development build: build/felucca.fwsc)
 
-      - name: Toolchain float options (diagnostic, OPX fork; to be removed)
+      - name: Build firmware for the r3 core (OPX fork, an experiment)
         shell: bash
-        continue-on-error: true
         run: |
-          set +e +o pipefail
-          tc=~/.jieli/toolchain/pi32v2/bin
-          j() { tr -s ' \t\n' ' ' | cut -c1-3000; }
-          echo 'int x;' > /tmp/x.c
-          echo "::notice::mcpu: $($tc/clang -target pi32v2 -mcpu=help -c /tmp/x.c -o /tmp/x.o 2>&1 | grep -E '^ +[a-z0-9]+ +-' | awk '{print $1}' | j)"
-          echo "::notice::mattr: $($tc/clang -target pi32v2 -mattr=help -c /tmp/x.c -o /tmp/x.o 2>&1 | grep -E '^ +[a-z0-9.+-]+ +-' | j)"
-          echo "::notice::sdk flags: $(grep -rhoE -- '-m[a-z0-9_=,.+-]+' ~/fw-AC79_AIoT_SDK --include='Makefile*' --include='*.mk' 2>/dev/null | sort | uniq -c | sort -rn | head -30 | j)"
-          echo "::notice::sdk fpu lines: $(grep -rhE 'fprev|mfpu|hard-float|float-abi|FPU' ~/fw-AC79_AIoT_SDK --include='Makefile*' --include='*.mk' --include='*.h' 2>/dev/null | head -12 | j)"
-          echo 'float f(float a, float b) { return a * b + 1.0f; }' > /tmp/f.c
-          for o in "" "-mcpu=r3" "-mattr=+fpu" "-mfprev1" "-mhard-float"; do
-            if $tc/clang -target pi32v2 -Os $o -c /tmp/f.c -o /tmp/f.o 2>/tmp/f.err; then
-              echo "::notice::float [$o]: $(~/.jieli/toolchain/common/bin/objdump -d /tmp/f.o 2>&1 | grep -E '^ +[0-9a-f]+:' | cut -f3- | j)"
-            else
-              echo "::notice::float [$o] refused: $(head -2 /tmp/f.err | j)"
-            fi
-          done
+          # the same firmware compiled for the AC79's core (-mcpu=r3, as JieLi's SDK: its FPU): installer under dev-r3/
+          set -o pipefail
+          cp build/felucca.fwsc felucca-generic.fwsc
+          FELUCCA_CPU=r3 ./build.sh 2>&1 | tee build-r3.log || { grep -a -iE "error|undefined|FAIL" build-r3.log | head -30 | sed 's/^/::error::/'; exit 1; }
+          grep -a -E "^target: opx|^  ok .*cost" build-r3.log | head -5 | sed 's/^/::notice::r3: /' || true
+          cp build/felucca.fwsc felucca-r3.fwsc
+          cp felucca-generic.fwsc build/felucca.fwsc
 
       - name: Emscripten (browser emulator)
         uses: mymindstorm/setup-emsdk@v14
@@ -110,6 +100,7 @@ jobs:
             python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site
           fi
           python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site/dev   # this build's, always
+          python3 web/make_site.py felucca-r3.fwsc "opx-${GITHUB_SHA::7}-r3" _site/dev-r3   # .. built for the r3 core
           mkdir -p _site/opx && cp web/opx/*.html _site/opx/
           mkdir -p _site/webapp/try && cp -R build/emu/. _site/webapp/try/
           mkdir -p _site/try                                # (the older address)
