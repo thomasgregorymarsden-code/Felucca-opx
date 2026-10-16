@@ -65,6 +65,7 @@ jobs:
             echo "REL=$ver" >> "$GITHUB_ENV"
           fi
           b                                            # (the development build: build/felucca.fwsc)
+          grep -a -E "^app |^package " build.log | tail -2 | sed 's/^/::notice::size: /' || true   # (the app's room: 0x8DFBC = 581564 B, firmware/app.ld XIP)
 
       - name: Build firmware for the r3 core (OPX fork, an experiment)
         shell: bash
