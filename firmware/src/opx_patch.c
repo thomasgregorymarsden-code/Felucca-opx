@@ -89,6 +89,8 @@ static void opx_decode(const uint8_t *pk, opx_patch_t *p)
         o->curve = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_EG_CURVE));
         o->fb = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FM_FB));
         o->vel = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_LMOD_VEL));
+        o->wave = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_WAVE));
+        o->width = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FM_WIDTH));
         for (j = 0; j < OPX_NOP; j++)
             p->ua[k][j] = (uint8_t)opx_get(pk, opxf_ua(k, j));
         out |= (uint32_t)opx_get(pk, OPXF_UA_OUT(k)) << k;
@@ -118,6 +120,8 @@ static void opx_encode(const opx_patch_t *p, uint8_t *pk)
         opx_put(pk, OPXF_OP(k, OPXF_OP1_EG_CURVE), o->curve);
         opx_put(pk, OPXF_OP(k, OPXF_OP1_FM_FB), o->fb);
         opx_put(pk, OPXF_OP(k, OPXF_OP1_LMOD_VEL), o->vel);
+        opx_put(pk, OPXF_OP(k, OPXF_OP1_WAVE), o->wave);
+        opx_put(pk, OPXF_OP(k, OPXF_OP1_FM_WIDTH), o->width);
         for (j = 0; j < OPX_NOP; j++)
             opx_put(pk, opxf_ua(k, j), p->ua[k][j]);
         opx_put(pk, OPXF_UA_OUT(k), (int32_t)((p->ua_out >> k) & 1u));

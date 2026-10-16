@@ -3,6 +3,12 @@
 Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork is based on, are in
 [docs/FELUCCA_HISTORY.md](docs/FELUCCA_HISTORY.md).
 
+## Unreleased
+
+- **OPX waveforms:** each operator has a WAVE, the opsix's 23 (sines at 16, 12 and 8 bits, triangle, saw and square
+  with HD versions, eleven additive waves, four noises), and WIDTH. On EDIT > OPERATORS > OSC: WAVE, FB, WIDTH.
+  Existing patches keep their sine and sound as before.
+
 ## 0.0.1 (2026-10-16)
 
 The first release, based on Felucca 1.5.1: Felucca with the OPX engine. Everything Felucca 1.5.1 does works as before.

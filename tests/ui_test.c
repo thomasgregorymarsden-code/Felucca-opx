@@ -9003,14 +9003,14 @@ static int test_opx_ops(void)
     turn(EN_K2, 1);
     ok &= xop_row() == 12u && xop_sec_of(xop_row()) == XS_OSC;
     turn(EN_K2, 1);
-    ok &= xop_row() == 13u && xop_sec_of(xop_row()) == XS_USER;
+    ok &= xop_row() == XL_TO0 && xop_sec_of(xop_row()) == XS_USER;
     turn(EN_K2, 5);
-    ok &= xop_row() == 20u && xop_sec_of(xop_row()) == XS_ALGO;   /* (the last: no wrap) */
+    ok &= xop_row() == XL_TO0 + 7u && xop_sec_of(xop_row()) == XS_ALGO;   /* (the last: no wrap) */
     turn(EN_K3, 1);
     turn(EN_K2, -1);
-    ok &= xop_row() == 20u;                          /* (left: this section's first row, then the one before) */
+    ok &= xop_row() == XL_TO0 + 7u;                  /* (left: this section's first row, then the one before) */
     turn(EN_K2, -1);
-    ok &= xop_row() == 13u;
+    ok &= xop_row() == XL_TO0;
     turn(EN_K2, -9);
     ok &= xop_row() == 0u;
     bad += check("OPX ops: one list; KNOB 2 a section a detent (its first row; left: this one's, then the previous)", ok);
@@ -9082,8 +9082,8 @@ static int test_opx_ops(void)
         }
     {
         char what[120];
-        snprintf(what, sizeof what, "OPX ops: %u rows (19 x 6 operators, 2 the patch's), KNOB 4 writes its field only, within its range", n);
-        bad += check(what, ok && n == 6u * 19u + 2u);
+        snprintf(what, sizeof what, "OPX ops: %u rows (21 x 6 operators, 2 the patch's), KNOB 4 writes its field only, within its range", n);
+        bad += check(what, ok && n == 6u * 21u + 2u);
     }
 
     /* PITCH: MODE FIXED, then RATIO is the frequency: 12 detents = an octave */
@@ -9097,6 +9097,29 @@ static int test_opx_ops(void)
     f = (uint32_t)opx_get(opx_pk[tr], OPXF_OP(0, OPXF_OP1_FIXED_FREQ));
     bad += check("OPX ops: PITCH MODE FIXED, then RATIO 12 detents = an octave (440 -> 880 Hz)", f >= 87900u && f <= 88100u);
 
+    /* OSC (M2): WAVE names the waveform; FB and WIDTH DIM on a noise; WIDTH 0 reads OFF */
+    {
+        const char *lb, *u;
+        char val[16];
+        int32_t r;
+        uint32_t w = XL_TO0 - 3u;                    /* OSC: WAVE FB WIDTH */
+        go_title("OPERATORS"); frame();
+        xo_set(EN_K1, 1, 10);                        /* OP 2 */
+        opx_edit(tr, OPXF_OP(1, OPXF_OP1_WAVE), OPX_W_SAWHD);
+        opx_edit(tr, OPXF_OP(1, OPXF_OP1_FM_WIDTH), 0);
+        ok = XL[w] == XR_WAVE && xop_rowtext(w, &lb, val, &u, &r) && str_eq(lb, "WAVE") && str_eq(val, "SAW HD");
+        ok &= xop_rowtext(w + 2u, &lb, val, &u, &r) && str_eq(lb, "WIDTH") && str_eq(val, "OFF");
+        xo_set(EN_K3, (int32_t)w, 30);
+        frames(1600);
+        turn(EN_K4, 1);
+        ok &= opx_get(opx_pk[tr], OPXF_OP(1, OPXF_OP1_WAVE)) == OPX_W_SQR;
+        opx_edit(tr, OPXF_OP(1, OPXF_OP1_WAVE), OPX_W_PINK);
+        ok &= !xop_rowtext(w + 1u, &lb, val, &u, &r) && !xop_rowtext(w + 2u, &lb, val, &u, &r);
+        ok &= opx_own[tr] && opx_own[tr]->op[1].wave == OPX_W_PINK;
+        opx_edit(tr, OPXF_OP(1, OPXF_OP1_WAVE), 0);
+        bad += check("OPX ops: OSC: WAVE names the waveform, the audio's copy follows; FB and WIDTH DIM on a noise", ok);
+    }
+
     /* USER: the matrix's values as numbers, a fixed list TO OP1..6 (the operator's own: "(SELF)"), OUT as the matrix's
      * (the operator's LEVEL, OFF); DIM unless the track plays USER */
     {
@@ -9105,7 +9128,7 @@ static int test_opx_ops(void)
         int32_t r;
         uint32_t ic;
         go_title("OPERATORS"); frame();
-        ok = XL[XL_TO0] == XR_TO && XL[XL_TO0 + 5u] == XR_TO && XL[XL_TO0 + 6u] == XR_OUT && XL[XL_TO0 - 1u] == XR_FB;
+        ok = XL[XL_TO0] == XR_TO && XL[XL_TO0 + 5u] == XR_TO && XL[XL_TO0 + 6u] == XR_OUT && XL[XL_TO0 - 1u] == XR_WIDTH;
         bad += check("OPX ops: the list's USER rows where XL_TO0 says", ok);
         xo_set(EN_K1, 2, 10);                        /* OP 3 */
         TSEL->p[P_E0] = 0;                           /* (PAT: E.PIANO's algorithm 5) */

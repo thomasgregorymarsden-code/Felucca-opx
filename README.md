@@ -42,8 +42,8 @@ Installing custom firmware is at your own risk.
 
 ## The OPX engine
 
-OPX is modelled on the opsix's FM mode: six sine operators per voice, routed by an algorithm, each with its own
-pitch, level and envelope. It plays up to six voices. The opsix's other operator modes, waveforms, extra envelopes,
+OPX is modelled on the opsix's FM mode: six operators per voice, routed by an algorithm, each with its own
+waveform, pitch, level and envelope. It plays up to six voices. The opsix's other operator modes, extra envelopes,
 LFOs, filter and effects are not implemented yet ([plan](docs/OPX_PLAN.md)).
 
 To use it, hold **EDIT** and press **A3**, the third white key from F3 (ANALOG, FM6, OPX, …; the layer's map shows
@@ -55,7 +55,12 @@ them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SA
   each operator modulates each other one (0–100 %), its self feedback on the diagonal, and which operators are heard.
   Algorithms 4, 6 and 34 have a feedback loop across operators, set by **ALG FB**.
 - **Per operator:** RATIO (1/128 to 32) or a FIXED frequency, FINE, DTUN (cents), TRANS (semitones), LEVEL, an
-  ATK DEC SUS REL envelope with CURVE (LIN, 1–9, EXP), velocity to level (VEL) and feedback (FB).
+  ATK DEC SUS REL envelope with CURVE (LIN, 1–9, EXP), velocity to level (VEL), feedback (FB), a WAVE and its WIDTH.
+- **Waveforms:** the opsix's 23: SIN, SIN 12BIT, SIN 8BIT, TRI, SAW, SAW HD, SQR, SQR HD, ADTV SAW3, ADTV SQR3,
+  ADTV TRI3, ADTV 12345, ADTV 1+2 … 1+8 (the fundamental and one harmonic, like two organ drawbars), NOISE S/H
+  (a random level held for each cycle of the operator), NOISE WHITE, PINK and BLUE. The HD versions alias less and
+  cost more processor time. **WIDTH** (OFF, 1–99 %) squeezes the whole wave into that part of each cycle and leaves
+  the rest silent. A noise ignores pitch, FM, FB and WIDTH.
 - **A patch** is all of that for six operators plus the algorithm. Each track has its own. SLOT F1–F7 loads a
   factory patch; editing any value makes it the track's own (**SLOT OWN**).
 
@@ -92,7 +97,7 @@ moves up under the selection; "…" marks rows hidden above or below.
 |---|---|
 | PITCH | MODE (RATIO / FIXED), RATIO (in FIXED mode FREQ, a semitone per click), FINE (in FIXED mode a cent per click), DTUN, TRANS |
 | EG | LEVEL, ATK, DEC, SUS, REL, CURVE, VEL |
-| OSC | FB |
+| OSC | WAVE, FB, WIDTH (FB and WIDTH are dimmed on a noise) |
 | USER | TO OP1 … TO OP6: what this operator sends to each, as exact numbers (its own row reads "(SELF)" and is its self feedback); OUT, as on EDIT 1. Dimmed unless the track plays USER |
 | ALGO | ALG (the patch's algorithm), ALG FB |
 

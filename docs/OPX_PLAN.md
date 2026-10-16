@@ -13,7 +13,8 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M1 | Six operators in FM mode (sine), all 40 algorithms plus USER, ratio and fixed pitch, per-operator FB, ALG FB loops, per-operator ATK/DEC/SUS/REL/CURVE envelopes, level velocity; device macros; cost against FM6 | done |
 | M1.5 | Operator editing on the device (algorithm charts, USER matrix, OPERATORS list, scope); each track's patch kept in the stored format; saved with projects and the autosave | done |
 | | **First release, `0.0.1`: M0, M1 and M1.5** | |
-| M2 | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; the 23 waveforms and WIDTH; level key tracking | |
+| M2a | The 23 waveforms and WIDTH | done (device cost to be measured) |
+| M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | |
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | |
 | M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |
 | M5 | Main filter, effects 1–3, virtual patch, as far as the processor time allows | |
@@ -27,6 +28,12 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
   - USER is the patch's own matrix.
   - `tests/opx_test.c` checks every chart against a table written separately from the engine, and renders every algorithm against a floating-point reference implementation. They agree to better than −45 dB.
 - **Order and timing.** Each sample, the operators run from 6 down to 1. An input from a higher-numbered operator is this sample's output. An input from a lower-numbered one, as in the loops of algorithms 4, 6 and 34 or an upward link in USER, is the previous sample's.
+- **Waveforms (M2a)** replace the operator's sine (`eng_opx.c` `opx_osc`); a plain sine with WIDTH OFF takes
+  M1's path unchanged, sample for sample. SAW and SQR use a polyBLEP, the HD ones a cubic B-spline BLEP over four
+  samples (about 9 dB less aliasing at 2.2 kHz, 20–60 dB less lower in the band, `opx_test`); the ADTV ones are sums
+  of sines scaled to a full-scale peak; the noises keep a state per operator per voice. Assumptions: WIDTH squeezes
+  the cycle into its first WIDTH % and is silent after (from the manual's pictures); HD means a cleaner high end
+  (the manual says "richer"); BLUE is pink noise's difference (+9 dB over 4 octaves, short of +12 near Nyquist).
 - **Self-feedback** uses the mean of the operator's last two outputs (as the DX7 does), and is linear in FB: 100 % gives 2 rad. At 75 % the harmonics come out within 3 dB of a sawtooth's, which matches the manual's description.
 
 ## The device pages (M1.5): where the code is
@@ -34,7 +41,7 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
 | Page | Code | Tests |
 |---|---|---|
 | EDIT 1 / EDIT 2: the algorithm chart (1–40: FM6's layouts for 1–32, `OPX_CELL` for 33–40), the USER matrix, the small scope | `ui_graph.c` `graph_opx_algo`, `graph_opx_chart`, `graph_opx_matrix`, `graph_scope_mini`; the matrix's knobs `ui_fm6op.c` `xmat_*` | `tests/ui_test.c` `test_opx_ops`; `tests/ui_render.c` `opx_*` screens and every chart |
-| OPERATORS: one 22-row rolling list (PITCH, EG, OSC, USER, ALGO) | `ui_fm6op.c` `xop_*` (the rows: `XL[]`), `ui_graph.c` `graph_opxlist` | the same |
+| OPERATORS: one 24-row rolling list (PITCH, EG, OSC, USER, ALGO) | `ui_fm6op.c` `xop_*` (the rows: `XL[]`), `ui_graph.c` `graph_opxlist` | the same |
 | Editing a field, OWN, undo | `opx_patch.c` `opx_edit`, `opx_poll`; `ui.c` (the undo snapshot keeps the patch and SLOT) | the same |
 
 Notes for changing them:
@@ -77,7 +84,9 @@ The manual gives no curve for these, so each is a reasonable guess:
 
 ## Cost
 
-On the host, six OPX voices cost about 1.8 times six FM6 voices (`opx_test` prints the ratio). FM6 runs six voices on
+On the host, six OPX voices cost about 1.8 times six FM6 voices (`opx_test` prints the ratio). With waveforms on
+all six operators (M2a) the host measures: SAW 2.0, SAW HD 2.5, SQR HD 3.2, ADTV 12345 4.1, NOISE PINK 2.7 times FM6.
+Whether the heavy ones fit six voices on the device is not yet measured: MENU > SYSTEM > INFO shows the CPU load. FM6 runs six voices on
 the device, so OPX has the same six-voice cap (`OPX_POLY`); on the device, six held OPX notes play without dropouts.
 The compiled render loop's cost is tracked by `tests/target_budget.py` (`opx_render` in `tests/target_budget.txt`).
 M2–M5 add work per sample, so each of them needs the device checked again with six voices held.

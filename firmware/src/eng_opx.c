@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* OPX (OPX fork): altered FM after the Korg opsix. Milestone M1: the six operators in FM mode (sine), the 40 preset
+/* OPX (OPX fork): altered FM after the Korg opsix. Milestone M1: the six operators in FM mode, the 40 preset
  * algorithms and the user algorithm, ratio / fixed pitch, per-operator feedback, the loop feedback of algorithms
- * 4, 6 and 34 (ALG FB), per-operator level envelopes (ATK DEC SUS REL, CURVE LIN..EXP), level velocity. The other
- * operator modes, waveforms, key tracking, EG1-3, LFOs, the filter, effects and the virtual patch come later
+ * 4, 6 and 34 (ALG FB), per-operator level envelopes (ATK DEC SUS REL, CURVE LIN..EXP), level velocity. M2 (so far):
+ * the 23 waveforms and WIDTH (opx_osc). The other operator modes, key tracking, EG1-3, LFOs, the filter, effects and
+ * the virtual patch come later
  * (docs/OPX_PLAN.md); so does the patch's storage (docs/OPX_STORAGE.md: M3). Until then a track plays one of the
  * factory patches below (SLOT).
  *
@@ -38,6 +39,15 @@
 #define OPX_NOP 6
 #define OPX_NALG 40              /* preset algorithms; 40 = USER */
 #define OPX_USER 40u
+/* M2: the waveforms (opx_osc, below) */
+enum { OPX_W_SIN, OPX_W_SIN12, OPX_W_SIN8, OPX_W_TRI, OPX_W_SAW, OPX_W_SAWHD, OPX_W_SQR, OPX_W_SQRHD, OPX_W_ASAW3,
+       OPX_W_ASQR3, OPX_W_ATRI3, OPX_W_A12345, OPX_W_A12, OPX_W_A13, OPX_W_A14, OPX_W_A15, OPX_W_A16, OPX_W_A17,
+       OPX_W_A18, OPX_W_NOISE_SH, OPX_W_WHITE, OPX_W_PINK, OPX_W_BLUE, OPX_NWAVE };
+#define OPX_W_NARROW 0x80u
+static const char *const N_OPX_WAVE[OPX_NWAVE + 1] = {
+    "SIN", "SIN 12BIT", "SIN 8BIT", "TRI", "SAW", "SAW HD", "SQR", "SQR HD", "ADTV SAW3", "ADTV SQR3", "ADTV TRI3",
+    "ADTV 12345", "ADTV 1+2", "ADTV 1+3", "ADTV 1+4", "ADTV 1+5", "ADTV 1+6", "ADTV 1+7", "ADTV 1+8", "NOISE S/H",
+    "NOISE WHITE", "NOISE PINK", "NOISE BLUE", 0};
 
 /* ------------------------------------------------------------- the patch --- */
 typedef struct {                 /* one operator: the patch format's fields (tools/opx_patch_spec.py) M1 plays */
@@ -53,6 +63,8 @@ typedef struct {                 /* one operator: the patch format's fields (too
     uint8_t curve;               /* 0 LIN .. 10 EXP */
     uint8_t fb;                  /* FM FB, 0..100 % */
     uint8_t vel;                 /* LMOD VEL: level velocity sensitivity, 0..100 % */
+    uint8_t wave;                /* M2: OPX_W_* (Waveform List p.84), 0 = SIN */
+    uint8_t width;               /* M2: FM WIDTH, 0 = OFF, 1..99 % */
 } opx_op_t;
 
 typedef struct {
@@ -205,6 +217,9 @@ typedef struct {
     int32_t ainc[OPX_NOP], dinc[OPX_NOP], rinc[OPX_NOP];   /* stage progress per block, Q24 */
     int32_t sus[OPX_NOP];        /* Q24 */
     uint8_t curve[OPX_NOP], vel[OPX_NOP];
+    uint8_t wv[OPX_NOP];         /* M2: the waveform (OPX_W_*), | OPX_W_NARROW with a WIDTH; 0 = a plain sine */
+    uint32_t wr[OPX_NOP];        /* WIDTH: the phase's speed-up, Q16 (100 / WIDTH) */
+    uint32_t wlim[OPX_NOP];      /* WIDTH: the phase where the wave ends (WIDTH % of a cycle), silent after */
     uint8_t nin[OPX_NOP];        /* inputs of op k: src[k][i] (0..5), amt[k][i] (Q15 of 100 %) */
     uint8_t src[OPX_NOP][OPX_NOP];
     int16_t amt[OPX_NOP][OPX_NOP];
@@ -284,6 +299,132 @@ static void opx_build(const track_t *t, opx_rt_t *r)
         r->sus[k] = clamp(o->sus, 0, 100) * ((1 << 24) / 100);
         r->curve[k] = (uint8_t)clamp(o->curve, 0, 10);
         r->vel[k] = (uint8_t)clamp(o->vel, 0, 100);
+        r->wv[k] = (uint8_t)(o->wave < OPX_NWAVE ? o->wave : 0u);
+        r->wr[k] = r->wlim[k] = 0;
+        if (o->width && o->width < 100u && r->wv[k] < OPX_W_NOISE_SH) {   /* (the noises have no width) */
+            r->wv[k] |= OPX_W_NARROW;
+            r->wr[k] = (100u << 16) / o->width;
+            r->wlim[k] = (uint32_t)(((uint64_t)o->width << 32) / 100u);
+        }
+    }
+}
+
+/* --------------------------------------------------------- the waveforms --- */
+/* M2: the opsix's 23 waveforms (Waveform List p.84), in its order, and WIDTH (p.43). Q15, phase p a Q32 cycle,
+ * inc the phase step a sample (the alias suppression of SAW / SQR). How they are made, the manual not saying:
+ *   SIN 12BIT / 8BIT  the sine at 12 / 8 bits
+ *   TRI               plain (its harmonics fall at 12 dB / octave: little aliasing)
+ *   SAW, SQR          polyBLEP (dsp.c blep, two samples at each step): alias-reduced, cheap
+ *   SAW HD, SQR HD    a cubic B-spline BLEP over four samples (opx_blep4): aliases 20 to 60 dB lower in the audible
+ *                     band for more work ("more CPU", p.84), the harmonics above ~15 kHz a little softer. The manual's
+ *                     "richer high-end overtones" read as a cleaner high end: an assumption
+ *   ADTV              sums of sines: SAW3 1 + 1/2 + 1/3, SQR3 1 + 1/3 (3rd) + 1/5 (5th), TRI3 1 - 1/9 + 1/25,
+ *                     12345 the first five harmonics at one level, 1+n the fundamental and harmonic n at one level;
+ *                     each scaled to a full-scale peak
+ *   NOISE             S/H: a random level held for each cycle of the operator (its pitch: the "musical" noise);
+ *                     WHITE flat; PINK -3 dB / octave (Paul Kellet's three-pole filter on white); BLUE +3 dB / octave
+ *                     (pink's difference); the noises ignore pitch, FM and WIDTH
+ *   WIDTH             1..99 %: the whole wave in that part of the cycle, silence in the rest (p.43's pictures: OFF,
+ *                     50 %, 25 %). An assumption from the pictures; WIDTH OFF is the full cycle */
+/* the ADTV 1+n waves' gain to a full-scale peak, n = 2..8 (the peak of sin x + sin nx: 1.760 1.540 1.928 2 1.967 1.903
+ * 1.981) */
+static const uint16_t OPX_A1N_GAIN[7] = {18615, 21282, 16993, 16383, 16659, 17219, 16539};
+typedef struct {                 /* an operator's noise state (a voice's) */
+    uint32_t rng, lastp;         /* the generator; S/H: the last phase (a wrap = a new level) */
+    int32_t hold;                /* S/H: the level held */
+    int32_t pk[3], prev;         /* PINK / BLUE: the filter's poles (Q15 x ~8), the last raw pink */
+} opx_noise_t;
+static int32_t opx_white(opx_noise_t *z)
+{
+    z->rng = z->rng * 1664525u + 1013904223u;
+    return (int32_t)z->rng >> 16;                        /* -32768..32767 */
+}
+static int32_t opx_pink_raw(opx_noise_t *z)
+{
+    int32_t w = opx_white(z);
+    z->pk[0] = (int32_t)(((int64_t)z->pk[0] * 65382 + (int64_t)w * 6491) >> 16);    /* 0.99765, 0.0990460 */
+    z->pk[1] = (int32_t)(((int64_t)z->pk[1] * 63111 + (int64_t)w * 19433) >> 16);   /* 0.96300, 0.2965164 */
+    z->pk[2] = (int32_t)(((int64_t)z->pk[2] * 37355 + (int64_t)w * 68989) >> 16);   /* 0.57000, 1.0526913 */
+    return z->pk[0] + z->pk[1] + z->pk[2] + ((w * 12111) >> 16);                    /* + 0.1848 white */
+}
+static int32_t opx_sq15(int32_t v) { return v > 32767 ? 32767 : v < -32767 ? -32767 : v; }
+/* the step a saw takes at a wrap of phase q (down by 65536), smoothed over two samples either side by the integral
+ * of a cubic B-spline: the correction to add to the plain saw, Q15 x 2 (65536 = the whole step) */
+static int32_t opx_blep4(uint32_t q, uint32_t inc)
+{
+    uint64_t w = (uint64_t)inc * 2u;
+    uint32_t dist, u;
+    int32_t d, sgn;
+    if (!inc)
+        return 0;
+    if (q < w)
+        dist = q, sgn = 1;                               /* just after the wrap */
+    else if ((uint64_t)(0u - q) < w && q)
+        dist = 0u - q, sgn = -1;                         /* just before it */
+    else
+        return 0;
+    u = (uint32_t)(((uint64_t)dist << 15) / inc);      /* samples from the wrap, Q15: 0 .. 2 */
+    if (u < 32768u) {                                    /* 1/2 + (-4u + 2u^3 - 3u^4 / 4) / 6 */
+        int64_t t = u, t3 = (t * t >> 15) * t >> 15, t4 = t3 * t >> 15;
+        d = 16384 + (int32_t)((-4 * t + 2 * t3 - ((3 * t4) >> 2)) / 6);
+    } else {                                             /* (2 - u)^4 / 24 */
+        int64_t v = 65536 - (int64_t)u, v2 = v * v >> 15;
+        d = (int32_t)((v2 * v2 >> 15) / 24);
+    }
+    return sgn * d * 2;
+}
+static int32_t opx_saw4(uint32_t p, uint32_t inc)  /* the HD saw: 0 at phase 0, rising, as the sine */
+{
+    uint32_t q = p + 0x80000000u;
+    return ((int32_t)(q >> 16) - 32768) + opx_blep4(q, inc);
+}
+/* waveform w (OPX_W_*, | OPX_W_NARROW with a WIDTH) of operator k at phase p */
+static int32_t opx_osc(const opx_rt_t *r, uint32_t k, uint32_t w, uint32_t p, uint32_t inc, opx_noise_t *z)
+{
+    int32_t s;
+    if (w & OPX_W_NARROW) {                              /* WIDTH: the cycle squeezed into its first WIDTH % */
+        if (p >= r->wlim[k])
+            return 0;
+        p = (uint32_t)(((uint64_t)p * r->wr[k]) >> 16);
+        inc = (uint32_t)(((uint64_t)inc * r->wr[k]) >> 16);
+        w &= ~OPX_W_NARROW;
+    }
+    switch (w) {
+    case OPX_W_SIN12: return sine_i(p) & ~15;
+    case OPX_W_SIN8: return sine_i(p) & ~255;
+    case OPX_W_TRI: return osc_tri(p + 0x40000000u);     /* (from 0 rising, as the sine) */
+    case OPX_W_SAW: return osc_saw(p + 0x80000000u, inc);   /* (0 at phase 0, rising, as the sine) */
+    case OPX_W_SAWHD: return opx_sq15(opx_saw4(p, inc));
+    case OPX_W_SQR: return opx_sq15(osc_saw(p, inc) - osc_saw(p + 0x80000000u, inc));
+    case OPX_W_SQRHD: return opx_sq15(opx_saw4(p + 0x80000000u, inc) - opx_saw4(p, inc));
+    case OPX_W_ASAW3:
+        s = sine_i(p) + (sine_i(p * 2u) >> 1) + sine_i(p * 3u) / 3;
+        return (s * 22710) >> 15;
+    case OPX_W_ASQR3:
+        s = sine_i(p) + sine_i(p * 3u) / 3 + sine_i(p * 5u) / 5;
+        return opx_sq15((s * 35107) >> 15);
+    case OPX_W_ATRI3:
+        s = sine_i(p) - sine_i(p * 3u) / 9 + sine_i(p * 5u) / 25;
+        return (s * 28465) >> 15;
+    case OPX_W_A12345:
+        s = sine_i(p) + sine_i(p * 2u) + sine_i(p * 3u) + sine_i(p * 4u) + sine_i(p * 5u);
+        return (s * 8269) >> 15;
+    case OPX_W_A12: case OPX_W_A13: case OPX_W_A14: case OPX_W_A15: case OPX_W_A16: case OPX_W_A17: case OPX_W_A18:
+        s = sine_i(p) + sine_i(p * (w - OPX_W_A12 + 2u));
+        return (s * OPX_A1N_GAIN[w - OPX_W_A12]) >> 15;
+    case OPX_W_NOISE_SH:
+        if (p < z->lastp && z->lastp - p > 0x80000000u)  /* a new cycle (the phase wrapped forwards) */
+            z->hold = opx_white(z);
+        z->lastp = p;
+        return z->hold;
+    case OPX_W_WHITE: return opx_white(z);
+    case OPX_W_PINK: return opx_sq15(opx_pink_raw(z) / 5);
+    case OPX_W_BLUE: {
+        int32_t x = opx_pink_raw(z), d = (x - z->prev) >> 1;
+        z->prev = x;
+        return opx_sq15(d);
+    }
+    default: return sine_i(p);
     }
 }
 
@@ -299,6 +440,7 @@ typedef struct {                 /* a sounding note: 232 bytes */
     int32_t g[OPX_NOP];          /* the gain at the end of the last block (Q15) */
     int32_t vg[OPX_NOP];         /* velocity's factor on the level (Q15) */
     opx_eg_t eg[OPX_NOP];
+    opx_noise_t nz[OPX_NOP];     /* M2: the noise waveforms' state */
     int32_t dc;
     uint8_t live, down, rsv[2];
 } opx_note_t;
@@ -367,6 +509,8 @@ static void opx_note_on(track_t *t, voice_t *v)
             n->ph[k] = 0;
             n->y[k] = n->yp[k] = n->g[k] = 0;
             e->lvl = 0;
+            memset(&n->nz[k], 0, sizeof n->nz[k]);   /* (M2: the noises from a seed of their own per operator) */
+            n->nz[k].rng = 0x9E3779B9u * (uint32_t)(k + 1) + (uint32_t)v->note * 2654435761u;
         }
         e->from = e->lvl;                            /* a retrigger rises from where it is */
         e->x = 0;
@@ -461,7 +605,10 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
             int32_t mod = 0, s;
             for (c = 0; c < nin; c++)
                 mod += (r->amt[kk][c] * y[r->src[kk][c]]) >> 15;
-            s = sine_i(ph[kk] + ((uint32_t)mod << 18) + (uint32_t)(((y[kk] + yp[kk]) >> 1) * fbq[kk]));
+            {
+                uint32_t p = ph[kk] + ((uint32_t)mod << 18) + (uint32_t)(((y[kk] + yp[kk]) >> 1) * fbq[kk]);
+                s = r->wv[kk] ? opx_osc(r, kk, r->wv[kk], p, inc[kk], &n->nz[kk]) : sine_i(p);   /* (M2) */
+            }
             yp[kk] = y[kk];
             y[kk] = (s * g[kk]) >> 15;
             g[kk] += dg[kk];
