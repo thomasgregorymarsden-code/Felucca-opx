@@ -126,48 +126,50 @@ static uint32_t bench_ns10(uint32_t ticks, uint32_t n) { return (uint32_t)((uint
  * the number (RANDOM: either way at random; ALWAYS: one way every time), and calling a function. The rows: ns a
  * step; the difference from LOOP is the branch's (or the call's) cost. (OPX's waveform loop: a few branches per
  * operator and sample; this tells whether they are what costs) */
-static volatile uint32_t bench_sink, bench_one_way = 1;
+static volatile uint32_t bench_va, bench_vb, bench_one_way = 1;
 static uint32_t __attribute__((noinline)) bench_callee(uint32_t x) { return x ^ (x >> 7); }
 static void bench_branch(void)
 {
     enum { N = 20000 };
-    uint32_t i, t0, t, k, x, acc, way = bench_one_way;
+    uint32_t i, t0, t, k, x, way = bench_one_way;
     static const char *const NAME[4] = {"LOOP", "+ BRANCH ALWAYS", "+ BRANCH RANDOM", "+ CALL"};
     for (k = 0; k < 4u; k++) {
-        x = 12345u, acc = 0;
+        x = 12345u;
         fm1_irq_off();
         t0 = fm1_ticks();
-        switch (k) {
-        case 0:
+        switch (k) {                                     /* (a store to a volatile a step: the work can't vanish; */
+        case 0:                                          /* the arms store to different ones: a real branch) */
             for (i = 0; i < N; i++) {
                 x = x * 1664525u + 1013904223u;
-                acc += x >> 9;
-                __asm__ volatile("" : "+r"(acc));
+                bench_va = x >> 9;
             }
             break;
         case 1:
+            for (i = 0; i < N; i++) {
+                x = x * 1664525u + 1013904223u;
+                if (way)
+                    bench_va = x >> 9;
+                else
+                    bench_vb = x >> 11;
+            }
+            break;
         case 2:
             for (i = 0; i < N; i++) {
                 x = x * 1664525u + 1013904223u;
-                if (k == 1u ? way : (x >> 16) & 1u) {    /* (the asm keeps the arms apart: a real branch) */
-                    acc += x >> 9;
-                    __asm__ volatile("" : "+r"(acc));
-                } else {
-                    acc -= x >> 11;
-                    __asm__ volatile("" : "+r"(acc), "+r"(x));
-                }
+                if ((x >> 16) & 1u)
+                    bench_va = x >> 9;
+                else
+                    bench_vb = x >> 11;
             }
             break;
         default:
             for (i = 0; i < N; i++) {
                 x = x * 1664525u + 1013904223u;
-                acc += bench_callee(x) >> 9;
-                __asm__ volatile("" : "+r"(acc));
+                bench_va = bench_callee(x) >> 9;
             }
         }
         t = fm1_ticks() - t0;
         fm1_irq_on();
-        bench_sink = acc;
         bench_line(BR_NS, NAME[k], bench_ns10(t, N), 0);
     }
 }
