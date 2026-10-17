@@ -40,6 +40,7 @@ slice_render 436
 slc_rev 120
 opx_render 697
 opx_loop_wave 570
+opx_loop_sine 500
 fm1_alnk0_irq 38871
 fm1_timer5_irq 35056
 click_render 30

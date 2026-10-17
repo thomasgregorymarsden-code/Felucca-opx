@@ -658,7 +658,21 @@ static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *re
     }
     return dc;
 }
-static int32_t __attribute__((noinline)) opx_loop_wave(const opx_rt_t *restrict r, int32_t *restrict out,
+/* Experiment (the device benchmark): both loops run from RAM (.ram_text, as the flash driver; no calls in them, which
+ * tools/build.py checks), not from flash through its cache: does instruction fetch decide their cost? */
+#if defined(__EMSCRIPTEN__)
+#define OPX_RAMFN __attribute__((noinline))
+#else
+#define OPX_RAMFN __attribute__((section(".ram_text"), noinline, used))
+#endif
+static int32_t OPX_RAMFN opx_loop_sine(const opx_rt_t *restrict r, int32_t *restrict out,
+    const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
+    int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
+    const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc)
+{
+    return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, 0, 0, 0);
+}
+static int32_t OPX_RAMFN opx_loop_wave(const opx_rt_t *restrict r, int32_t *restrict out,
     const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
     const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const opx_wsel_t *tb,
@@ -731,8 +745,8 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
             }
             dc = opx_loop_wave(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb,
                                (const int16_t (*)[CTL])nb);
-        } else {                                     /* (inlined: M1's loop, here as it was) */
-            dc = opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, 0, 0, 0);
+        } else {                                     /* (M1's loop, as it was) */
+            dc = opx_loop_sine(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc);
         }
     }
     n->dc = dc;

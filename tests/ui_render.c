@@ -1296,6 +1296,7 @@ static void setup(int s)
         bench_line(BR_NS, "+ BRANCH ALWAYS", 75, 0);
         bench_line(BR_NS, "+ BRANCH RANDOM", 1234, 0);
         bench_line(BR_NS, "+ CALL", 99, 0);
+        bench_line(BR_NS, "LOOP IN RAM", 23, 0);
         bench_line(BR_NS, "INT32 MAC", 42, 0);
         bench_line(BR_NS, "INT64 MAC", 125, 0);
         ui.menu = 4; bench_state = 3;

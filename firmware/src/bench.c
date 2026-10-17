@@ -128,6 +128,15 @@ static uint32_t bench_ns10(uint32_t ticks, uint32_t n) { return (uint32_t)((uint
  * operator and sample; this tells whether they are what costs) */
 static volatile uint32_t bench_va, bench_vb, bench_one_way = 1;
 static uint32_t __attribute__((noinline)) bench_callee(uint32_t x) { return x ^ (x >> 7); }
+/* LOOP again, running from RAM (.ram_text) instead of flash: the difference is instruction fetch */
+static void OPX_RAMFN bench_ram_loop(uint32_t n)   /* (eng_opx.c's: .ram_text) */
+{
+    uint32_t i, x = 12345u;
+    for (i = 0; i < n; i++) {
+        x = x * 1664525u + 1013904223u;
+        bench_va = x >> 9;
+    }
+}
 static void bench_branch(void)
 {
     enum { N = 20000 };
@@ -171,7 +180,12 @@ static void bench_branch(void)
         t = fm1_ticks() - t0;
         fm1_irq_on();
         bench_line(BR_NS, NAME[k], bench_ns10(t, N), 0);
-    }
+    }    fm1_irq_off();
+    t0 = fm1_ticks();
+    bench_ram_loop(N);
+    t = fm1_ticks() - t0;
+    fm1_irq_on();
+    bench_line(BR_NS, "LOOP IN RAM", bench_ns10(t, N), 0);
 }
 static void bench_math(void)
 {
