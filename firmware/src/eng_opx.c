@@ -408,7 +408,7 @@ typedef struct {                 /* an operator's wave for a block (opx_render) 
     int32_t mk;                  /* SIN 12BIT / 8BIT: the bits kept */
 } opx_wsel_t;
 /* wave w's table for a phase step of inc (SAW / SQR: the level its pitch allows); the noises: no table */
-static void opx_table(uint32_t w, uint32_t inc, opx_wsel_t *v)
+static void __attribute__((noinline)) opx_table(uint32_t w, uint32_t inc, opx_wsel_t *v)
 {
     uint32_t hmax, l;
     v->t = SINE, v->sh = 22, v->sq = 0, v->mk = -1;
@@ -457,7 +457,7 @@ static int32_t opx_pink_raw(opx_noise_t *z)
     return z->pk[0] + z->pk[1] + z->pk[2] + ((w * 12111) >> 16);                    /* + 0.1848 white */
 }
 /* a block of noise w (OPX_W_NOISE_SH ..) into b; S/H at the operator's own phase ph, step inc */
-static void opx_noise_block(uint32_t w, opx_noise_t *z, uint32_t ph, uint32_t inc, int16_t *b)
+static void __attribute__((noinline)) opx_noise_block(uint32_t w, opx_noise_t *z, uint32_t ph, uint32_t inc, int16_t *b)
 {
     uint32_t i;
     for (i = 0; i < CTL; i++, ph += inc) {
