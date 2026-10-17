@@ -91,7 +91,7 @@ jobs:
           fi
           python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site/dev   # this build's, always
           python3 tools/dis_funcs.py build/felucca.dis opx_render opx_loop_wave opx_table opx_noise_block bench_branch \
-              bench_callee > _site/dev/disasm.txt || true   # (the compiled render loops, readable without the toolchain)
+              bench_callee bench_math > _site/dev/disasm.txt || true   # (the compiled render loops, readable without the toolchain)
           mkdir -p _site/opx && cp web/opx/*.html _site/opx/
           mkdir -p _site/webapp/try && cp -R build/emu/. _site/webapp/try/
           mkdir -p _site/try                                # (the older address)
@@ -108,9 +108,32 @@ jobs:
           name: release
           path: build/release-${{ env.REL }}/
 
+      - uses: actions/upload-artifact@v6
+        with:
+          name: disasm
+          path: _site/dev/disasm.txt
+
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
+
+  diag:   # the compiled OPX loops (dev/disasm.txt) on branch ci-diag, one commit, replaced each push: readable with git
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: disasm
+      - name: Push to ci-diag
+        run: |
+          git init -q -b ci-diag d && mv disasm.txt d/ && cd d
+          git config user.name "github-actions[bot]"
+          git config user.email "41898319+github-actions[bot]@users.noreply.github.com"
+          git add disasm.txt && git commit -q -m "disasm of ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-diag
 
   deploy:
     needs: build
