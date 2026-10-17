@@ -122,10 +122,60 @@ static volatile int64_t bench_i64 = 3;
 static volatile float bench_f32 = 1.0001f;           /* (built for r3: the FPU) */
 #endif
 static uint32_t bench_ns10(uint32_t ticks, uint32_t n) { return (uint32_t)((uint64_t)ticks * 10000u / 24u / n); }
+/* the cost of a branch and of a call: the same loop (a random number a step, a sum) bare, with an if on a bit of
+ * the number (RANDOM: either way at random; ALWAYS: one way every time), and calling a function. The rows: ns a
+ * step; the difference from LOOP is the branch's (or the call's) cost. (OPX's waveform loop: a few branches per
+ * operator and sample; this tells whether they are what costs) */
+static volatile uint32_t bench_sink, bench_one_way = 1;
+static uint32_t __attribute__((noinline)) bench_callee(uint32_t x) { return x ^ (x >> 7); }
+static void bench_branch(void)
+{
+    enum { N = 20000 };
+    uint32_t i, t0, t, k, x, acc, way = bench_one_way;
+    static const char *const NAME[4] = {"LOOP", "+ BRANCH ALWAYS", "+ BRANCH RANDOM", "+ CALL"};
+    for (k = 0; k < 4u; k++) {
+        x = 12345u, acc = 0;
+        fm1_irq_off();
+        t0 = fm1_ticks();
+        switch (k) {
+        case 0:
+            for (i = 0; i < N; i++) {
+                x = x * 1664525u + 1013904223u;
+                acc += x >> 9;
+                __asm__ volatile("" : "+r"(acc));
+            }
+            break;
+        case 1:
+        case 2:
+            for (i = 0; i < N; i++) {
+                x = x * 1664525u + 1013904223u;
+                if (k == 1u ? way : (x >> 16) & 1u) {    /* (the asm keeps the arms apart: a real branch) */
+                    acc += x >> 9;
+                    __asm__ volatile("" : "+r"(acc));
+                } else {
+                    acc -= x >> 11;
+                    __asm__ volatile("" : "+r"(acc), "+r"(x));
+                }
+            }
+            break;
+        default:
+            for (i = 0; i < N; i++) {
+                x = x * 1664525u + 1013904223u;
+                acc += bench_callee(x) >> 9;
+                __asm__ volatile("" : "+r"(acc));
+            }
+        }
+        t = fm1_ticks() - t0;
+        fm1_irq_on();
+        bench_sink = acc;
+        bench_line(BR_NS, NAME[k], bench_ns10(t, N), 0);
+    }
+}
 static void bench_math(void)
 {
     enum { N = 20000 };
     uint32_t i, t0, t;
+    bench_branch();
     {
         int32_t a = bench_i32, x = 1;
         fm1_irq_off();

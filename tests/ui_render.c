@@ -1292,6 +1292,10 @@ static void setup(int s)
         bench_line(BR_SUB, "OPX, THE WAVE ON ALL 6 OPS", 0, 0);
         for (i = 0; i < NELEM(W); i++)
             bench_line(BR_PCT, N_OPX_WAVE[W[i]], 412 + 61 * i, (412 + 61 * i) / 6u);
+        bench_line(BR_NS, "LOOP", 61, 0);
+        bench_line(BR_NS, "+ BRANCH ALWAYS", 75, 0);
+        bench_line(BR_NS, "+ BRANCH RANDOM", 1234, 0);
+        bench_line(BR_NS, "+ CALL", 99, 0);
         bench_line(BR_NS, "INT32 MAC", 42, 0);
         bench_line(BR_NS, "INT64 MAC", 125, 0);
         ui.menu = 4; bench_state = 3;

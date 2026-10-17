@@ -195,7 +195,8 @@ static int32_t bench_document(int32_t y, int draw)
             cv_text_r(228, y, &AF_S, o, T_TEXT, T_BG);
         }
     }
-    y = menu_text("MAC: one multiply-add, each depending on the last.", y + 6, T_MID, draw);
+    y = menu_text("MAC: one multiply-add, each depending on the last. LOOP: a random number and a sum; + BRANCH, + CALL: "
+                  "the same with an if, a function call.", y + 6, T_MID, draw);
     return y + 4;
 }
 #endif
