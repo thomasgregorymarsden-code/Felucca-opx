@@ -182,7 +182,7 @@ static void bench_branch(void)
         bench_line(BR_NS, NAME[k], bench_ns10(t, N), 0);
     }    fm1_irq_off();
     t0 = fm1_ticks();
-    bench_ram_loop(N);
+    OPX_FAR(bench_ram_loop)(N);
     t = fm1_ticks() - t0;
     fm1_irq_on();
     bench_line(BR_NS, "LOOP IN RAM", bench_ns10(t, N), 0);

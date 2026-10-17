@@ -665,6 +665,10 @@ static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *re
 #else
 #define OPX_RAMFN __attribute__((section(".ram_text"), noinline, used))
 #endif
+/* RAM is ~4.4 MB below the flash code, beyond a direct call's reach: call it through a pointer (as hal/fm1_flash.h's
+ * FL_FAR) */
+static inline void *opx_far(void *p) { void *volatile q = p; return q; }
+#define OPX_FAR(fn) ((__typeof__(&fn))opx_far((void *)&fn))
 static int32_t OPX_RAMFN opx_loop_sine(const opx_rt_t *restrict r, int32_t *restrict out,
     const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
@@ -743,10 +747,10 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
                 if (!tb[kk].t)
                     opx_noise_block(w, &n->nz[kk], ph[kk], inc[kk], nb[kk]);
             }
-            dc = opx_loop_wave(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb,
+            dc = OPX_FAR(opx_loop_wave)(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb,
                                (const int16_t (*)[CTL])nb);
         } else {                                     /* (M1's loop, as it was) */
-            dc = opx_loop_sine(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc);
+            dc = OPX_FAR(opx_loop_sine)(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc);
         }
     }
     n->dc = dc;
