@@ -58,7 +58,7 @@ jobs:
         run: |
           set -o pipefail
           # a failing build's errors as annotations (readable through the API without the log)
-          b() { ./build.sh "$@" 2>&1 | tee -a build.log || { grep -a -iE "error|undefined|FAIL|overflow|not fit|region" build.log | head -30 | sed 's/^/::error::/'; exit 1; }; }
+          b() { ./build.sh "$@" 2>&1 | tee -a build.log || { grep -a -iE "error|undefined|FAIL|overflow|not fit|region|relocation|truncat|bin/ld:" build.log | head -30 | sed 's/^/::error::/'; exit 1; }; }
           if [ "${{ github.event_name }}" = release ]; then
             ver="${GITHUB_REF_NAME#v}"
             b --release "$ver"
@@ -187,7 +187,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          ./build.sh 2>&1 | tee build.log || { grep -a -iE "error|undefined|FAIL|overflow|not fit|region" build.log | head -30 | sed 's/^/::error::/'; exit 1; }
+          ./build.sh 2>&1 | tee build.log || { grep -a -iE "error|undefined|FAIL|overflow|not fit|region|relocation|truncat|bin/ld:" build.log | head -30 | sed 's/^/::error::/'; exit 1; }
 
       - name: Emscripten (browser emulator)
         uses: mymindstorm/setup-emsdk@v14
