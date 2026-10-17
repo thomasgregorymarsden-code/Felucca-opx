@@ -47,7 +47,7 @@ mod_begin 168
 mod_voice 30
 mod_end 7
 perf_begin 28
-perf_mute 19
+perf_mute 21
 perf_pre 26
 perf_block 846
 perf_master 32
@@ -57,7 +57,7 @@ perf_throw 52
 rev_room 218
 rev_spring 127
 rev_hall 1994
-rev_side_mix 8
+rev_side_mix 9
 track_insert 3
 ins_drive 272
 ins_swept 230
