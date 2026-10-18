@@ -8999,10 +8999,10 @@ static int test_bench(void)
     frame();
     ok &= ui.menu == 4 && bench_state >= 1u;
     frames(3);
-    ok &= bench_state == 3u && bench_n == 2u + 1u + 1u + 18u + 5u + 2u && !bench_mute;
+    ok &= bench_state == 3u && bench_n == 2u + 1u + 1u + 18u + 8u + 2u && !bench_mute;
     if (!ok)
         printf("ui: bench: menu %u state %u rows %u mute %u\n", ui.menu, bench_state, bench_n, bench_mute);
-    bad += check("bench: INFO, OCT+: RUNNING, then 29 rows (idle, heading, FM6, OPX heading and 18 waves, 5 branch / call / RAM, 2 MAC)", ok);
+    bad += check("bench: INFO, OCT+: RUNNING, then 32 rows (idle, heading, FM6, OPX heading and 18 waves, 4 branch / call, 4 loads, 2 MAC)", ok);
     ok = trk[0].eng_req == before.eng_req && trk[0].engine == before.engine &&
          !memcmp(trk[0].p, before.p, sizeof before.p) && !memcmp(fm6_patch[0], fm6p, sizeof fm6p) && opx_own[0] == own;
     for (i = 0; i < NVOICE; i++)

@@ -22,7 +22,7 @@
 #endif
 #if FELUCCA_BENCH
 static volatile uint8_t bench_mute;                    /* audio.c: the ISR's halves are silence */
-#define BENCH_ROWS 32u
+#define BENCH_ROWS 40u
 enum { BR_HEAD, BR_PCT, BR_NS, BR_SUB };               /* a row: a heading (ALL ONE), a share of real time (permille),
                                                         * ns x 10, a sub-heading */
 static struct { char name[16]; uint8_t kind; uint16_t all, one; } bench_row[BENCH_ROWS];   /* (ui_menu.c draws them) */
@@ -128,15 +128,6 @@ static uint32_t bench_ns10(uint32_t ticks, uint32_t n) { return (uint32_t)((uint
  * operator and sample; this tells whether they are what costs) */
 static volatile uint32_t bench_va, bench_vb, bench_one_way = 1;
 static uint32_t __attribute__((noinline)) bench_callee(uint32_t x) { return x ^ (x >> 7); }
-/* LOOP again, running from RAM (.ram_text) instead of flash: the difference is instruction fetch */
-static void OPX_RAMFN bench_ram_loop(uint32_t n)   /* (eng_opx.c's: .ram_text) */
-{
-    uint32_t i, x = 12345u;
-    for (i = 0; i < n; i++) {
-        x = x * 1664525u + 1013904223u;
-        bench_va = x >> 9;
-    }
-}
 static void bench_branch(void)
 {
     enum { N = 20000 };
@@ -180,18 +171,44 @@ static void bench_branch(void)
         t = fm1_ticks() - t0;
         fm1_irq_on();
         bench_line(BR_NS, NAME[k], bench_ns10(t, N), 0);
-    }    fm1_irq_off();
-    t0 = fm1_ticks();
-    OPX_FAR(bench_ram_loop)(N);
-    t = fm1_ticks() - t0;
-    fm1_irq_on();
-    bench_line(BR_NS, "LOOP IN RAM", bench_ns10(t, N), 0);
+    }}
+/* a load's cost from each memory: a sum of 1024 16-bit values, ns a value: RAM (.bss), the pool (the OPX waveform
+ * tables' memory), the stack, flash (the sine table, through the cache) */
+static int16_t bench_ram[1024];
+static int32_t __attribute__((noinline)) bench_sum(const int16_t *p, uint32_t passes)
+{
+    uint32_t i, k;
+    int32_t acc = 0;
+    for (k = 0; k < passes; k++)
+        for (i = 0; i < 1024u; i++)
+            acc += p[i];
+    return acc;
+}
+static void bench_loads(void)
+{
+    enum { PASSES = 20 };
+    int16_t stk[1024];
+    const int16_t *src[4];
+    static const char *const NAME[4] = {"LOAD RAM", "LOAD POOL", "LOAD STACK", "LOAD FLASH"};
+    uint32_t i, k, t0, t;
+    for (i = 0; i < 1024u; i++)
+        stk[i] = bench_ram[i] = (int16_t)i;
+    src[0] = bench_ram, src[1] = opx_wt, src[2] = stk, src[3] = SINE;
+    for (k = 0; k < 4u; k++) {
+        fm1_irq_off();
+        t0 = fm1_ticks();
+        bench_va = (uint32_t)bench_sum(src[k], PASSES);
+        t = fm1_ticks() - t0;
+        fm1_irq_on();
+        bench_line(BR_NS, NAME[k], bench_ns10(t, PASSES * 1024u), 0);
+    }
 }
 static void bench_math(void)
 {
     enum { N = 20000 };
     uint32_t i, t0, t;
     bench_branch();
+    bench_loads();
     {
         int32_t a = bench_i32, x = 1;
         fm1_irq_off();

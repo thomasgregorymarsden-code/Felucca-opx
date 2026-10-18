@@ -623,10 +623,60 @@ static int opx_done(track_t *t, voice_t *v)
     return 1;
 }
 
-/* a block's samples (opx_render): the operators that sound, 6 down to 1, each its inputs, its feedback, its wave;
- * the heard ones mixed, high-passed, through the voice's amplitude ramp. Two copies: M1's sine loop as it was, inlined
- * in opx_render (every patch without a waveform), and opx_loop_wave (M2): the same with a table (or a block of noise)
- * per operator; a function of its own, its own line in tests/target_budget.txt. Returns the high-pass's state */
+/* a block's samples (opx_render). Two orders, the same arithmetic, the same output to the bit:
+ *   operator by operator (opx_op_*): each operator, 6 down to 1, runs the whole block, its state in registers, its
+ *     inputs from the higher operators' outputs of the block (opx_ybuf); then the heard ones mixed sample by sample.
+ *     The device's benchmark: a voice's cost is its loads and stores (state reloaded every sample cost the
+ *     sample-by-sample loop about twice its arithmetic), as FM6's operator-at-a-time loops (fm6_op_run) show
+ *   sample by sample (opx_loop): every operator each sample. Only for a patch where an operator takes a lower one's
+ *     output (the previous sample's): algorithms 4, 6 and 34's loops (ALG FB), USER's upward links
+ * Returns the high-pass's state */
+typedef struct {                 /* an operator's state through a block (opx_op_*) */
+    uint32_t ph, inc;
+    int32_t y, yp, g, dg, fbq;
+} opx_os_t;
+static int32_t opx_ybuf[OPX_NOP][CTL];         /* the block's outputs (the audio ISR's alone; not reentered) */
+static int32_t opx_mbuf[CTL];                  /* an operator's modulation input for the block */
+static const int32_t opx_zero[CTL];
+static uint8_t opx_sample_order;             /* tests: every patch sample by sample (the two orders compared) */
+#define OPX_OP_LOOP(WAVE)                                                                                          \
+    uint32_t i, ph = o->ph, inc = o->inc;                                                                            \
+    int32_t y = o->y, yp = o->yp, g = o->g, dg = o->dg, fbq = o->fbq;                                                \
+    for (i = 0; i < CTL; i++) {                                                                                      \
+        uint32_t p = ph + ((uint32_t)mod[i] << 18) + (uint32_t)(((y + yp) >> 1) * fbq);                              \
+        int32_t s = (WAVE);                                                                                          \
+        (void)p;                                                                                                     \
+        yp = y;                                                                                                      \
+        y = (s * g) >> 15;                                                                                           \
+        g += dg;                                                                                                     \
+        ph += inc;                                                                                                   \
+        yo[i] = y;                                                                                                   \
+    }                                                                                                                \
+    o->ph = ph, o->y = y, o->yp = yp, o->g = g
+static void __attribute__((noinline)) opx_op_sine(opx_os_t *restrict o, const int32_t *restrict mod,
+                                                  int32_t *restrict yo)
+{
+    OPX_OP_LOOP(sine_i(p));
+}
+static void __attribute__((noinline)) opx_op_tab(opx_os_t *restrict o, const int32_t *restrict mod,
+                                                 int32_t *restrict yo, const int16_t *restrict t, uint32_t sh)
+{
+    OPX_OP_LOOP(opx_tab(t, sh, p));
+}
+/* SQR (two reads), SIN 12BIT / 8BIT (the mask), WIDTH: opx_wave as it is (its branches the same way all block) */
+static void __attribute__((noinline)) opx_op_gen(opx_os_t *restrict o, const int32_t *restrict mod,
+                                                 int32_t *restrict yo, const opx_rt_t *restrict r, uint32_t k,
+                                                 const opx_wsel_t *restrict v)
+{
+    OPX_OP_LOOP(opx_wave(r, k, v, p, 0));
+}
+static void __attribute__((noinline)) opx_op_noise(opx_os_t *restrict o, const int32_t *restrict mod,
+                                                   int32_t *restrict yo, const int16_t *restrict nb)
+{
+    OPX_OP_LOOP(nb[i]);
+}
+#undef OPX_OP_LOOP
+/* the sample-by-sample order (opx_render, patches with a backward link): every operator each sample */
 static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *restrict r, int32_t *restrict out,
     const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
@@ -658,31 +708,36 @@ static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *re
     }
     return dc;
 }
-/* Experiment (the device benchmark): both loops run from RAM (.ram_text, as the flash driver; no calls in them, which
- * tools/build.py checks), not from flash through its cache: does instruction fetch decide their cost? */
-#if defined(__EMSCRIPTEN__)
-#define OPX_RAMFN __attribute__((noinline))
-#else
-#define OPX_RAMFN __attribute__((section(".ram_text"), noinline, used))
-#endif
-/* RAM is ~4.4 MB below the flash code, beyond a direct call's reach: call it through a pointer (as hal/fm1_flash.h's
- * FL_FAR) */
-static inline void *opx_far(void *p) { void *volatile q = p; return q; }
-#define OPX_FAR(fn) ((__typeof__(&fn))opx_far((void *)&fn))
-static int32_t OPX_RAMFN opx_loop_sine(const opx_rt_t *restrict r, int32_t *restrict out,
+static int32_t __attribute__((noinline)) opx_loop_sine(const opx_rt_t *restrict r, int32_t *restrict out,
     const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
     const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc)
 {
     return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, 0, 0, 0);
 }
-static int32_t OPX_RAMFN opx_loop_wave(const opx_rt_t *restrict r, int32_t *restrict out,
+static int32_t __attribute__((noinline)) opx_loop_wave(const opx_rt_t *restrict r, int32_t *restrict out,
     const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
     const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const opx_wsel_t *tb,
     const int16_t (*nb)[CTL])
 {
     return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb, nb, 1);
+}
+/* the heard operators' outputs mixed, high-passed, through the voice's amplitude ramp (the operator order's last step) */
+static int32_t __attribute__((noinline)) opx_mix(int32_t *restrict out, const int32_t *const *hp, uint32_t nh,
+                                                 int32_t a, int32_t da, int32_t dc)
+{
+    uint32_t i, h;
+    for (i = 0; i < CTL; i++) {
+        int32_t mix = 0, x;
+        for (h = 0; h < nh; h++)
+            mix += hp[h][i];
+        x = mix - (dc >> 10);
+        dc += x;
+        a += da;
+        out[i] += (int32_t)(((int64_t)x * a) >> 15);
+    }
+    return dc;
 }
 
 static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const vmod_t *m)
@@ -733,13 +788,19 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     a = mulq15(m->amp0, k);
     da = (mulq15(m->amp1, k) - a) >> CTL_LOG2;
     dc = n->dc;
-    {   /* the samples: M1's sine loop, or (M2) the same with a table or a block of noise per operator */
-        uint32_t wv = 0;
+    {   /* the samples: operator by operator, unless an operator takes a lower one's output (sample by sample) */
+        uint32_t wv = 0, back = 0, act = 0, c;
+        opx_wsel_t tb[OPX_NOP];
+        int16_t nb[OPX_NOP][CTL];
         for (q = 0; q < nact; q++)
-            wv |= r->wv[ord[q]];
-        if (wv) {
-            opx_wsel_t tb[OPX_NOP];
-            int16_t nb[OPX_NOP][CTL];
+            act |= 1u << ord[q];
+        for (q = 0; q < nact; q++) {
+            uint32_t kk = ord[q];
+            wv |= r->wv[kk];
+            for (c = 0; c < r->nin[kk]; c++)
+                back |= r->src[kk][c] < kk && ((act >> r->src[kk][c]) & 1u);
+        }
+        if (wv)
             for (q = 0; q < nact; q++) {
                 uint32_t kk = ord[q], w = r->wv[kk] & ~OPX_W_NARROW;
                 uint32_t fi = r->wr[kk] ? (uint32_t)(((uint64_t)inc[kk] * r->wr[kk]) >> 16) : inc[kk];   /* (WIDTH) */
@@ -747,10 +808,46 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
                 if (!tb[kk].t)
                     opx_noise_block(w, &n->nz[kk], ph[kk], inc[kk], nb[kk]);
             }
-            dc = OPX_FAR(opx_loop_wave)(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb,
-                               (const int16_t (*)[CTL])nb);
-        } else {                                     /* (M1's loop, as it was) */
-            dc = OPX_FAR(opx_loop_sine)(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc);
+        if (back || opx_sample_order) {
+            dc = wv ? opx_loop_wave(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb,
+                                    (const int16_t (*)[CTL])nb)
+                    : opx_loop_sine(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc);
+        } else {
+            const int32_t *hp[OPX_NOP];
+            uint32_t nh = 0;
+            for (q = 0; q < nact; q++) {               /* 6 down to 1: every input is already this block's */
+                uint32_t kk = ord[q], nin = r->nin[kk], first = 1;
+                const int32_t *mod = opx_zero;
+                opx_os_t o;
+                for (c = 0; c < nin; c++) {            /* the inputs, summed term by term (as the sample loop) */
+                    uint32_t sc = r->src[kk][c], i;
+                    int32_t amt = r->amt[kk][c];
+                    const int32_t *ys = opx_ybuf[sc];
+                    if (!((act >> sc) & 1u))
+                        continue;                      /* (a silent operator gives 0) */
+                    if (first)
+                        for (i = 0; i < CTL; i++)
+                            opx_mbuf[i] = (amt * ys[i]) >> 15;
+                    else
+                        for (i = 0; i < CTL; i++)
+                            opx_mbuf[i] += (amt * ys[i]) >> 15;
+                    first = 0, mod = opx_mbuf;
+                }
+                o.ph = ph[kk], o.inc = inc[kk], o.y = y[kk], o.yp = yp[kk], o.g = g[kk], o.dg = dg[kk];
+                o.fbq = fbq[kk];
+                if (!r->wv[kk])
+                    opx_op_sine(&o, mod, opx_ybuf[kk]);
+                else if (!tb[kk].t)
+                    opx_op_noise(&o, mod, opx_ybuf[kk], nb[kk]);
+                else if (!r->wr[kk] && !tb[kk].sq && tb[kk].mk == -1)
+                    opx_op_tab(&o, mod, opx_ybuf[kk], tb[kk].t, tb[kk].sh);
+                else
+                    opx_op_gen(&o, mod, opx_ybuf[kk], r, kk, &tb[kk]);
+                y[kk] = o.y, yp[kk] = o.yp;            /* (ph, g: not read after; n->ph / n->g are set above) */
+                if ((heard >> kk) & 1u)
+                    hp[nh++] = opx_ybuf[kk];
+            }
+            dc = opx_mix(out, hp, nh, a, da, dc);
         }
     }
     n->dc = dc;

@@ -535,6 +535,54 @@ static void test_waves(void)
     }
 }
 
+/* the operator-by-operator order against the sample-by-sample one, to the bit: every algorithm (with every operator
+ * sounding, feedback, ALG FB), every waveform, WIDTH, a USER matrix with an upward link, voices fading in and out */
+static void test_orders(void)
+{
+    static double y0[FS / 4], y1[FS / 4];
+    uint32_t a, w, k, bad = 0, n = 0;
+    for (a = 0; a < OPX_NALG + 1u + OPX_NWAVE + 2u; a++) {
+        memset(&P, 0, sizeof P);
+        for (k = 0; k < 6u; k++) {
+            P.op[k] = OP_FLAT;
+            P.op[k].level = (uint8_t)(70 + 5 * k);
+            P.op[k].fb = (uint8_t)(k == 0 ? 40 : 10 * k);
+            P.op[k].coarse = (uint8_t)(10 + 3 * k);
+            P.op[k].rel = 40;
+        }
+        P.alg_fb = 60;
+        if (a < OPX_NALG) {
+            P.algo = (uint8_t)a;
+        } else if (a == OPX_NALG) {                    /* USER: a forward chain and an upward link (2 -> 5) */
+            P.algo = OPX_USER;
+            P.ua[5][4] = 80, P.ua[4][0] = 60, P.ua[1][4] = 50, P.ua[3][3] = 30, P.ua_out = 0x09u;
+        } else {
+            w = a - OPX_NALG - 1u;
+            P.algo = 4;                                /* (algorithm 5: three pairs, no loop) */
+            for (k = 0; k < 6u; k++) {
+                P.op[k].wave = (uint8_t)(w < OPX_NWAVE ? w : (k + w) % OPX_NWAVE);
+                P.op[k].width = (uint8_t)(w >= OPX_NWAVE ? 20 + 10 * k : 0);
+            }
+        }
+        opx_sample_order = 1;
+        setup(&P, 0);
+        engine_render(48 + a % 24u, 100, y0, FS / 4, FS / 8, 0);
+        opx_sample_order = 0;
+        setup(&P, 0);
+        engine_render(48 + a % 24u, 100, y1, FS / 4, FS / 8, 0);
+        if (memcmp(y0, y1, sizeof y0)) {
+            printf("opx: orders differ: case %u\n", a);
+            bad++;
+        }
+        n++;
+    }
+    {
+        char what[120];
+        snprintf(what, sizeof what, "the operator order = the sample order, to the bit (%u patches: 40 algorithms, USER, 23 waves, WIDTH)", n);
+        check(what, !bad);
+    }
+}
+
 /* USER plays the matrix as it is: without a heard operator, silence (no fallback to the patch's algorithm) */
 static void test_user_empty(void)
 {
@@ -759,6 +807,7 @@ int main(int argc, char **argv)
         return 0;
     }
     test_reference();
+    test_orders();
     test_envelopes();
     test_feedback();
     test_velocity();
