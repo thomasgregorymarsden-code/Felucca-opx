@@ -723,6 +723,18 @@ static int32_t __attribute__((noinline)) opx_loop_wave(const opx_rt_t *restrict 
 {
     return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb, nb, 1);
 }
+/* one input of an operator for the block: m = (first ? 0 : m) + amt x ys >> 15, sample by sample */
+static void __attribute__((noinline)) opx_op_in(int32_t *restrict m, const int32_t *restrict ys, int32_t amt,
+                                                uint32_t first)
+{
+    uint32_t i;
+    if (first)
+        for (i = 0; i < CTL; i++)
+            m[i] = (amt * ys[i]) >> 15;
+    else
+        for (i = 0; i < CTL; i++)
+            m[i] += (amt * ys[i]) >> 15;
+}
 /* the heard operators' outputs mixed, high-passed, through the voice's amplitude ramp (the operator order's last step) */
 static int32_t __attribute__((noinline)) opx_mix(int32_t *restrict out, const int32_t *const *hp, uint32_t nh,
                                                  int32_t a, int32_t da, int32_t dc)
@@ -820,17 +832,10 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
                 const int32_t *mod = opx_zero;
                 opx_os_t o;
                 for (c = 0; c < nin; c++) {            /* the inputs, summed term by term (as the sample loop) */
-                    uint32_t sc = r->src[kk][c], i;
-                    int32_t amt = r->amt[kk][c];
-                    const int32_t *ys = opx_ybuf[sc];
+                    uint32_t sc = r->src[kk][c];
                     if (!((act >> sc) & 1u))
                         continue;                      /* (a silent operator gives 0) */
-                    if (first)
-                        for (i = 0; i < CTL; i++)
-                            opx_mbuf[i] = (amt * ys[i]) >> 15;
-                    else
-                        for (i = 0; i < CTL; i++)
-                            opx_mbuf[i] += (amt * ys[i]) >> 15;
+                    opx_op_in(opx_mbuf, opx_ybuf[sc], r->amt[kk][c], first);
                     first = 0, mod = opx_mbuf;
                 }
                 o.ph = ph[kk], o.inc = inc[kk], o.y = y[kk], o.yp = yp[kk], o.g = g[kk], o.dg = dg[kk];
