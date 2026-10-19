@@ -443,47 +443,56 @@ typedef struct {                 /* an operator's noise state (a voice's) */
     int32_t hold;                /* S/H: the level held */
     int32_t pk[3], prev;         /* PINK / BLUE: the filter's poles (Q15 x ~8), the last raw pink */
 } opx_noise_t;
-static int32_t opx_white(opx_noise_t *z)
-{
-    z->rng = z->rng * 1664525u + 1013904223u;
-    return (int32_t)z->rng >> 16;                        /* -32768..32767 */
-}
-static int32_t opx_pink_raw(opx_noise_t *z)
-{
-    int32_t w = opx_white(z);
-    z->pk[0] = (int32_t)(((int64_t)z->pk[0] * 65382 + (int64_t)w * 6491) >> 16);    /* 0.99765, 0.0990460 */
-    z->pk[1] = (int32_t)(((int64_t)z->pk[1] * 63111 + (int64_t)w * 19433) >> 16);   /* 0.96300, 0.2965164 */
-    z->pk[2] = (int32_t)(((int64_t)z->pk[2] * 37355 + (int64_t)w * 68989) >> 16);   /* 0.57000, 1.0526913 */
-    return z->pk[0] + z->pk[1] + z->pk[2] + ((w * 12111) >> 16);                    /* + 0.1848 white */
-}
-/* a block of noise w (OPX_W_NOISE_SH ..) into b; S/H at the operator's own phase ph, step inc */
+/* PINK's three poles, in 32 bits (the device's 64-bit multiply-add costs ~twice a 32-bit one): pk += c x w - d x pk,
+ * d = 1 - the pole; the bigger products halved first so nothing overflows (pk[0] to ~1.4 M, pk[1] ~260 k, pk[2] ~80 k) */
+#define OPX_PINK_STEP(w, k0, k1, k2)                                                                               \
+    (k0 += ((w * 6491) >> 16) - ((k0 * 154) >> 16),            /* 0.99765, 0.0990460 */                              \
+     k1 += ((w * 19433) >> 16) - ((k1 * 2425) >> 16),          /* 0.96300, 0.2965164 */                              \
+     k2 += ((w * 34494) >> 15) - (((k2 >> 1) * 28181) >> 15),  /* 0.57000, 1.0526913 */                              \
+     k0 + k1 + k2 + ((w * 12111) >> 16))                       /* + 0.1848 white */
+/* a block of noise w (OPX_W_NOISE_SH ..) into b; S/H at the operator's own phase ph, step inc. A loop per kind, the
+ * state in registers */
 static void __attribute__((noinline)) opx_noise_block(uint32_t w, opx_noise_t *z, uint32_t ph, uint32_t inc, int16_t *b)
 {
-    uint32_t i;
-    for (i = 0; i < CTL; i++, ph += inc) {
-        int32_t v;
-        switch (w) {
-        case OPX_W_NOISE_SH:
-            if (ph < z->lastp)                           /* a new cycle (the phase wrapped) */
-                z->hold = opx_white(z);
-            z->lastp = ph;
-            v = z->hold;
-            break;
-        case OPX_W_WHITE:
-            v = opx_white(z);
-            break;
-        case OPX_W_PINK:
-            v = (int32_t)(((int64_t)opx_pink_raw(z) * 13107) >> 16);   /* (/ 5) */
-            break;
-        default: {                                       /* BLUE */
-            int32_t x = opx_pink_raw(z);
-            v = (x - z->prev) >> 1;
-            z->prev = x;
+    uint32_t i, rng = z->rng;
+    int32_t k0 = z->pk[0], k1 = z->pk[1], k2 = z->pk[2], prev = z->prev, wh, x;
+#define OPX_WHITE() (rng = rng * 1664525u + 1013904223u, (int32_t)rng >> 16)
+    switch (w) {
+    case OPX_W_NOISE_SH: {
+        uint32_t last = z->lastp;
+        int32_t hold = z->hold;
+        for (i = 0; i < CTL; i++, ph += inc) {
+            if (ph < last)                               /* a new cycle (the phase wrapped) */
+                hold = OPX_WHITE();
+            last = ph;
+            b[i] = (int16_t)opx_sq15(hold);
         }
-        }
-        b[i] = (int16_t)opx_sq15(v);
+        z->lastp = last, z->hold = hold;
+        break;
     }
+    case OPX_W_WHITE:
+        for (i = 0; i < CTL; i++)
+            b[i] = (int16_t)opx_sq15(OPX_WHITE());
+        break;
+    case OPX_W_PINK:
+        for (i = 0; i < CTL; i++) {
+            wh = OPX_WHITE();
+            x = OPX_PINK_STEP(wh, k0, k1, k2);
+            b[i] = (int16_t)opx_sq15((x * 205) >> 10);   /* (/ 5) */
+        }
+        break;
+    default:                                             /* BLUE: pink's difference */
+        for (i = 0; i < CTL; i++) {
+            wh = OPX_WHITE();
+            x = OPX_PINK_STEP(wh, k0, k1, k2);
+            b[i] = (int16_t)opx_sq15((x - prev) >> 1);
+            prev = x;
+        }
+    }
+#undef OPX_WHITE
+    z->rng = rng, z->pk[0] = k0, z->pk[1] = k1, z->pk[2] = k2, z->prev = prev;
 }
+#undef OPX_PINK_STEP
 /* operator k's wave at phase p: its table (with its WIDTH), or this block's noise sample nb */
 static inline int32_t opx_wave(const opx_rt_t *r, uint32_t k, const opx_wsel_t *v, uint32_t p, int32_t nb)
 {
@@ -659,11 +668,16 @@ static void __attribute__((noinline)) opx_op_sine(opx_os_t *restrict o, const in
     OPX_OP_LOOP(sine_i(p));
 }
 static void __attribute__((noinline)) opx_op_tab(opx_os_t *restrict o, const int32_t *restrict mod,
+                                                 int32_t *restrict yo, const int16_t *restrict t, uint32_t sh, int32_t mk)
+{
+    OPX_OP_LOOP(opx_tab(t, sh, p) & mk);               /* (mk: SIN 12BIT / 8BIT's bits; -1 the others) */
+}
+static void __attribute__((noinline)) opx_op_sqr(opx_os_t *restrict o, const int32_t *restrict mod,
                                                  int32_t *restrict yo, const int16_t *restrict t, uint32_t sh)
 {
-    OPX_OP_LOOP(opx_tab(t, sh, p));
+    OPX_OP_LOOP(opx_tab(t, sh, p) - opx_tab(t, sh, p + 0x80000000u));
 }
-/* SQR (two reads), SIN 12BIT / 8BIT (the mask), WIDTH: opx_wave as it is (its branches the same way all block) */
+/* WIDTH: opx_wave as it is (its branches the same way all block) */
 static void __attribute__((noinline)) opx_op_gen(opx_os_t *restrict o, const int32_t *restrict mod,
                                                  int32_t *restrict yo, const opx_rt_t *restrict r, uint32_t k,
                                                  const opx_wsel_t *restrict v)
@@ -844,10 +858,12 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
                     opx_op_sine(&o, mod, opx_ybuf[kk]);
                 else if (!tb[kk].t)
                     opx_op_noise(&o, mod, opx_ybuf[kk], nb[kk]);
-                else if (!r->wr[kk] && !tb[kk].sq && tb[kk].mk == -1)
-                    opx_op_tab(&o, mod, opx_ybuf[kk], tb[kk].t, tb[kk].sh);
-                else
+                else if (r->wr[kk])
                     opx_op_gen(&o, mod, opx_ybuf[kk], r, kk, &tb[kk]);
+                else if (tb[kk].sq)
+                    opx_op_sqr(&o, mod, opx_ybuf[kk], tb[kk].t, tb[kk].sh);
+                else
+                    opx_op_tab(&o, mod, opx_ybuf[kk], tb[kk].t, tb[kk].sh, tb[kk].mk);
                 y[kk] = o.y, yp[kk] = o.yp;            /* (ph, g: not read after; n->ph / n->g are set above) */
                 if ((heard >> kk) & 1u)
                     hp[nh++] = opx_ybuf[kk];

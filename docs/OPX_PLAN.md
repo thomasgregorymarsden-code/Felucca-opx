@@ -101,24 +101,34 @@ times the mix on the FM-1 itself (track 1 borrowed and put back, the audio silen
 of real time six held notes take for FM6 and for OPX with each waveform, plus 32- and 64-bit multiply-adds. The audio
 drops a voice above 85 % (`audio.c`).
 
-Measured on a device, 2026-10-16, 0.0.2-dev, before the waveforms became tables (six notes, all six operators on the
-wave; "one" is one note):
+The percentages are above the idle mix (six notes, all six operators on the wave; "one" is one note). Measured on a
+device, 0.0.2-dev:
 
-| | All six | One |
-|---|---|---|
-| Idle (the mix, effects, no voice) | 12.3 % | |
-| FM6, F1 | 26.8 % | 4.4 % |
-| OPX, SIN | 56.7 % | 9.4 % |
-| OPX, SIN 12BIT / 8BIT | 100.5 / 100.4 % | |
-| OPX, TRI / SAW / SQR | 87.2 / 101.0 / 116.5 % | |
-| OPX, SAW HD / SQR HD | 135.2 / 165.5 % | |
-| OPX, ADTV (SAW3 … 1+8) | 104.5–125.7 % | |
-| OPX, NOISE S/H / WHITE / PINK / BLUE | 99.1 / 94.7 / 128.7 / 128.7 % | |
-| 32-bit / 64-bit multiply-add | 33.3 / 52.7 ns | |
+| | 2026-10-16: one loop, every wave inline | 2026-10-19: an operator at a time, tables | One note, now |
+|---|---|---|---|
+| Idle (the mix, effects, no voice) | 12.3 % | 12.5 % | |
+| FM6, F1 | 26.8 % | 27.0 % | 4.5 % |
+| OPX, SIN | 56.7 % | 38.9 % | 6.4 % |
+| OPX, SIN 12BIT / 8BIT | 100.5 % | 55.5 % (before their own loop) | 9.2 % |
+| OPX, TRI / SAW / SAW HD | 87.2 / 101.0 / 135.2 % | 41.8 / 43.7 / 43.4 % | 7 % |
+| OPX, SQR / SQR HD | 116.5 / 165.5 % | 64.9 / 65.0 % (before their own loop) | 10.8 % |
+| OPX, ADTV (all eleven) | 104.5–125.7 % | 42.0 % | 7.0 % |
+| OPX, NOISE S/H / WHITE | 99.1 / 94.7 % | 42.9 / 46.1 % | 7.1 / 7.6 % |
+| OPX, NOISE PINK / BLUE | 128.7 % | 87.3 / 87.8 % (before 32-bit) | 14.5 % |
 
-SIN 12BIT is the sine with a mask, yet it cost 44 points more: the waves' per-sample switch made the loop too big for
-the code cache (the firmware runs from flash through a cache). That is why the periodic waves are now table reads and
-the noises are made a block at a time. The table version still has to be measured on the device.
+**What decided the cost**, found by elimination on the device (the benchmark's LOOP, BRANCH, CALL and LOAD rows):
+
+- Not the code cache: the waveform loop's code shrank 98 % (tables instead of every wave inline) and the cost stayed.
+- Not branches: one that goes the same way each time costs nothing; a random one ~26 ns.
+- Not where the code runs: the same loops from RAM (`.ram_text`) cost the same as from flash.
+- Not which memory: a 16-bit load costs the same from RAM, the pool, the stack or flash (~30 ns a step of a sum).
+- What changed it: the order. The first renderer ran every operator each sample, keeping each operator's state in
+  memory and reloading it; the compiled loop had ~60 instructions and ~30 loads and stores per operator and sample.
+  Running one operator over the whole block (as FM6's `fm6_op_run` does) keeps its state in registers: the sine loop
+  is ~25 instructions and 4 loads and stores a sample. Six notes of SIN: 57 % to 39 %; the waves: ~100 % to ~42 %.
+- A patch where an operator takes a lower one's output (algorithms 4, 6, 34's loops with ALG FB; USER's upward links)
+  needs the previous sample of an operator not yet run, so it keeps the sample-by-sample loop and its cost. `opx_test`
+  checks that both orders give the same output to the bit.
 
 **Floating point:** Felucca is compiled for the compiler's generic pi32v2 core, where `float` becomes a call to a
 software routine that the firmware does not link. JieLi's SDK compiles for `-mcpu=r3`, the AC79's core, with an FPU.
@@ -129,6 +139,6 @@ the DSP stays integer and CI no longer publishes an r3 build. Float in the audio
 interrupt (`hal/fm1_isr.S`) to save the FPU registers, which it does not.
 
 FM6 runs six voices on the device, so OPX has the same six-voice cap (`OPX_POLY`); on the device, six held OPX sine
-notes play without dropouts. The compiled render loops' cost is tracked by `tests/target_budget.py` (`opx_render` and
-`opx_loop_wave` in `tests/target_budget.txt`).
+notes play without dropouts. The compiled render loops' cost is tracked by `tests/target_budget.py` (`opx_op_*`, `opx_loop_*`,
+`opx_render` in `tests/target_budget.txt`).
 M2–M5 add work per sample, so each of them needs the device checked again with six voices held.

@@ -90,7 +90,7 @@ jobs:
             python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site
           fi
           python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site/dev   # this build's, always
-          python3 tools/dis_funcs.py build/felucca.dis opx_render opx_op_in opx_op_sine opx_op_tab opx_op_gen opx_op_noise opx_mix opx_loop_sine opx_table bench_sum \
+          python3 tools/dis_funcs.py build/felucca.dis opx_render opx_op_in opx_op_sine opx_op_tab opx_op_sqr opx_op_gen opx_noise_block opx_op_noise opx_mix opx_loop_sine opx_table bench_sum \
               bench_callee bench_math > _site/dev/disasm.txt || true   # (the compiled render loops, readable without the toolchain)
           mkdir -p _site/opx && cp web/opx/*.html _site/opx/
           mkdir -p _site/webapp/try && cp -R build/emu/. _site/webapp/try/
