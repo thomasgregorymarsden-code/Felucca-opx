@@ -38,8 +38,8 @@ dv_metal_mix 16
 slicer_track 557
 slice_render 436
 slc_rev 120
-opx_render 5493
-opx_loop_wave 2749
+opx_render 10644
+opx_loop_wave 2833
 opx_loop_sine 391
 opx_op_in 16
 opx_op_sine 26
@@ -49,7 +49,7 @@ opx_noise_block 99
 opx_op_gen 58
 opx_op_noise 8
 opx_mix 31
-opx_op_mode 549
+opx_op_mode 976
 opx_osc_block 47
 fm1_alnk0_irq 38871
 fm1_timer5_irq 35056
