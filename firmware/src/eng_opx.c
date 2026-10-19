@@ -45,6 +45,8 @@ enum { OPX_W_SIN, OPX_W_SIN12, OPX_W_SIN8, OPX_W_TRI, OPX_W_SAW, OPX_W_SAWHD, OP
        OPX_W_ASQR3, OPX_W_ATRI3, OPX_W_A12345, OPX_W_A12, OPX_W_A13, OPX_W_A14, OPX_W_A15, OPX_W_A16, OPX_W_A17,
        OPX_W_A18, OPX_W_NOISE_SH, OPX_W_WHITE, OPX_W_PINK, OPX_W_BLUE, OPX_NWAVE };
 #define OPX_W_NARROW 0x80u
+/* M2b: the operator modes (MODE p.43, the patch format's order) */
+enum { OPX_M_FM, OPX_M_RING, OPX_M_FILTER, OPX_M_FILTER_FM, OPX_M_FOLD, OPX_M_EFFECT, OPX_M_BYPASS, OPX_M_MUTE, OPX_NMODE };
 static const char *const N_OPX_WAVE[OPX_NWAVE + 1] = {
     "SIN", "SIN 12BIT", "SIN 8BIT", "TRI", "SAW", "SAW HD", "SQR", "SQR HD", "ADTV SAW3", "ADTV SQR3", "ADTV TRI3",
     "ADTV 12345", "ADTV 1+2", "ADTV 1+3", "ADTV 1+4", "ADTV 1+5", "ADTV 1+6", "ADTV 1+7", "ADTV 1+8", "NOISE S/H",
@@ -66,6 +68,11 @@ typedef struct {                 /* one operator: the patch format's fields (too
     uint8_t vel;                 /* LMOD VEL: level velocity sensitivity, 0..100 % */
     uint8_t wave;                /* M2: OPX_W_* (Waveform List p.84), 0 = SIN */
     uint8_t width;               /* M2: FM WIDTH, 0 = OFF, 1..99 % */
+    uint8_t mode;                /* M2b: OPX_M_* (MODE p.43) */
+    uint8_t ring_depth, ring_shape;               /* RING MOD: DEPTH SHAPE, % */
+    uint8_t fold_gain, fold_oscmix; int8_t fold_bias;   /* WAVE FOLDER: GAIN OSC MIX %, BIAS -100..100 % */
+    int8_t ktrk_low, ktrk_high;  /* KTRK (p.53): the slopes below / above CENTER, -100..100 % */
+    uint8_t ktrk_center, ktrk_lcrv, ktrk_hcrv;   /* CENTER (MIDI note 21..108), the curves (0 LIN, 1 EXP) */
 } opx_op_t;
 
 typedef struct {
@@ -221,6 +228,10 @@ typedef struct {
     uint8_t wv[OPX_NOP];         /* M2: the waveform (OPX_W_*), | OPX_W_NARROW with a WIDTH; 0 = a plain sine */
     uint32_t wr[OPX_NOP];        /* WIDTH: the phase's speed-up, Q16 (100 / WIDTH) */
     uint32_t wlim[OPX_NOP];      /* WIDTH: the phase where the wave ends (WIDTH % of a cycle), silent after */
+    uint8_t md[OPX_NOP];         /* M2b: the mode (OPX_M_*) */
+    int32_t mp[OPX_NOP][4];      /* M2b: the mode's values, ready for the samples (opx_mode_y) */
+    int8_t kl[OPX_NOP], kh[OPX_NOP];   /* KTRK: the slopes (%), CENTER, the curves (bit 0 low EXP, bit 1 high EXP) */
+    uint8_t kc[OPX_NOP], kcv[OPX_NOP];
     uint8_t nin[OPX_NOP];        /* inputs of op k: src[k][i] (0..5), amt[k][i] (Q15 of 100 %) */
     uint8_t src[OPX_NOP][OPX_NOP];
     int16_t amt[OPX_NOP][OPX_NOP];
@@ -232,6 +243,27 @@ static opx_rt_t opx_rt[NTRK];
 static const opx_patch_t *volatile opx_own[NTRK];
 #include "opx_patch.c"            /* the stored form, each track's patch, SLOT (OPX_OWN) */
 
+/* M2b: operator k's mode values for the samples (opx_mode_y): RING  mp 0 DEPTH, 1 SHAPE (Q15); WAVE FOLDER  mp 0 the
+ * input's gain (Q12: x1 at GAIN 0 .. x8 at 100 %: "higher values fold more times", the factor an assumption), 1 OSC
+ * MIX (Q15), 2 BIAS (Q15 of full scale) */
+static void opx_mode_build(const opx_op_t *o, opx_rt_t *r, uint32_t k)
+{
+    int32_t *mp = r->mp[k];
+    mp[0] = mp[1] = mp[2] = mp[3] = 0;
+    switch (r->md[k]) {
+    case OPX_M_RING:
+        mp[0] = clamp(o->ring_depth, 0, 100) * 32767 / 100;
+        mp[1] = clamp(o->ring_shape, 0, 100) * 32767 / 100;
+        break;
+    case OPX_M_FOLD:
+        mp[0] = 4096 + clamp(o->fold_gain, 0, 100) * 7 * 4096 / 100;
+        mp[1] = clamp(o->fold_oscmix, 0, 100) * 32767 / 100;
+        mp[2] = clamp(o->fold_bias, -100, 100) * 32767 / 100;
+        break;
+    default:
+        break;
+    }
+}
 static void opx_build(const track_t *t, opx_rt_t *r)
 {
     const opx_patch_t *pt = opx_own[(uint32_t)(t - trk) % NTRK];
@@ -307,7 +339,13 @@ static void opx_build(const track_t *t, opx_rt_t *r)
         r->vel[k] = (uint8_t)clamp(o->vel, 0, 100);
         r->wv[k] = (uint8_t)(o->wave < OPX_NWAVE ? o->wave : 0u);
         r->wr[k] = r->wlim[k] = 0;
-        if (o->width && o->width < 100u && r->wv[k] < OPX_W_NOISE_SH) {   /* (the noises have no width) */
+        r->md[k] = (uint8_t)(o->mode < OPX_NMODE ? o->mode : OPX_M_FM);
+        opx_mode_build(o, r, (uint32_t)k);
+        r->kl[k] = o->ktrk_low, r->kh[k] = o->ktrk_high, r->kc[k] = o->ktrk_center;
+        r->kcv[k] = (uint8_t)((o->ktrk_lcrv & 1u) | (o->ktrk_hcrv & 1u) << 1);
+        if (r->md[k] != OPX_M_FM)                      /* (FB and WIDTH: FM's; the others, the oscillator as it is) */
+            r->fbq[k] = 0;
+        if (o->width && o->width < 100u && r->wv[k] < OPX_W_NOISE_SH && r->md[k] == OPX_M_FM) {   /* (noises: no width) */
             r->wv[k] |= OPX_W_NARROW;
             r->wr[k] = (100u << 16) / o->width;
             r->wlim[k] = (uint32_t)(((uint64_t)o->width << 32) / 100u);
@@ -522,11 +560,12 @@ typedef struct {
     int32_t x, from, lvl;        /* the stage's progress, where it started, the level now (Q24) */
     uint8_t stage;
 } opx_eg_t;
-typedef struct {                 /* a sounding note: 232 bytes */
+typedef struct {                 /* a sounding note: 256 bytes */
     uint32_t ph[OPX_NOP];
     int32_t y[OPX_NOP], yp[OPX_NOP];   /* the last two outputs (Q15) */
     int32_t g[OPX_NOP];          /* the gain at the end of the last block (Q15) */
     int32_t vg[OPX_NOP];         /* velocity's factor on the level (Q15) */
+    int32_t kt[OPX_NOP];         /* M2b: KTRK's factor on the level for this note (Q15, up to x16) */
     opx_eg_t eg[OPX_NOP];
     opx_noise_t nz[OPX_NOP];     /* M2: the noise waveforms' state */
     int32_t dc;
@@ -583,6 +622,21 @@ static int32_t opx_eg_step(opx_eg_t *e, const opx_rt_t *r, uint32_t k)
     return e->lvl;
 }
 
+/* KTRK (p.53): operator k's level factor for a note (Q15): from CENTER down LOW's slope, up HIGH's; + raises the level
+ * away from CENTER, - lowers it. The manual gives no scale: here 100 % is 1 dB a semitone (LIN; 48 dB over four
+ * octaves), EXP the square of the distance over 48 semitones (gentle near CENTER: 3 dB an octave away, 48 dB four),
+ * -96 .. +24 dB. The level never goes past the operator's full scale (opx_render) */
+static int32_t opx_ktrk(const opx_rt_t *r, uint32_t k, uint32_t note)
+{
+    int32_t d = (int32_t)note - r->kc[k], sl = d < 0 ? r->kl[k] : r->kh[k], ex = d < 0 ? r->kcv[k] & 1 : r->kcv[k] >> 1 & 1;
+    int32_t db8;                                     /* dB x 256 */
+    d = d < 0 ? -d : d;
+    if (!sl || !d)
+        return 32768;
+    db8 = ex ? sl * d * d * 256 / (100 * 48) : sl * d * 256 / 100;
+    db8 = clamp(db8, -96 * 256, 24 * 256);
+    return fm6_exp2(db8 * 10885 - (9 << 24));          /* 2^(dB / 6.0206) x 2^15 (10885: 2^24 / (6.0206 x 256)) */
+}
 static void opx_note_on(track_t *t, voice_t *v)
 {
     opx_note_t *n = opx_note_of(t, v);
@@ -605,6 +659,7 @@ static void opx_note_on(track_t *t, voice_t *v)
         e->stage = OPX_ATK;
         /* LMOD VEL: at 100 % velocity 1 is silent, 127 full; linear in between */
         n->vg[k] = 32767 - (r->vel[k] * (127 - clamp(vel, 1, 127)) * 258 / 100);
+        n->kt[k] = opx_ktrk(r, (uint32_t)k, v->note);
     }
     if (fresh)
         n->dc = 0;
@@ -628,7 +683,7 @@ static int opx_done(track_t *t, voice_t *v)
         return 1;
     for (k = 0; k < OPX_NOP; k++) {
         const opx_eg_t *e = &n->eg[k];
-        if (!((r->out >> k) & 1u) || e->stage == OPX_DONE || !r->amp[k])
+        if (!((r->out >> k) & 1u) || e->stage == OPX_DONE || !r->amp[k] || r->md[k] == OPX_M_MUTE)
             continue;
         if (e->stage == OPX_SUS && !r->sus[k] && n->g[k] == 0)
             continue;
@@ -696,12 +751,92 @@ static void __attribute__((noinline)) opx_op_noise(opx_os_t *restrict o, const i
     OPX_OP_LOOP(nb[i]);
 }
 #undef OPX_OP_LOOP
+/* M2b: the modes other than FM. Their oscillator is not modulated (no FM, no FB, no WIDTH: those are FM's, MODE p.43):
+ * a block of it first (opx_osc_block, opx_obuf), then each sample through the mode with the operator's input m (its
+ * modulators' sum, as FM's) and its gain g (opx_mode_y):
+ *   RING MOD     the oscillator times the input, DEPTH the balance (100 %: the ring alone; 0 %: the oscillator alone),
+ *                SHAPE rectifies the input towards |m| (brighter)
+ *   WAVE FOLDER  the input, the oscillator at OSC MIX and BIAS, times GAIN's factor, folded back into full scale
+ *                (a triangle fold: every 2 x full scale over it, down again)
+ *   BYPASS       the input as it comes (the operator's level and envelope not applied: an assumption, the manual says
+ *                only that it helps editing); MUTE silence
+ *   FILTER, FILTER FM, EFFECT  (not yet: the oscillator, as a placeholder)
+ * Both orders (operator by operator, sample by sample) call opx_mode_y: the same output (opx_test) */
+static int32_t opx_obuf[OPX_NOP][CTL];         /* the oscillators of the operators not in FM (the audio ISR's) */
+static void __attribute__((noinline)) opx_osc_block(const opx_wsel_t *v, const int16_t *nb, uint32_t ph, uint32_t inc,
+                                                    int32_t *restrict os)
+{
+    uint32_t i;
+    const int16_t *t = v->t;
+    if (!t)
+        for (i = 0; i < CTL; i++)
+            os[i] = nb[i];
+    else if (v->sq)
+        for (i = 0; i < CTL; i++, ph += inc)
+            os[i] = opx_tab(t, v->sh, ph) - opx_tab(t, v->sh, ph + 0x80000000u);
+    else
+        for (i = 0; i < CTL; i++, ph += inc)
+            os[i] = opx_tab(t, v->sh, ph) & v->mk;
+}
+static inline __attribute__((always_inline)) int32_t opx_mode_y(uint32_t md, const int32_t *mp, int32_t os, int32_t m,
+                                                                 int32_t g)
+{
+    int32_t x;
+    switch (md) {
+    case OPX_M_RING: {
+        int32_t mm = clamp(m, -32767, 32767), ring;
+        mm += (((mm < 0 ? -mm : mm) - mm) * mp[1]) >> 15;   /* SHAPE: towards |m| */
+        ring = (os * mm) >> 15;
+        x = os + (((ring - os) * mp[0]) >> 15);
+        break;
+    }
+    case OPX_M_FOLD: {
+        uint32_t w;
+        x = clamp(m + ((os * mp[1]) >> 15) + mp[2], -262144, 262144);
+        x = (x * (mp[0] >> 4)) >> 8;                   /* GAIN: x1 .. x8 */
+        w = (uint32_t)(x + 32768) & 131071u;           /* the fold: a triangle of period 4 x full scale */
+        x = clamp((int32_t)(w < 65536u ? w : 131072u - w) - 32768, -32767, 32767);
+        break;
+    }
+    case OPX_M_BYPASS:
+        return clamp(m, -32767, 32767);
+    case OPX_M_MUTE:
+        return 0;
+    default:
+        x = os;
+    }
+    return (x * g) >> 15;
+}
+#define OPX_MODE_LOOP(MD)                                                                                          \
+    for (i = 0; i < CTL; i++) {                                                                                      \
+        yp = y;                                                                                                      \
+        y = opx_mode_y(MD, mp, os[i], mod[i], g);                                                                    \
+        g += dg;                                                                                                     \
+        yo[i] = y;                                                                                                   \
+    }                                                                                                                \
+    break
+static void __attribute__((noinline)) opx_op_mode(opx_os_t *restrict o, const int32_t *restrict mod,
+                                                  int32_t *restrict yo, const int32_t *restrict os, uint32_t md,
+                                                  const int32_t *restrict mp)
+{
+    uint32_t i;
+    int32_t y = o->y, yp = o->yp, g = o->g, dg = o->dg;
+    switch (md) {                                      /* (a loop per mode: the switch folds away in each) */
+    case OPX_M_RING: OPX_MODE_LOOP(OPX_M_RING);
+    case OPX_M_FOLD: OPX_MODE_LOOP(OPX_M_FOLD);
+    case OPX_M_BYPASS: OPX_MODE_LOOP(OPX_M_BYPASS);
+    case OPX_M_MUTE: OPX_MODE_LOOP(OPX_M_MUTE);
+    default: OPX_MODE_LOOP(OPX_M_FILTER);
+    }
+    o->y = y, o->yp = yp, o->g = g;
+}
+#undef OPX_MODE_LOOP
 /* the sample-by-sample order (opx_render, patches with a backward link): every operator each sample */
 static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *restrict r, int32_t *restrict out,
     const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
     const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const opx_wsel_t *tb,
-    const int16_t (*nb)[CTL], int waves)
+    const int16_t (*nb)[CTL], const int32_t (*os)[CTL], int waves)
 {
     uint32_t i, q;
     for (i = 0; i < CTL; i++) {
@@ -712,6 +847,15 @@ static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *re
             uint32_t p;
             for (c = 0; c < nin; c++)
                 mod += (r->amt[kk][c] * y[r->src[kk][c]]) >> 15;
+            if (waves && r->md[kk]) {                  /* (M2b: a mode other than FM) */
+                yp[kk] = y[kk];
+                y[kk] = opx_mode_y(r->md[kk], r->mp[kk], os[kk][i], mod, g[kk]);
+                g[kk] += dg[kk];
+                ph[kk] += inc[kk];
+                if ((heard >> kk) & 1u)
+                    mix += y[kk];
+                continue;
+            }
             p = ph[kk] + ((uint32_t)mod << 18) + (uint32_t)(((y[kk] + yp[kk]) >> 1) * fbq[kk]);
             s = waves ? opx_wave(r, kk, &tb[kk], p, nb[kk][i]) : sine_i(p);
             yp[kk] = y[kk];
@@ -733,15 +877,15 @@ static int32_t __attribute__((noinline)) opx_loop_sine(const opx_rt_t *restrict 
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
     const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc)
 {
-    return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, 0, 0, 0);
+    return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, 0, 0, 0, 0);
 }
 static int32_t __attribute__((noinline)) opx_loop_wave(const opx_rt_t *restrict r, int32_t *restrict out,
     const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
     const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const opx_wsel_t *tb,
-    const int16_t (*nb)[CTL])
+    const int16_t (*nb)[CTL], const int32_t (*os)[CTL])
 {
-    return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb, nb, 1);
+    return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb, nb, os, 1);
 }
 /* one input of an operator for the block: m = (first ? 0 : m) + amt x ys >> 15, sample by sample */
 static void __attribute__((noinline)) opx_op_in(int32_t *restrict m, const int32_t *restrict ys, int32_t amt,
@@ -796,7 +940,10 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
         if (!f)
             f = (uint32_t)(((uint64_t)((uint32_t)fm6_freq(lf + r->lg[k]) << 8) * r->fine[k]) >> 16);
         inc[k] = f;
-        g2 = (int32_t)(((int64_t)mulq15(r->amp[k], n->vg[k]) * lvl) >> 24);
+        g2 = mulq15(r->amp[k], n->vg[k]);
+        if (n->kt[k] != 32768)                       /* KTRK: never past full scale */
+            g2 = (int32_t)clamp((int32_t)(((int64_t)g2 * n->kt[k]) >> 15), 0, 32767);
+        g2 = (int32_t)(((int64_t)g2 * lvl) >> 24);
         if (mf != 32768 && !((heard >> k) & 1u))
             g2 = (int32_t)clamp((int32_t)(((int64_t)g2 * mf) >> 15), 0, 32767);
         g[k] = n->g[k];
@@ -821,7 +968,7 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     da = (mulq15(m->amp1, k) - a) >> CTL_LOG2;
     dc = n->dc;
     {   /* the samples: operator by operator, unless an operator takes a lower one's output (sample by sample) */
-        uint32_t wv = 0, back = 0, act = 0, c;
+        uint32_t wv = 0, back = 0, act = 0, c, mdx = 0;
         opx_wsel_t tb[OPX_NOP];
         int16_t nb[OPX_NOP][CTL];
         for (q = 0; q < nact; q++)
@@ -829,9 +976,11 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
         for (q = 0; q < nact; q++) {
             uint32_t kk = ord[q];
             wv |= r->wv[kk];
+            mdx |= r->md[kk];
             for (c = 0; c < r->nin[kk]; c++)
                 back |= r->src[kk][c] < kk && ((act >> r->src[kk][c]) & 1u);
         }
+        wv |= mdx;
         if (wv)
             for (q = 0; q < nact; q++) {
                 uint32_t kk = ord[q], w = r->wv[kk] & ~OPX_W_NARROW;
@@ -839,10 +988,12 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
                 opx_table(w, fi, &tb[kk]);
                 if (!tb[kk].t)
                     opx_noise_block(w, &n->nz[kk], ph[kk], inc[kk], nb[kk]);
+                if (r->md[kk])                         /* (M2b: the oscillator alone, for its mode) */
+                    opx_osc_block(&tb[kk], nb[kk], ph[kk], inc[kk], opx_obuf[kk]);
             }
         if (back || opx_sample_order) {
             dc = wv ? opx_loop_wave(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb,
-                                    (const int16_t (*)[CTL])nb)
+                                    (const int16_t (*)[CTL])nb, (const int32_t (*)[CTL])opx_obuf)
                     : opx_loop_sine(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc);
         } else {
             const int32_t *hp[OPX_NOP];
@@ -860,7 +1011,9 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
                 }
                 o.ph = ph[kk], o.inc = inc[kk], o.y = y[kk], o.yp = yp[kk], o.g = g[kk], o.dg = dg[kk];
                 o.fbq = fbq[kk];
-                if (!r->wv[kk])
+                if (r->md[kk])
+                    opx_op_mode(&o, mod, opx_ybuf[kk], opx_obuf[kk], r->md[kk], r->mp[kk]);
+                else if (!r->wv[kk])
                     opx_op_sine(&o, mod, opx_ybuf[kk]);
                 else if (!tb[kk].t)
                     opx_op_noise(&o, mod, opx_ybuf[kk], nb[kk]);

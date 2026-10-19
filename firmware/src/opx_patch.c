@@ -91,6 +91,17 @@ static void opx_decode(const uint8_t *pk, opx_patch_t *p)
         o->vel = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_LMOD_VEL));
         o->wave = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_WAVE));
         o->width = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FM_WIDTH));
+        o->mode = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_MODE));
+        o->ring_depth = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_RING_DEPTH));
+        o->ring_shape = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_RING_SHAPE));
+        o->fold_gain = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FOLD_GAIN));
+        o->fold_oscmix = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FOLD_OSCMIX));
+        o->fold_bias = (int8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FOLD_BIAS));
+        o->ktrk_low = (int8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_KTRK_LOW));
+        o->ktrk_high = (int8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_KTRK_HIGH));
+        o->ktrk_center = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_KTRK_CENTER));
+        o->ktrk_lcrv = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_KTRK_LCRV));
+        o->ktrk_hcrv = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_KTRK_HCRV));
         for (j = 0; j < OPX_NOP; j++)
             p->ua[k][j] = (uint8_t)opx_get(pk, opxf_ua(k, j));
         out |= (uint32_t)opx_get(pk, OPXF_UA_OUT(k)) << k;
@@ -122,6 +133,22 @@ static void opx_encode(const opx_patch_t *p, uint8_t *pk)
         opx_put(pk, OPXF_OP(k, OPXF_OP1_LMOD_VEL), o->vel);
         opx_put(pk, OPXF_OP(k, OPXF_OP1_WAVE), o->wave);
         opx_put(pk, OPXF_OP(k, OPXF_OP1_FM_WIDTH), o->width);
+        opx_put(pk, OPXF_OP(k, OPXF_OP1_MODE), o->mode);
+        if (o->mode == OPX_M_RING) {                  /* (a factory patch sets its mode's values; the rest: defaults) */
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_RING_DEPTH), o->ring_depth);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_RING_SHAPE), o->ring_shape);
+        } else if (o->mode == OPX_M_FOLD) {
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_FOLD_GAIN), o->fold_gain);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_FOLD_OSCMIX), o->fold_oscmix);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_FOLD_BIAS), o->fold_bias);
+        }
+        if (o->ktrk_center) {
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_KTRK_LOW), o->ktrk_low);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_KTRK_HIGH), o->ktrk_high);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_KTRK_CENTER), o->ktrk_center);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_KTRK_LCRV), o->ktrk_lcrv);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_KTRK_HCRV), o->ktrk_hcrv);
+        }
         for (j = 0; j < OPX_NOP; j++)
             opx_put(pk, opxf_ua(k, j), p->ua[k][j]);
         opx_put(pk, OPXF_UA_OUT(k), (int32_t)((p->ua_out >> k) & 1u));

@@ -541,7 +541,7 @@ static void test_orders(void)
 {
     static double y0[FS / 4], y1[FS / 4];
     uint32_t a, w, k, bad = 0, n = 0;
-    for (a = 0; a < OPX_NALG + 1u + OPX_NWAVE + 2u; a++) {
+    for (a = 0; a < OPX_NALG + 1u + OPX_NWAVE + 2u + 8u; a++) {
         memset(&P, 0, sizeof P);
         for (k = 0; k < 6u; k++) {
             P.op[k] = OP_FLAT;
@@ -556,6 +556,17 @@ static void test_orders(void)
         } else if (a == OPX_NALG) {                    /* USER: a forward chain and an upward link (2 -> 5) */
             P.algo = OPX_USER;
             P.ua[5][4] = 80, P.ua[4][0] = 60, P.ua[1][4] = 50, P.ua[3][3] = 30, P.ua_out = 0x09u;
+        } else if (a >= OPX_NALG + 1u + OPX_NWAVE + 2u) {   /* M2b: the modes, every operator, rotated; waves too */
+            w = a - (OPX_NALG + 1u + OPX_NWAVE + 2u);
+            P.algo = (uint8_t)(w < 4u ? 4 : w < 6u ? 0 : 31);   /* (5: pairs; 1: chains; 32: all heard) */
+            for (k = 0; k < 6u; k++) {
+                P.op[k].mode = (uint8_t)((k + w) % OPX_NMODE);
+                P.op[k].wave = (uint8_t)((k * 5u + w) % OPX_NWAVE);
+                P.op[k].ring_depth = (uint8_t)(60 + 8 * k), P.op[k].ring_shape = (uint8_t)(15 * k);
+                P.op[k].fold_gain = (uint8_t)(20 * k), P.op[k].fold_oscmix = 80, P.op[k].fold_bias = (int8_t)(10 * k - 25);
+                P.op[k].ktrk_center = 60, P.op[k].ktrk_low = (int8_t)(-30 + 10 * k), P.op[k].ktrk_high = (int8_t)(40 - 10 * k);
+                P.op[k].ktrk_lcrv = (uint8_t)(k & 1u), P.op[k].ktrk_hcrv = (uint8_t)(k >> 1 & 1u);
+            }
         } else {
             w = a - OPX_NALG - 1u;
             P.algo = 4;                                /* (algorithm 5: three pairs, no loop) */
@@ -578,9 +589,110 @@ static void test_orders(void)
     }
     {
         char what[120];
-        snprintf(what, sizeof what, "the operator order = the sample order, to the bit (%u patches: 40 algorithms, USER, 23 waves, WIDTH)", n);
+        snprintf(what, sizeof what, "the operator order = the sample order, to the bit (%u patches: 40 algorithms, USER, 23 waves, WIDTH, modes)", n);
         check(what, !bad);
     }
+}
+
+/* M2b: the operator modes (MODE p.43) and KTRK (p.53): operator 1 heard, operator 2 its modulator (algorithm 5's
+ * first pair), the others silent; C4 */
+static void mode_pair(uint32_t md, uint32_t ratio2, uint32_t lvl2, double *y, uint32_t n)
+{
+    uint32_t k;
+    memset(&P, 0, sizeof P);
+    P.algo = 4;
+    for (k = 0; k < 6u; k++)
+        P.op[k] = OP_FLAT, P.op[k].level = 0;
+    P.op[0].level = 100;
+    P.op[0].mode = (uint8_t)md;
+    P.op[1].level = (uint8_t)lvl2;
+    P.op[1].coarse = (uint8_t)(6 + ratio2);              /* (coarse 7 = 1) */
+    P.op[0].ring_depth = 100;
+    P.op[0].fold_oscmix = 100;
+    (void)n;
+}
+static void test_modes(void)
+{
+    static double y[FS / 2];
+    double f = 440.0 * pow(2.0, (60 - 69) / 12.0), h[6], l0, l1;
+    uint32_t i;
+    char what[160];
+#define MODE_H(n) (harm_db(y, FS / 4, 8192, (n) * f))
+    /* RING at DEPTH 100: sin(f) x sin(3f) = the sum and the difference, 2f and 4f; neither f nor 3f */
+    mode_pair(OPX_M_RING, 3, 100, y, 0);
+    setup(&P, 0);
+    engine_render(60, 127, y, FS / 2, 0, 0);
+    for (i = 1; i <= 4u; i++)
+        h[i] = MODE_H(i);
+    snprintf(what, sizeof what, "RING MOD 100 %%: 2f %.1f, 4f %.1f dB; f %.1f, 3f %.1f dB (the sum and difference only)",
+             h[2] - h[2], h[4] - h[2], h[1] - h[2], h[3] - h[2]);
+    check(what, fabs(h[4] - h[2]) < 1.0 && h[1] - h[2] < -40 && h[3] - h[2] < -40);
+    /* RING at DEPTH 0: the oscillator alone, whatever its input */
+    mode_pair(OPX_M_RING, 3, 100, y, 0);
+    P.op[0].ring_depth = 0;
+    setup(&P, 0);
+    engine_render(60, 127, y, FS / 2, 0, 0);
+    snprintf(what, sizeof what, "RING MOD 0 %%: the oscillator alone (3f %.0f dB under f)", MODE_H(1) - MODE_H(3));
+    check(what, MODE_H(3) - MODE_H(1) < -60);
+    /* WAVE FOLDER: GAIN 0 a full-scale sine unfolded; GAIN 100 folded (odd harmonics), BIAS: even ones too */
+    mode_pair(OPX_M_FOLD, 1, 0, y, 0);
+    setup(&P, 0);
+    engine_render(60, 127, y, FS / 2, 0, 0);
+    l0 = MODE_H(3) - MODE_H(1);
+    mode_pair(OPX_M_FOLD, 1, 0, y, 0);
+    P.op[0].fold_gain = 100;
+    setup(&P, 0);
+    engine_render(60, 127, y, FS / 2, 0, 0);
+    l1 = MODE_H(3) - MODE_H(1);
+    h[2] = MODE_H(2) - MODE_H(1);
+    snprintf(what, sizeof what, "WAVE FOLDER: 3rd harmonic GAIN 0 %.0f dB, GAIN 100 %.1f dB (folded); 2nd %.0f dB (no BIAS)", l0, l1, h[2]);
+    check(what, l0 < -50 && l1 > -20 && h[2] < -50);
+    P.op[0].fold_bias = 40;
+    setup(&P, 0);
+    engine_render(60, 127, y, FS / 2, 0, 0);
+    h[2] = MODE_H(2) - MODE_H(1);
+    snprintf(what, sizeof what, "WAVE FOLDER BIAS 40 %%: even harmonics (2nd %.1f dB)", h[2]);
+    check(what, h[2] > -30);
+    /* BYPASS: the input as it comes (the modulator at 3f, nothing at f); MUTE: silence */
+    mode_pair(OPX_M_BYPASS, 3, 100, y, 0);
+    setup(&P, 0);
+    engine_render(60, 127, y, FS / 2, 0, 0);
+    snprintf(what, sizeof what, "BYPASS: the modulator's 3f passes, f %.0f dB under it", MODE_H(1) - MODE_H(3));
+    check(what, MODE_H(1) - MODE_H(3) < -60);
+    mode_pair(OPX_M_MUTE, 3, 100, y, 0);
+    setup(&P, 0);
+    engine_render(60, 127, y, FS / 2, 0, 0);
+    l0 = 0;
+    for (i = 0; i < FS / 2; i++)
+        l0 += fabs(y[i]);
+    check("MUTE: silence", l0 == 0);
+    /* KTRK: LOW -100 % LIN, CENTER C4: an octave down 12 dB lower; EXP: 3 dB; HIGH +50 % LIN an octave up: +6 dB
+     * (operator 1 at LEVEL 50: room to rise) */
+    {
+        static const struct { int8_t lo, hi; uint8_t lc, hc, note; double want; const char *what; } KT[] = {
+            {-100, 0, 0, 0, 48, -12.0, "LOW -100 % LIN, an octave down"},
+            {-100, 0, 1, 0, 48, -3.0, "LOW -100 % EXP, an octave down"},
+            {0, 50, 0, 0, 72, 6.0, "HIGH +50 % LIN, an octave up"},
+            {0, -100, 0, 1, 84, -12.0, "HIGH -100 % EXP, two octaves up"},
+        };
+        uint32_t j;
+        for (j = 0; j < NELEM(KT); j++) {
+            double a, b;
+            mode_pair(OPX_M_FM, 1, 0, y, 0);
+            P.op[0].level = 80;
+            setup(&P, 0);
+            engine_render(KT[j].note, 127, y, FS / 4, 0, 0);
+            a = env_at(y, FS / 8);
+            P.op[0].ktrk_center = 60, P.op[0].ktrk_low = KT[j].lo, P.op[0].ktrk_high = KT[j].hi;
+            P.op[0].ktrk_lcrv = KT[j].lc, P.op[0].ktrk_hcrv = KT[j].hc;
+            setup(&P, 0);
+            engine_render(KT[j].note, 127, y, FS / 4, 0, 0);
+            b = env_at(y, FS / 8);
+            snprintf(what, sizeof what, "KTRK %s: %+.2f dB (want %+.1f)", KT[j].what, 20 * log10(b / a), KT[j].want);
+            check(what, fabs(20 * log10(b / a) - KT[j].want) < 0.3);
+        }
+    }
+#undef MODE_H
 }
 
 /* Felucca's macros MLVL FB MRAT DTUN (E3..E6) are off: they change nothing (OPX_FELUCCA_MACROS 0) */
@@ -823,6 +935,7 @@ int main(int argc, char **argv)
     test_reference();
     test_orders();
     test_macros_off();
+    test_modes();
     test_envelopes();
     test_feedback();
     test_velocity();

@@ -1649,20 +1649,20 @@ static int32_t ev_value(int32_t y, const char *v, const char *unit, uint16_t fg,
 #define XLR_Y(k) (1 + 15 * (int32_t)(k))                 /* 8 rows of 14 px, 1 px apart */
 static void graph_opxlist(const track_t *t, uint16_t c)
 {
-    uint32_t cur = xop_row(), top, i;
+    uint32_t cur = xop_row(), top, i, n = xop_n();
     int32_t row;
     graph_opx_left(t, c, 0, xop_sec_of(cur) == XS_ALGO ? 6u : fop_op % 6u);
     cv_rect(OPX_HALF, 6, 1, 110, T_RAISE);               /* (the rule between the halves) */
     xop_scroll();
     top = xop_top;
-    for (row = 0; row < (int32_t)XL_SHOW && top + (uint32_t)row < XL_N; row++) {
+    for (row = 0; row < (int32_t)XL_SHOW && top + (uint32_t)row < n; row++) {
         int32_t y = XLR_Y(row), ratio, x;
         const char *label, *unit;
         char val[16];
         int sel, on;
         uint16_t bg, fg;
         i = top + (uint32_t)row;
-        if ((row == 0 && top) || (row == (int32_t)XL_SHOW - 1 && i < XL_N - 1u)) {   /* rows hidden above / below */
+        if ((row == 0 && top) || (row == (int32_t)XL_SHOW - 1 && i < n - 1u)) {   /* rows hidden above / below */
             GFX_HOOK_ALIGN(0, y, 0, y + 14, AL_V, "list row text centred up/down");
             cv_text_on(XLR_X + 6, y + CAP_IN(S, 14), &AF_S, "...", T_DIM, T_SURF);
             continue;
