@@ -908,7 +908,7 @@ static inline void opx_svf_coef(opx_fc_t *c, uint32_t fc)
     c->a3 = (int32_t)(((int64_t)g * c->a2) >> 16);
 }
 /* operator k's filter for this block: its cutoff (the operator's step inc x CUTOFF's factor mp[2]), RESO (mp[3]) */
-static void opx_filt_block(opx_fc_t *c, const int32_t *mp, uint32_t inc, uint32_t fm)
+static void __attribute__((noinline)) opx_filt_block(opx_fc_t *c, const int32_t *mp, uint32_t inc, uint32_t fm)
 {
     uint64_t f = ((uint64_t)inc * (uint32_t)mp[2]) >> 15;
     c->type = (uint8_t)mp[0];
@@ -1004,7 +1004,7 @@ static uint32_t opx_fx_freq(uint32_t inc, int32_t st10)
     uint64_t f = ((uint64_t)inc * (uint32_t)fm6_exp2(clamp(st10, -500, 500) * 139810 - (9 << 24))) >> 15;
     return f > OPX_FCMAX ? OPX_FCMAX : f < 65536u ? 65536u : (uint32_t)f;
 }
-static void opx_fx_block(opx_ec_t *e, const int32_t *mp, uint32_t inc)
+static void __attribute__((noinline)) opx_fx_block(opx_ec_t *e, const int32_t *mp, uint32_t inc)
 {
     int32_t E = mp[2], F = mp[3], *c = e->c, g1;
     uint32_t f;
