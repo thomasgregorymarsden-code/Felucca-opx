@@ -23,7 +23,7 @@ FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_re
          "slicer_track",
          "slice_render", "slc_rev",                          # SLICE (eng_slice.c): the render, the reverse windows
          "opx_render", "opx_loop_sine", "opx_loop_wave",    # OPX (eng_opx.c, OPX fork): the setup; sample by sample (backward links);
-         "opx_op_in", "opx_op_sine", "opx_op_tab", "opx_op_sqr", "opx_noise_block", "opx_op_gen", "opx_op_noise", "opx_mix",   # .. operator by operator, the mix
+         "opx_op_in", "opx_op_sine", "opx_op_tab", "opx_op_sqr", "opx_noise_block", "opx_op_gen", "opx_op_noise", "opx_op_mode", "opx_osc_block", "opx_mix",   # .. operator by operator, the mix
          "fm1_alnk0_irq", "fm1_timer5_irq",               # the audio ISR; TIMER5: the key / LED scan (hal/fm1_input.h)
          "uac_tap48",                                       # the USB audio input at 48 kHz: the 44.1 -> 48 resampler (usb.c)
          "click_render",                                    # the metronome's click (click.c), while it sounds

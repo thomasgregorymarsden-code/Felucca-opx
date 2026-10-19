@@ -9,7 +9,7 @@ not to Felucca's authors, who did not write the OPX engine.
 
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
-![OPX on the FM-1: an algorithm chart, the USER matrix and the OPERATORS list](docs/opx-screens.png)
+![OPX on the FM-1: ALGO with a chart, the USER matrix, and OPERATORS with an FM and a FILTER operator](docs/opx-screens.png)
 
 - **Install:** connect the FM-1 by USB, open the [web installer](https://thomasgregorymarsden-code.github.io/Felucca-opx/)
   in Chrome or Edge and press Install. No extra hardware is needed. Read [Before you install](#before-you-install)
@@ -33,7 +33,7 @@ Installing custom firmware is at your own risk.
 - **User sample slot 3 holds 40 KB** (about 3.7 s) instead of 80 KB: the OPX patches use the other half. A longer
   sample already in slot 3 must be uploaded again, shorter or into slot 1 or 2. Slots 1 and 2 are unchanged.
 - **Not yet saved:** an OPX track's own patch in a user preset or in the editor's backup archive. A user preset keeps
-  the OPX sound's macros and SLOT, and comes back with that SLOT's factory patch. Projects and the autosave keep the
+  the OPX sound's ALG ATK DEC and SLOT, and comes back with that SLOT's factory patch. Projects and the autosave keep the
   patch.
 - **Kept when installing:** projects, user presets, samples, settings and MIDI LEARN assignments.
 - **Coming from an older Felucca:** Felucca's own warnings apply. Projects saved by 1.4 or later do not open on
@@ -42,9 +42,9 @@ Installing custom firmware is at your own risk.
 
 ## The OPX engine
 
-OPX is modelled on the opsix's FM mode: six operators per voice, routed by an algorithm, each with its own
-waveform, pitch, level and envelope. It plays up to six voices. The opsix's other operator modes, extra envelopes,
-LFOs, filter and effects are not implemented yet ([plan](docs/OPX_PLAN.md)).
+OPX is modelled on the opsix's operator section: six operators per voice, routed by an algorithm, each with its own
+mode, waveform, pitch, level, envelope and key tracking. It plays up to six voices. The opsix's extra envelopes,
+LFOs, main filter and effects are not implemented yet ([plan](docs/OPX_PLAN.md)).
 
 To use it, hold **EDIT** and press **A3**, the third white key from F3 (ANALOG, FM6, OPX, …; the layer's map shows
 them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD and X-MOD.
@@ -54,76 +54,74 @@ them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SA
 - **Algorithms:** the opsix's 40 (1–32 are the DX7's, 33–40 the opsix's own) and **USER**, a 6 × 6 matrix: how much
   each operator modulates each other one (0–100 %), its self feedback on the diagonal, and which operators are heard.
   Algorithms 4, 6 and 34 have a feedback loop across operators, set by **ALG FB**.
+- **Operator modes:** what an operator does with its oscillator and its input (the operators feeding it):
+  - **FM:** the input modulates the oscillator's phase; FB (self feedback) and WIDTH.
+  - **RING MOD:** the oscillator times the input; DEPTH (100 %: the ring alone, 0 %: the oscillator alone), SHAPE
+    (rectifies the input: brighter).
+  - **FILTER:** the input and the oscillator (OSC MIX) through a filter whose cutoff follows the operator's pitch;
+    TYPE (LPF, HPF, BPF, BRF, MG LPF12/24, MG HPF12/24, MG BPF6/12, MS-20 LPF/HPF), CUTOFF (±50 semitones), RESO.
+  - **FILTER FM:** the oscillator through the filter, the input moving its cutoff; TYPE, CUTOFF, RESO.
+  - **WAVE FOLDER:** the input and the oscillator (OSC MIX), with BIAS, folded back GAIN times.
+  - **EFFECT:** the input and the oscillator (OSC MIX) through one of ten effects with two values, E and F: PEAK EQ,
+    SHELV EQ, PHASER, SHORT DELAY, COMB, DIST, DRIVE, DEC (sample rate and bits), WAVESHAPER, PUNCH.
+  - **BYPASS:** the input passes as it is. **MUTE:** silent.
 - **Per operator:** RATIO (1/128 to 32) or a FIXED frequency, FINE, DTUN (cents), TRANS (semitones), LEVEL, an
-  ATK DEC SUS REL envelope with CURVE (LIN, 1–9, EXP), velocity to level (VEL), feedback (FB), a WAVE and its WIDTH.
+  ATK DEC SUS REL envelope with CURVE (LIN, 1–9, EXP), velocity to level (VEL), and **KTRK**: the level rising or
+  falling with the distance from a CENTER key, separately below (LOW) and above (HIGH), each LIN or EXP.
 - **Waveforms:** the opsix's 23: SIN, SIN 12BIT, SIN 8BIT, TRI, SAW, SAW HD, SQR, SQR HD, ADTV SAW3, ADTV SQR3,
   ADTV TRI3, ADTV 12345, ADTV 1+2 … 1+8 (the fundamental and one harmonic, like two organ drawbars), NOISE S/H
   (a random level held for each cycle of the operator), NOISE WHITE, PINK and BLUE. SAW and SQR are band-limited to
-  10 kHz, the HD versions to 20 kHz. **WIDTH** (OFF, 1–99 %) squeezes the whole wave into that part of each cycle and leaves
-  the rest silent. A noise ignores pitch, FM, FB and WIDTH.
+  10 kHz, the HD versions to 20 kHz. **WIDTH** (FM mode; OFF, 1–99 %) squeezes the whole wave into that part of each
+  cycle and leaves the rest silent. A noise ignores pitch, FM, FB and WIDTH.
 - **A patch** is all of that for six operators plus the algorithm. Each track has its own. SLOT F1–F7 loads a
   factory patch; editing any value makes it the track's own (**SLOT OWN**).
 
 ### The pages
 
-On an OPX track, EDIT goes **EDIT 1, EDIT 2, OPERATORS**, then VOICE, VOICE 2 and VOICE 3 as on every engine.
+On an OPX track, EDIT goes **ALGO, OPERATORS**, then VOICE, VOICE 2 and VOICE 3 as on every engine. Both OPX pages
+show the algorithm in the left half: a chart of square operator boxes for a preset algorithm, the matrix for USER.
 
-**EDIT 1 (ALGO)** shows the algorithm on the left and a small oscilloscope on the right. The scope shows two periods
-of the note the track is playing (or the last note played).
+**ALGO** has the opsix's HOME knobs (ALG, ATK, DEC) and SLOT, with a small oscilloscope in the right half. The scope
+shows two periods of the note the track is playing (or the last note played).
 
 | Knob | A preset algorithm | USER |
 |---|---|---|
 | 1 | ALG: PAT (the patch's own algorithm), 1–40, USR | ALG |
-| 2 | ATK | the matrix's row (the operator receiving, 1–6, then OUT) |
-| 3 | DEC | the column (the operator sending, 1–6) |
-| 4 | MLVL | the amount, 0–100 % (the diagonal: self feedback). On OUT: the operator's output level, 0–100, and below 0 OFF (not heard; turning up again restores its level) |
+| 2 | ATK: every operator's attack, shorter or longer | the matrix's row (the operator receiving, 1–6, then OUT) |
+| 3 | DEC: every operator's decay and release | the column (the operator sending, 1–6) |
+| 4 | SLOT: F1–F7 load a factory patch; OWN is the track's own | the amount, 0–100 % (the diagonal: self feedback). On OUT: the operator's output level, 0–100, and below 0 OFF (not heard; turning up again restores its level) |
 
-With a preset algorithm EDIT 1 draws its chart; with USER it draws the matrix, a dot per connection sized by its
-amount.
+ALG, ATK and DEC change the sound on top of the patch without changing it; automation and step locks reach them.
+HOME's four knobs on an OPX track are ALG, ATK, DEC and SLOT. (Felucca's FM6-style macros MLVL, FB, MRAT and DTUN
+are not part of the opsix and are switched off on OPX.)
 
-**EDIT 2 (MOD)** has FB, MRAT, DTUN and SLOT, with the same algorithm picture.
-
-**OPERATORS** lists every parameter of the selected operator, then the patch's own, in one scrolling list. The list
-moves up under the selection; "…" marks rows hidden above or below.
+**OPERATORS** lists the selected operator's parameters in the right half, in the opsix's page order, then the
+patch's own; the selected operator is highlighted in the chart. The list moves up under the selection; "…" marks
+rows hidden above or below.
 
 | Knob | Selects |
 |---|---|
 | 1 | the operator, 1–6 |
-| 2 | a section per click: PITCH, EG, OSC, USER, ALGO |
+| 2 | a section per click: MODE, PITCH, EG, KTRK, USER, ALGO |
 | 3 | the row |
-| 4 | the row's value |
+| 4 | the row's value (a list such as MODE, TYPE or FX: one step per click) |
 
 | Section | Rows |
 |---|---|
-| PITCH | MODE (RATIO / FIXED), RATIO (in FIXED mode FREQ, a semitone per click), FINE (in FIXED mode a cent per click), DTUN, TRANS |
+| MODE | MODE, WAVE (not on BYPASS or MUTE), then the mode's own: FB WIDTH (FM); DEPTH SHAPE (RING MOD); TYPE OSC MIX CUTOFF RESO (FILTER); TYPE CUTOFF RESO (FILTER FM); GAIN OSC MIX BIAS (WAVE FOLDER); FX OSC MIX and the effect's two values, named for it (EFFECT) |
+| PITCH | FREQ (RATIO / FIXED), RATIO (in FIXED: the frequency, a semitone per click), FINE (in FIXED a cent per click), DTUN, TRANS |
 | EG | LEVEL, ATK, DEC, SUS, REL, CURVE, VEL |
-| OSC | WAVE, FB, WIDTH (FB and WIDTH are dimmed on a noise) |
-| USER | TO OP1 … TO OP6: what this operator sends to each, as exact numbers (its own row reads "(SELF)" and is its self feedback); OUT, as on EDIT 1. Dimmed unless the track plays USER |
+| KTRK | LOW, CENTER, HIGH, L CRV, H CRV |
+| USER | TO OP1 … TO OP6: what this operator sends to each, as exact numbers (its own row reads "(SELF)" and is its self feedback); OUT, as on the matrix. Dimmed unless the track plays USER |
 | ALGO | ALG (the patch's algorithm), ALG FB |
 
 **SAVE held** undoes the last knob gesture, the patch and SLOT included; held again it redoes.
 
-### The macros
-
-The EDIT 1 and EDIT 2 knobs, apart from USER's matrix knobs, are macros: they change the sound on top of the patch
-without changing it. They are the OPX controls that automation, step locks and MIDI CC reach.
-
-| Macro | Effect |
-|---|---|
-| ALG | PAT plays the patch's algorithm; 1–40 or USR override it |
-| ATK, DEC | shorten or lengthen every operator's attack, and its decay and release |
-| MLVL | the level of the operators that are not heard (the modulators), ±24 dB: brighter or softer. MIDI CC74 |
-| FB | adds to every operator's feedback and to ALG FB. MIDI CC71 |
-| MRAT | moves the modulators' RATIO up or down by steps |
-| DTUN | spreads the heard operators apart in pitch, up to ±12.5 cents |
-| SLOT | F1–F7 load a factory patch; OWN is the track's own |
-
-HOME's four knobs on an OPX track are MLVL, FB, DEC and SLOT.
-
 ### How close to an opsix
 
-The algorithms, the matrix and the parameter ranges follow the opsix's Owner's Manual. The manual does not give the
-curves of LEVEL, envelope CURVE, velocity or the depth of modulation. Those are reasoned guesses
+The algorithms, the matrix, the modes and the parameter ranges follow the opsix's Owner's Manual. The manual does not
+give the curves of LEVEL, envelope CURVE, velocity or KTRK, the depth of modulation, or how the filters, folder and
+effects are built. Those are reasoned guesses
 ([listed here](docs/OPX_PLAN.md#assumptions-to-check-by-ear)), not measurements of an opsix. Patches cannot be
 exchanged with an opsix.
 
@@ -239,7 +237,7 @@ The pages by button:
 | GLO | SONG | the GLO layer (mutes, solos, levels, TAP tempo, D4: MIDI LEARN) |
 | SAVE | USER, PRESETS, PHRASES (the pattern loader), PROJECT, TOOLS | UNDO |
 | LFO | LFO, LFO 2, LFO DEST, MOD | MOMENTARY (with a knob) |
-| EDIT | EDIT 1, EDIT 2, VOICE, VOICE 2, VOICE 3 (FM6 adds OPERATOR, OP ENV, OPERATOR 2; OPX OPERATORS; DRUM LANES; SLICE SLICES; ANALOG FILTER) | the EDIT layer (the engines; on DRUM the black keys mute lanes) |
+| EDIT | EDIT 1, EDIT 2, VOICE, VOICE 2, VOICE 3 (FM6 adds OPERATOR, OP ENV, OPERATOR 2; OPX has ALGO and OPERATORS in place of EDIT 1 / 2; DRUM LANES; SLICE SLICES; ANALOG FILTER) | the EDIT layer (the engines; on DRUM the black keys mute lanes) |
 | FX, SCL, ENV, ARP | their pages (FX: INSERT and INSERT 2 after the SLICER) | FX and SCL: their layers |
 | REC | arms the track | the REC layer (CLEAR, CLICK, COUNT-IN, CLICK LEVEL) |
 

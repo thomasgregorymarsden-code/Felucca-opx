@@ -564,6 +564,10 @@ static void test_orders(void)
                 P.op[k].wave = (uint8_t)((k * 5u + w) % OPX_NWAVE);
                 P.op[k].ring_depth = (uint8_t)(60 + 8 * k), P.op[k].ring_shape = (uint8_t)(15 * k);
                 P.op[k].fold_gain = (uint8_t)(20 * k), P.op[k].fold_oscmix = 80, P.op[k].fold_bias = (int8_t)(10 * k - 25);
+                P.op[k].flt_type = (uint8_t)((k * 7u + w) % 12u), P.op[k].flt_reso = (uint8_t)(18 * k);
+                P.op[k].flt_cutoff = (int16_t)(120 * k - 300), P.op[k].flt_oscmix = 70;
+                P.op[k].fx_type = (uint8_t)((k * 3u + w) % 10u), P.op[k].fx_oscmix = 60;
+                P.op[k].fx_e = (uint16_t)(k * 40u + 10u), P.op[k].fx_f = (uint16_t)(k * 30u + 50u);
                 P.op[k].ktrk_center = 60, P.op[k].ktrk_low = (int8_t)(-30 + 10 * k), P.op[k].ktrk_high = (int8_t)(40 - 10 * k);
                 P.op[k].ktrk_lcrv = (uint8_t)(k & 1u), P.op[k].ktrk_hcrv = (uint8_t)(k >> 1 & 1u);
             }
@@ -690,6 +694,116 @@ static void test_modes(void)
             b = env_at(y, FS / 8);
             snprintf(what, sizeof what, "KTRK %s: %+.2f dB (want %+.1f)", KT[j].what, 20 * log10(b / a), KT[j].want);
             check(what, fabs(20 * log10(b / a) - KT[j].want) < 0.3);
+        }
+    }
+    /* FILTER (TYPE p.34), the operator's SAW (its harmonics at 1/n) through it, OSC MIX 100 %, no input: a harmonic
+     * against another, the slopes and the cutoff placed as the types' responses give them (SVF -6 dB at the cutoff at
+     * RESO 0, 12 dB / octave; the ladder -3 dB a stage). RESO: the harmonic at the cutoff lifted (against RESO 0) */
+    {
+        static const struct { uint8_t type; int16_t cut; uint8_t reso; uint32_t ha, hb; double lo, hi; const char *what; } FT[] = {
+            {0, 0, 0, 4, 1, -36, -25, "LPF at the 1st: the 4th under the 1st"},
+            {5, 0, 0, 4, 1, -62, -42, "MG LPF24 at the 1st: the 4th under the 1st"},
+            {4, 0, 0, 4, 1, -40, -26, "MG LPF12 at the 1st: the 4th under the 1st"},
+            {1, 360, 0, 1, 8, -18, -8, "HPF at the 8th: the 1st under the 8th"},
+            {7, 360, 0, 1, 8, -75, -35, "MG HPF24 at the 8th: the 1st under the 8th"},
+            {10, 0, 0, 4, 1, -36, -25, "MS-20 LPF at the 1st: the 4th under the 1st"},
+            {11, 360, 0, 1, 8, -18, -8, "MS-20 HPF at the 8th: the 1st under the 8th"},
+            {2, 240, 0, 4, 1, -8, -3, "BPF at the 4th: the 4th (-12) against the 1st (-6.5)"},
+            {3, 240, 0, 4, 2, -100, -40, "BRF at the 4th: the 4th notched"},
+            {8, 240, 0, 4, 1, -6, 6, "MG BPF6 at the 4th: the 4th against the 1st"},
+            {9, 240, 0, 4, 1, -3, 5, "MG BPF12 at the 4th: the 4th (-12) against the 1st (-13)"},
+            {0, 240, 90, 4, 0, 8, 20, "LPF at the 4th, RESO 90 %: the 4th lifted"},
+            {5, 240, 90, 4, 0, 8, 25, "MG LPF24 at the 4th, RESO 90 %: the 4th lifted"},
+            {10, 240, 90, 4, 0, 8, 25, "MS-20 LPF at the 4th, RESO 90 %: the 4th lifted"},
+        };
+        uint32_t j;
+        for (j = 0; j < NELEM(FT); j++) {
+            double d = 0;
+            uint32_t pass;
+            for (pass = 0; pass < (FT[j].hb ? 1u : 2u); pass++) {   /* (hb 0: the same harmonic, RESO against RESO 0) */
+                mode_pair(OPX_M_FILTER, 1, 0, y, 0);
+                P.op[0].wave = OPX_W_SAW;
+                P.op[0].flt_type = FT[j].type, P.op[0].flt_cutoff = FT[j].cut, P.op[0].flt_reso = pass ? 0 : FT[j].reso;
+                P.op[0].flt_oscmix = 100;
+                setup(&P, 0);
+                engine_render(60, 127, y, FS / 2, 0, 0);
+                d = FT[j].hb ? MODE_H(FT[j].ha) - MODE_H(FT[j].hb) : pass ? d - MODE_H(FT[j].ha) : MODE_H(FT[j].ha);
+            }
+            snprintf(what, sizeof what, "FILTER %s: %.1f dB (%.0f .. %.0f)", FT[j].what, d, FT[j].lo, FT[j].hi);
+            check(what, d >= FT[j].lo && d <= FT[j].hi);
+        }
+        /* FILTER FM: the input (a sine at 3f) moves the cutoff: the spectrum differs from no input's; no blow-up */
+        {
+            double a3, b3, pk = 0;
+            mode_pair(OPX_M_FILTER_FM, 3, 0, y, 0);
+            P.op[0].wave = OPX_W_SAW, P.op[0].flt_type = 5, P.op[0].flt_reso = 50;
+            setup(&P, 0);
+            engine_render(60, 127, y, FS / 2, 0, 0);
+            a3 = MODE_H(2) - MODE_H(1);
+            P.op[1].level = 100;
+            setup(&P, 0);
+            engine_render(60, 127, y, FS / 2, 0, 0);
+            b3 = MODE_H(2) - MODE_H(1);
+            for (i = 0; i < FS / 2; i++)
+                pk = fmax(pk, fabs(y[i]));
+            snprintf(what, sizeof what, "FILTER FM: the input moves the cutoff (2nd harmonic %.1f dB without, %.1f with; peak %.0f)", a3, b3, pk);
+            check(what, fabs(a3 - b3) > 1.0 && pk < 65536.0);
+        }
+    }
+    /* EFFECT (FX p.34): the operator's SAW (or SIN) through each, against the effect's neutral settings */
+    {
+        static const struct { uint8_t type, wave; uint16_t e, f, e0, f0; uint32_t h; double lo, hi; const char *what; } XT[] = {
+            {0, OPX_W_SAW, 740, 360, 740, 180, 4, 15, 20, "PEAK EQ at the 4th, +18 dB: the 4th lifted"},
+            {0, OPX_W_SAW, 740, 0, 740, 180, 4, -20, -12, "PEAK EQ at the 4th, -18 dB: the 4th cut"},
+            {1, OPX_W_SAW, 300, 180, 180, 180, 1, 5, 12, "SHELV EQ LOW +12 dB: the 1st (262 Hz) lifted"},
+            {1, OPX_W_SAW, 180, 300, 180, 180, 32, 8, 13, "SHELV EQ HIGH +12 dB: the 32nd (8.4 kHz) lifted"},
+            {5, OPX_W_SIN, 100, 180, 0, 180, 3, 30, 200, "DIST 100 %: a 3rd harmonic from a sine"},
+            {6, OPX_W_SIN, 100, 180, 0, 180, 3, 12, 200, "DRIVE 100 %: the 3rd harmonic up (DRIVE 0 already rounds a full-scale sine)"},
+            {7, OPX_W_SIN, 200 - 200, 2200, 25400, 2200, 3, 20, 200, "DEC FREQ 2.00: held twice a period, harmonics"},
+            {8, OPX_W_SIN, 40, 0, 0, 0, 3, 12, 200, "WAVESHAPER TYPE 40: the 3rd harmonic up (against TYPE 0)"},
+        };
+        uint32_t j, pass;
+        for (j = 0; j < NELEM(XT); j++) {
+            double d = 0;
+            for (pass = 0; pass < 2u; pass++) {
+                mode_pair(OPX_M_EFFECT, 1, 0, y, 0);
+                P.op[0].wave = XT[j].wave, P.op[0].fx_type = XT[j].type, P.op[0].fx_oscmix = 100;
+                P.op[0].fx_e = pass ? XT[j].e0 : XT[j].e, P.op[0].fx_f = pass ? XT[j].f0 : XT[j].f;
+                setup(&P, 0);
+                engine_render(60, 127, y, FS / 2, 0, 0);
+                d = pass ? d - (MODE_H(XT[j].h) - MODE_H(1) * (XT[j].h != 1u)) : MODE_H(XT[j].h) - MODE_H(1) * (XT[j].h != 1u);
+            }
+            snprintf(what, sizeof what, "EFFECT %s: %+.1f dB (%.0f .. %.0f)", XT[j].what, d, XT[j].lo, XT[j].hi);
+            check(what, d >= XT[j].lo && d <= XT[j].hi);
+        }
+        /* COMB at the pitch, FB +90 %: the harmonics reinforced (the level up); every type at its extremes: bounded */
+        {
+            double a1, b1, pk = 0;
+            uint32_t ty, ex;
+            mode_pair(OPX_M_EFFECT, 1, 0, y, 0);
+            P.op[0].wave = OPX_W_SAW, P.op[0].fx_type = 4, P.op[0].fx_oscmix = 50, P.op[0].fx_e = 500, P.op[0].fx_f = 100;
+            setup(&P, 0);
+            engine_render(60, 127, y, FS / 2, 0, 0);
+            a1 = MODE_H(1);
+            P.op[0].fx_f = 190;
+            setup(&P, 0);
+            engine_render(60, 127, y, FS / 2, 0, 0);
+            b1 = MODE_H(1);
+            snprintf(what, sizeof what, "EFFECT COMB at the pitch, FB +90 %%: the 1st %+.1f dB (resonant)", b1 - a1);
+            check(what, b1 - a1 > 6);
+            for (ty = 0; ty < 10u; ty++)
+                for (ex = 0; ex < 4u; ex++) {
+                    mode_pair(OPX_M_EFFECT, 3, 100, y, 0);
+                    P.op[0].wave = OPX_W_SQR, P.op[0].fx_type = (uint8_t)ty, P.op[0].fx_oscmix = 100;
+                    P.op[0].fx_e = (uint16_t)(ex & 1u ? OPX_FXV[ty][1] - OPX_FXV[ty][0] : 0);
+                    P.op[0].fx_f = (uint16_t)(ex & 2u ? OPX_FXV[ty][3] - OPX_FXV[ty][2] : 0);
+                    setup(&P, 0);
+                    engine_render(36 + 12 * ex, 127, y, FS / 4, 0, 0);
+                    for (i = 0; i < FS / 4; i++)
+                        pk = fmax(pk, fabs(y[i]));
+                }
+            snprintf(what, sizeof what, "EFFECT: every type at the ends of E and F, low to high notes: bounded (peak %.0f)", pk);
+            check(what, pk < 131072.0);
         }
     }
 #undef MODE_H

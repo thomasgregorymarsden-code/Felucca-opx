@@ -14,7 +14,7 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M1.5 | Operator editing on the device (algorithm charts, USER matrix, OPERATORS list, scope); each track's patch kept in the stored format; saved with projects and the autosave | done |
 | | **First release, `0.0.1`: M0, M1 and M1.5** | |
 | M2a | The 23 waveforms and WIDTH; the renderer an operator at a time | done (device cost: see [Cost](#cost)) |
-| M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | |
+| M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | done (device cost to be measured; SHORT DELAY limited to 17 ms, see below) |
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | |
 | M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |
 | M5 | Main filter, effects 1–3, virtual patch, as far as the processor time allows | |
@@ -43,28 +43,52 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
   - Assumptions: WIDTH squeezes the cycle into its first WIDTH % and is silent after (from the manual's pictures);
     HD means more high harmonics (the manual says "richer high-end overtones"); BLUE is pink noise's difference (+9 dB
     over 4 octaves, short of +12 near Nyquist).
+- **Operator modes (M2b)** (`eng_opx.c` `opx_mode_y`): a mode other than FM takes its oscillator unmodulated (FB and
+  WIDTH are FM's only, MODE p.43), made a block at a time, and its input, the sum of the operators feeding it, sample by
+  sample. RING MOD multiplies them (DEPTH the balance, SHAPE rectifies the input); WAVE FOLDER sums the input, the
+  oscillator at OSC MIX and BIAS, multiplies by 1–8 (GAIN) and folds back into full scale; BYPASS passes the input
+  as it is (without the operator's level or envelope); MUTE is silent. Both render orders call the same code, and
+  `opx_test` checks them equal to the bit with every mode on every operator.
+  - **FILTER / FILTER FM** (`opx_filt`): the cutoff follows the operator's pitch, CUTOFF semitones from it, at most
+    0.45 fs. LPF HPF BPF BRF are a trapezoidal state-variable filter (12 dB/octave); MG LPF12/24, HPF12/24, BPF6/12 a
+    ladder of four trapezoidal one-poles with feedback from the last, its outputs mixed for each response; MS-20 the
+    state-variable filter with its resonance limited in the loop (a rough likeness). RESO goes up to
+    self-oscillation. FILTER FM moves the cutoff ±4 octaves at a full-scale input. The coefficients come from tables
+    made by the build (no floating point on the device).
+  - **EFFECT** (`opx_fx`): PEAK EQ (a biquad, Q 1), SHELV EQ (first-order shelves at 250 Hz and 4 kHz), PHASER (four
+    all-passes with feedback), SHORT DELAY and COMB (the voice's own delay line), DIST (hard clip, ×1–50), DRIVE
+    (cubic soft clip, ×1–10), DEC (sample-and-hold at FREQ × the pitch, whole bits), WAVESHAPER (60 sine shapers of
+    rising strength: the 01/W's tables are not published), PUNCH (a fast against a slow envelope lifts the attack).
+    Memory: each voice has one delay line of 784 samples after its part's six notes (`OPX_DLY`), so SHORT DELAY's
+    TIME stops at 17 ms (the manual's 300 ms do not fit the FM-1's RAM), COMB reaches down to 57 Hz, and only one
+    operator per voice gets the line (the first to run in SHORT DELAY or COMB; another plays dry).
+- **KTRK (M2b)**: the level rises (+) or falls (−) with the distance from CENTER, LOW below it and HIGH above;
+  LIN is 1 dB a semitone at 100 %, EXP the square of the distance over 48 semitones; −96 to +24 dB, and never past
+  the operator's full scale. Worked out at note-on.
 - **Self-feedback** uses the mean of the operator's last two outputs (as the DX7 does), and is linear in FB: 100 % gives 2 rad. At 75 % the harmonics come out within 3 dB of a sawtooth's, which matches the manual's description.
 
 ## The device pages (M1.5): where the code is
 
 | Page | Code | Tests |
 |---|---|---|
-| EDIT 1 / EDIT 2: the algorithm chart (1–40: FM6's layouts for 1–32, `OPX_CELL` for 33–40), the USER matrix, the small scope | `ui_graph.c` `graph_opx_algo`, `graph_opx_chart`, `graph_opx_matrix`, `graph_scope_mini`; the matrix's knobs `ui_fm6op.c` `xmat_*` | `tests/ui_test.c` `test_opx_ops`; `tests/ui_render.c` `opx_*` screens and every chart |
-| OPERATORS: one 24-row rolling list (PITCH, EG, OSC, USER, ALGO) | `ui_fm6op.c` `xop_*` (the rows: `XL[]`), `ui_graph.c` `graph_opxlist` | the same |
+| ALGO (in place of EDIT 1 / 2 on OPX): the algorithm chart (1–40: FM6's layouts for 1–32, `OPX_CELL` for 33–40; square boxes, the left half), the USER matrix, the small scope | `ui_graph.c` `graph_opx_algo`, `graph_opx_chart`, `graph_opx_matrix`, `graph_scope_mini`; the matrix's knobs `ui_fm6op.c` `xmat_*` | `tests/ui_test.c` `test_opx_ops`; `tests/ui_render.c` `opx_*` screens and every chart |
+| OPERATORS: the operator's rolling list (MODE, PITCH, EG, KTRK, USER, ALGO; MODE's rows by its mode), the chart or matrix in the left half | `ui_fm6op.c` `xop_*` (the rows: `xop_list`), `ui_graph.c` `graph_opxlist`, `graph_opx_left` | the same |
 | Editing a field, OWN, undo | `opx_patch.c` `opx_edit`, `opx_poll`; `ui.c` (the undo snapshot keeps the patch and SLOT) | the same |
 
 Notes for changing them:
 
-- **The list's rows** are kinds (`XR_*`) in `XL[]`; `xop_rowf` maps a row to its field for the selected operator. The
-  USER rows start at `XL_TO0`; `TO OPn` is `opxf_ua(op, n - 1)`, the operator's own row its self feedback.
+- **The list's rows** are kinds (`XR_*`) that `xop_list` builds for the selected operator (its MODE section by its
+  mode); `xop_rowf` maps a row to its field, `xop_find` a kind to its row. `TO OPn` is `opxf_ua(op, n - 1)`, the
+  operator's own row its self feedback. E and F of EFFECT take the effect type's names, units and range (`OPX_FXV`);
+  picking another FX sets them to its neutral values.
 - **OUT** on the matrix and in the list is one control, `xop_out` / `xop_out_turn`: the operator's LEVEL while its
   OUT bit is set, OFF (the bit clear, LEVEL kept) below 0.
 - **The scope's time scale** is two periods of the selected track's sounding pitch (its loudest voice, else the last
   note), one period below about 98 Hz, the buffer's 20 ms below about 49 Hz; triggered on a rising zero crossing.
 - **USER always plays the matrix**; one with no heard operator is silent, as on the opsix.
-- **The macros** (EDIT 1 / 2: ALG ATK DEC MLVL, FB MRAT DTUN SLOT) apply on top of the patch at every block
-  (`eng_opx.c` `opx_build`). They are the OPX controls that automation, step locks and MIDI CC reach (CC74 MLVL,
-  CC71 FB: `midi_control.c` `MIDI_CC_ENG`); the patch's own fields are not.
+- **ALG ATK DEC** (the opsix's HOME, on ALGO) apply on top of the patch at every block (`eng_opx.c` `opx_build`);
+  automation and step locks reach them, the patch's own fields not. Felucca's FM6-style macros MLVL FB MRAT DTUN
+  (E3..E6) are off on OPX (`OPX_FELUCCA_MACROS`): not read, not shown (`ui.c` `page_visible`), no MIDI CC.
 
 ## What is stored
 
@@ -90,6 +114,12 @@ The manual gives no curve for these, so each is a reasonable guess:
 - **CURVE:** 10 is an exponential approach that reaches 2⁻¹⁰ by the end of the stage; 1–9 blend linearly between that and LIN.
 - **Velocity (LMOD VEL):** at 100 %, velocity 1 is silent and 127 is full, linear in between.
 - **FB parameter:** every operator has its own FB, and the self-loops drawn in the charts are informational only.
+- **The modes' depths:** WAVE FOLDER's GAIN ×1–8; FILTER FM ±4 octaves at a full-scale input; RING SHAPE as a blend
+  towards the rectified input; BYPASS without the operator's level.
+- **KTRK scale:** 100 % LIN = 1 dB a semitone; EXP the square of the distance over 48 semitones.
+- **Filters and effects:** how the opsix builds them is not published: the types are standard designs with the
+  manual's names and ranges (state-variable, ladder, biquad, shelves, all-passes); the WAVESHAPER's 60 tables are
+  sine shapers, not the 01/W's; SHELV EQ's corners (250 Hz, 4 kHz) and PEAK EQ's Q (1) are chosen.
 
 ## Cost
 

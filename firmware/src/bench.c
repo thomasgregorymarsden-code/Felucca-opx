@@ -22,7 +22,7 @@
 #endif
 #if FELUCCA_BENCH
 static volatile uint8_t bench_mute;                    /* audio.c: the ISR's halves are silence */
-#define BENCH_ROWS 40u
+#define BENCH_ROWS 48u
 enum { BR_HEAD, BR_PCT, BR_NS, BR_SUB };               /* a row: a heading (ALL ONE), a share of real time (permille),
                                                         * ns x 10, a sub-heading */
 static struct { char name[16]; uint8_t kind; uint16_t all, one; } bench_row[BENCH_ROWS];   /* (ui_menu.c draws them) */
@@ -301,6 +301,28 @@ static int bench_run(void)
         pm = bench_notes(idle);
         str_cpy(name, N_OPX_WAVE[w], sizeof name);
         bench_line(BR_PCT, name, pm, bench_one(pm));
+    }
+    bench_line(BR_SUB, "OPX, THE MODE ON ALL 6 OPS", 0, 0);   /* (M2b: SIN, the mode's values typical) */
+    {
+        static const struct { uint8_t md, type; char name[12]; } MD[] = {
+            {OPX_M_RING, 0, "RING MOD"}, {OPX_M_FOLD, 0, "WAVE FOLDER"}, {OPX_M_FILTER, 0, "FILTER LPF"},
+            {OPX_M_FILTER, 5, "FILTER MG24"}, {OPX_M_FILTER_FM, 0, "FILTER FM"}, {OPX_M_EFFECT, 0, "FX PEAK EQ"},
+            {OPX_M_EFFECT, 2, "FX PHASER"}, {OPX_M_EFFECT, 4, "FX COMB"}};
+        for (i = 0; i < NELEM(MD); i++) {
+            for (k = 0; k < OPX_NOP; k++) {
+                opx_op_t *o = &bench_px.op[k];
+                o->wave = OPX_W_SIN, o->mode = MD[i].md;
+                o->ring_depth = 100, o->ring_shape = 30, o->fold_gain = 50, o->fold_oscmix = 100;
+                o->flt_type = MD[i].type, o->flt_reso = 40, o->flt_oscmix = 100, o->flt_cutoff = 120;
+                o->fx_type = MD[i].type, o->fx_oscmix = 100, o->fx_e = 620, o->fx_f = 150;
+            }
+            bench_track(ENGI_OPX, 0);
+            opx_own[0] = &bench_px;
+            pm = bench_notes(idle);
+            bench_line(BR_PCT, MD[i].name, pm, bench_one(pm));
+        }
+        for (k = 0; k < OPX_NOP; k++)
+            bench_px.op[k].mode = OPX_M_FM;
     }
     bench_math();
 

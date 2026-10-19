@@ -8999,10 +8999,10 @@ static int test_bench(void)
     frame();
     ok &= ui.menu == 4 && bench_state >= 1u;
     frames(3);
-    ok &= bench_state == 3u && bench_n == 2u + 1u + 1u + 18u + 8u + 2u && !bench_mute;
+    ok &= bench_state == 3u && bench_n == 2u + 1u + 1u + 18u + 1u + 8u + 8u + 2u && !bench_mute;
     if (!ok)
         printf("ui: bench: menu %u state %u rows %u mute %u\n", ui.menu, bench_state, bench_n, bench_mute);
-    bad += check("bench: INFO, OCT+: RUNNING, then 32 rows (idle, heading, FM6, OPX heading and 18 waves, 4 branch / call, 4 loads, 2 MAC)", ok);
+    bad += check("bench: INFO, OCT+: RUNNING, then 41 rows (idle, heading, FM6, OPX heading and 18 waves, a heading and 8 modes, 4 branch / call, 4 loads, 2 MAC)", ok);
     ok = trk[0].eng_req == before.eng_req && trk[0].engine == before.engine &&
          !memcmp(trk[0].p, before.p, sizeof before.p) && !memcmp(fm6_patch[0], fm6p, sizeof fm6p) && opx_own[0] == own;
     for (i = 0; i < NVOICE; i++)
@@ -9212,6 +9212,7 @@ static int test_opx_ops(void)
         char val[16];
         int32_t r;
         uint32_t m, i;
+        int okm;
         go_title("OPERATORS"); frame();
         xo_set(EN_K1, 3, 10);                        /* OP 4 */
         ok = 1;
@@ -9240,9 +9241,30 @@ static int test_opx_ops(void)
         turn(EN_K4, 2);
         ok &= opx_get(opx_pk[tr], OPXF_OP(3, OPXF_OP1_MODE)) == OPX_M_FOLD && xop_kind(2) == XR_FGAIN;
         ok &= opx_own[tr] && opx_own[tr]->op[3].mode == OPX_M_FOLD;
+        okm = ok;                                    /* (the rows' result; the effect's below) */
+        ok = 1;
+        opx_edit(tr, OPXF_OP(3, OPXF_OP1_MODE), OPX_M_EFFECT);   /* EFFECT: FX, then E and F in the type's units */
+        xo_set(EN_K3, (int32_t)xop_find(XR_FX), 40);
+        xo_set(EN_K4, 0, 20);                        /* (PEAK EQ: E F at their neutral values) */
+        frames(1600);
+        turn(EN_K4, 3);                              /* SHORT DELAY */
+        ok &= opx_get(opx_pk[tr], OPXF_OP(3, OPXF_OP1_FX_TYPE)) == 3 && opx_get(opx_pk[tr], OPXF_OP(3, OPXF_OP1_FX_E)) == 9;
+        xop_rowtext(xop_find(XR_FXE), &lb, val, &u, &r);
+        ok &= str_eq(lb, "TIME") && str_eq(val, "10") && str_eq(u, "MS");
+        xo_set(EN_K3, (int32_t)xop_find(XR_FXE), 40);
+        frames(1600);
+        turn(EN_K4, 3000);
+        ok &= opx_get(opx_pk[tr], OPXF_OP(3, OPXF_OP1_FX_E)) == 299;   /* (300 ms: the type's top, not the field's) */
+        opx_edit(tr, OPXF_OP(3, OPXF_OP1_FX_TYPE), 0);
+        opx_edit(tr, OPXF_OP(3, OPXF_OP1_FX_E), 740), opx_edit(tr, OPXF_OP(3, OPXF_OP1_FX_F), 60);
+        xop_rowtext(xop_find(XR_FXE), &lb, val, &u, &r);
+        ok &= str_eq(lb, "FREQ") && str_eq(val, "+24.0") && str_eq(u, "ST");
+        xop_rowtext(xop_find(XR_FXF), &lb, val, &u, &r);
+        ok &= str_eq(lb, "GAIN") && str_eq(val, "-12.0") && str_eq(u, "DB");
         opx_edit(tr, OPXF_OP(3, OPXF_OP1_MODE), OPX_M_FM);
+        bad += check("OPX ops: EFFECT: another FX sets E F neutral; E F named and ranged by the type (TIME 1..300 MS, FREQ ST, GAIN DB)", ok);
         bad += check("OPX ops: MODE: each mode its rows (FM FB WIDTH .. EFFECT FX OSC MIX E F, BYPASS / MUTE no WAVE); "
-                     "CUTOFF -12.5 ST, TYPE MS-20 LPF, CENTER C4; MODE a detent each, the rows follow", ok);
+                     "CUTOFF -12.5 ST, TYPE MS-20 LPF, CENTER C4; MODE a detent each, the rows follow", okm);
     }
 
     /* USER: the matrix's values as numbers, a fixed list TO OP1..6 (the operator's own: "(SELF)"), OUT as the matrix's

@@ -97,6 +97,14 @@ static void opx_decode(const uint8_t *pk, opx_patch_t *p)
         o->fold_gain = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FOLD_GAIN));
         o->fold_oscmix = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FOLD_OSCMIX));
         o->fold_bias = (int8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FOLD_BIAS));
+        o->flt_type = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FLT_TYPE));
+        o->flt_reso = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FLT_RESO));
+        o->flt_oscmix = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FLT_OSCMIX));
+        o->flt_cutoff = (int16_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FLT_CUTOFF));
+        o->fx_type = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FX_TYPE));
+        o->fx_oscmix = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FX_OSCMIX));
+        o->fx_e = (uint16_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FX_E));
+        o->fx_f = (uint16_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_FX_F));
         o->ktrk_low = (int8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_KTRK_LOW));
         o->ktrk_high = (int8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_KTRK_HIGH));
         o->ktrk_center = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_KTRK_CENTER));
@@ -137,6 +145,16 @@ static void opx_encode(const opx_patch_t *p, uint8_t *pk)
         if (o->mode == OPX_M_RING) {                  /* (a factory patch sets its mode's values; the rest: defaults) */
             opx_put(pk, OPXF_OP(k, OPXF_OP1_RING_DEPTH), o->ring_depth);
             opx_put(pk, OPXF_OP(k, OPXF_OP1_RING_SHAPE), o->ring_shape);
+        } else if (o->mode == OPX_M_FILTER || o->mode == OPX_M_FILTER_FM) {
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_FLT_TYPE), o->flt_type);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_FLT_RESO), o->flt_reso);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_FLT_OSCMIX), o->flt_oscmix);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_FLT_CUTOFF), o->flt_cutoff);
+        } else if (o->mode == OPX_M_EFFECT) {
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_FX_TYPE), o->fx_type);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_FX_OSCMIX), o->fx_oscmix);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_FX_E), o->fx_e);
+            opx_put(pk, OPXF_OP(k, OPXF_OP1_FX_F), o->fx_f);
         } else if (o->mode == OPX_M_FOLD) {
             opx_put(pk, OPXF_OP(k, OPXF_OP1_FOLD_GAIN), o->fold_gain);
             opx_put(pk, OPXF_OP(k, OPXF_OP1_FOLD_OSCMIX), o->fold_oscmix);

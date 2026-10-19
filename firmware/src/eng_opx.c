@@ -36,6 +36,7 @@
 #ifndef OPX_FELUCCA_MACROS
 #define OPX_FELUCCA_MACROS 0     /* MLVL FB MRAT DTUN (E3..E6): Felucca's, not the opsix's; off */
 #endif
+#define OPX_DLY 784u             /* M2b: a voice's delay line (int16, SHORT DELAY / COMB), after the six notes in its part */
 #define OPX_POLY 6               /* engine_t.poly: as FM6, until the target's cost is measured */
 #define OPX_NOP 6
 #define OPX_NALG 40              /* preset algorithms; 40 = USER */
@@ -45,6 +46,13 @@ enum { OPX_W_SIN, OPX_W_SIN12, OPX_W_SIN8, OPX_W_TRI, OPX_W_SAW, OPX_W_SAWHD, OP
        OPX_W_ASQR3, OPX_W_ATRI3, OPX_W_A12345, OPX_W_A12, OPX_W_A13, OPX_W_A14, OPX_W_A15, OPX_W_A16, OPX_W_A17,
        OPX_W_A18, OPX_W_NOISE_SH, OPX_W_WHITE, OPX_W_PINK, OPX_W_BLUE, OPX_NWAVE };
 #define OPX_W_NARROW 0x80u
+/* M2b: the effects' E and F values (p.34): lo, hi of each, in the units the patch stores them (fx_e / fx_f = value -
+ * lo): PEAK EQ FREQ (0.1 semitone) GAIN (0.1 dB); SHELV EQ LOW HIGH (0.1 dB); PHASER FREQ, FB (%); SHORT DELAY TIME
+ * (ms) FB (%); COMB FREQ, FB (%); DIST DIST (%) LOW (0.1 dB); DRIVE DRIVE (%) LOW; DEC FREQ BIT (0.01); WAVESHAPER TYPE
+ * (0..59) DAMP (%); PUNCH PUNCH (%) HIGH (0.1 dB) */
+static const int16_t OPX_FXV[10][4] = {
+    {-500, 500, -180, 180}, {-180, 180, -180, 180}, {-500, 500, -100, 100}, {1, 300, 0, 100}, {-500, 500, -100, 100},
+    {0, 100, -180, 180}, {0, 100, -180, 180}, {200, 25600, 200, 2400}, {0, 59, 0, 100}, {0, 100, -180, 180}};
 /* M2b: the operator modes (MODE p.43, the patch format's order) */
 enum { OPX_M_FM, OPX_M_RING, OPX_M_FILTER, OPX_M_FILTER_FM, OPX_M_FOLD, OPX_M_EFFECT, OPX_M_BYPASS, OPX_M_MUTE, OPX_NMODE };
 static const char *const N_OPX_WAVE[OPX_NWAVE + 1] = {
@@ -71,6 +79,8 @@ typedef struct {                 /* one operator: the patch format's fields (too
     uint8_t mode;                /* M2b: OPX_M_* (MODE p.43) */
     uint8_t ring_depth, ring_shape;               /* RING MOD: DEPTH SHAPE, % */
     uint8_t fold_gain, fold_oscmix; int8_t fold_bias;   /* WAVE FOLDER: GAIN OSC MIX %, BIAS -100..100 % */
+    uint8_t flt_type, flt_reso, flt_oscmix; int16_t flt_cutoff;   /* FILTER (FM): TYPE, RESO OSC MIX %, CUTOFF x0.1 st */
+    uint8_t fx_type, fx_oscmix; uint16_t fx_e, fx_f;   /* EFFECT: FX, OSC MIX %, E F (OPX_FXV's, less lo) */
     int8_t ktrk_low, ktrk_high;  /* KTRK (p.53): the slopes below / above CENTER, -100..100 % */
     uint8_t ktrk_center, ktrk_lcrv, ktrk_hcrv;   /* CENTER (MIDI note 21..108), the curves (0 LIN, 1 EXP) */
 } opx_op_t;
@@ -245,7 +255,7 @@ static const opx_patch_t *volatile opx_own[NTRK];
 
 /* M2b: operator k's mode values for the samples (opx_mode_y): RING  mp 0 DEPTH, 1 SHAPE (Q15); WAVE FOLDER  mp 0 the
  * input's gain (Q12: x1 at GAIN 0 .. x8 at 100 %: "higher values fold more times", the factor an assumption), 1 OSC
- * MIX (Q15), 2 BIAS (Q15 of full scale) */
+ * MIX (Q15), 2 BIAS (Q15 of full scale); FILTER / FILTER FM: opx_filt_block's */
 static void opx_mode_build(const opx_op_t *o, opx_rt_t *r, uint32_t k)
 {
     int32_t *mp = r->mp[k];
@@ -254,6 +264,19 @@ static void opx_mode_build(const opx_op_t *o, opx_rt_t *r, uint32_t k)
     case OPX_M_RING:
         mp[0] = clamp(o->ring_depth, 0, 100) * 32767 / 100;
         mp[1] = clamp(o->ring_shape, 0, 100) * 32767 / 100;
+        break;
+    case OPX_M_FILTER:
+    case OPX_M_FILTER_FM:                            /* mp 0 TYPE, 1 OSC MIX (Q15), 2 CUTOFF's factor (Q15), 3 RESO (Q15) */
+        mp[0] = clamp(o->flt_type, 0, 11);
+        mp[1] = clamp(o->flt_oscmix, 0, 100) * 32767 / 100;
+        mp[2] = fm6_exp2(clamp(o->flt_cutoff, -500, 500) * 139810 - (9 << 24));   /* 2^(cutoff / 12), 0.1 semitone */
+        mp[3] = clamp(o->flt_reso, 0, 100) * 32767 / 100;
+        break;
+    case OPX_M_EFFECT:                               /* mp 0 FX, 1 OSC MIX (Q15), 2 E, 3 F (their units: OPX_FXV) */
+        mp[0] = clamp(o->fx_type, 0, 9);
+        mp[1] = clamp(o->fx_oscmix, 0, 100) * 32767 / 100;
+        mp[2] = OPX_FXV[mp[0]][0] + clamp(o->fx_e, 0, OPX_FXV[mp[0]][1] - OPX_FXV[mp[0]][0]);
+        mp[3] = OPX_FXV[mp[0]][2] + clamp(o->fx_f, 0, OPX_FXV[mp[0]][3] - OPX_FXV[mp[0]][2]);
         break;
     case OPX_M_FOLD:
         mp[0] = 4096 + clamp(o->fold_gain, 0, 100) * 7 * 4096 / 100;
@@ -560,18 +583,20 @@ typedef struct {
     int32_t x, from, lvl;        /* the stage's progress, where it started, the level now (Q24) */
     uint8_t stage;
 } opx_eg_t;
-typedef struct {                 /* a sounding note: 256 bytes */
+typedef struct {                 /* a sounding note: 540 bytes */
     uint32_t ph[OPX_NOP];
     int32_t y[OPX_NOP], yp[OPX_NOP];   /* the last two outputs (Q15) */
     int32_t g[OPX_NOP];          /* the gain at the end of the last block (Q15) */
     int32_t vg[OPX_NOP];         /* velocity's factor on the level (Q15) */
     int32_t kt[OPX_NOP];         /* M2b: KTRK's factor on the level for this note (Q15, up to x16) */
+    int32_t fs[OPX_NOP][5];      /* M2b: the operator filter's or effect's state (opx_filt, opx_fx) */
+    uint16_t dw;                 /* M2b: the voice's delay line (SHORT DELAY, COMB): where it writes next */
     opx_eg_t eg[OPX_NOP];
     opx_noise_t nz[OPX_NOP];     /* M2: the noise waveforms' state */
     int32_t dc;
     uint8_t live, down, rsv[2];
 } opx_note_t;
-ENG_MEM_FITS("OPX", sizeof(opx_note_t) * OPX_POLY);
+ENG_MEM_FITS("OPX", (sizeof(opx_note_t) + OPX_DLY * sizeof(int16_t)) * OPX_POLY);
 
 static opx_note_t *opx_note_of(track_t *t, voice_t *v)
 {
@@ -580,6 +605,11 @@ static opx_note_t *opx_note_of(track_t *t, voice_t *v)
         return 0;
     i = (uint32_t)(v - t->v);
     return i < OPX_POLY ? (opx_note_t *)ENG_MEM(t - trk) + i : 0;
+}
+/* voice v's delay line (SHORT DELAY, COMB): OPX_DLY samples after the part's six notes */
+static int16_t *opx_dline(track_t *t, voice_t *v)
+{
+    return (int16_t *)((opx_note_t *)ENG_MEM(t - trk) + OPX_POLY) + (uint32_t)(v - t->v) % OPX_POLY * OPX_DLY;
 }
 
 /* one block of operator k's envelope: its level at the block's end (Q24) */
@@ -652,6 +682,7 @@ static void opx_note_on(track_t *t, voice_t *v)
             n->y[k] = n->yp[k] = n->g[k] = 0;
             e->lvl = 0;
             memset(&n->nz[k], 0, sizeof n->nz[k]);   /* (M2: the noises from a seed of their own per operator) */
+            memset(n->fs[k], 0, sizeof n->fs[k]);   /* (M2b: the filters from rest) */
             n->nz[k].rng = 0x9E3779B9u * (uint32_t)(k + 1) + (uint32_t)v->note * 2654435761u;
         }
         e->from = e->lvl;                            /* a retrigger rises from where it is */
@@ -661,8 +692,11 @@ static void opx_note_on(track_t *t, voice_t *v)
         n->vg[k] = 32767 - (r->vel[k] * (127 - clamp(vel, 1, 127)) * 258 / 100);
         n->kt[k] = opx_ktrk(r, (uint32_t)k, v->note);
     }
-    if (fresh)
+    if (fresh) {
         n->dc = 0;
+        n->dw = 0;
+        memset(opx_dline(t, v), 0, OPX_DLY * sizeof(int16_t));   /* (M2b: no echo of an earlier note) */
+    }
     n->live = n->down = 1;
 }
 
@@ -751,6 +785,373 @@ static void __attribute__((noinline)) opx_op_noise(opx_os_t *restrict o, const i
     OPX_OP_LOOP(nb[i]);
 }
 #undef OPX_OP_LOOP
+/* M2b: the operator filter (FILTER, FILTER FM; TYPE p.34). Its cutoff follows the operator's pitch, CUTOFF semitones
+ * from it (-50.0 .. +50.0), at most 0.45 x 44.1 kHz; FILTER FM moves it with the operator's input, +-4 octaves at full
+ * scale (an assumption: the manual says only that the input modulates it). RESO 0..100 %, up to self-oscillation.
+ *   LPF HPF BPF BRF      a state-variable filter, 12 dB / octave (Zavalishin's trapezoidal one; BPF and BRF unity at
+ *                        the centre)
+ *   MG LPF12 .. MG BPF12 a ladder of four one-poles with feedback from the last (MG: the Moog-style one), the outputs
+ *                        mixed for the 12 / 24 dB low- and high-passes and the 6 / 12 dB band-passes
+ *   MS-20 LPF / HPF      the state-variable filter with its resonance limited in its loop (a rough MS-20 character)
+ * The coefficients: OPX_TAN (tan(pi f / fs), Q16) and OPX_G1 (the one-pole's tan / (1 + tan), Q14) over f / fs = i /
+ * 1024 (tools-made, read between their points); a block's (FILTER), each sample's (FILTER FM) */
+static const int32_t OPX_TAN[513] = {
+    0, 201, 402, 603, 804, 1005, 1207, 1408, 1609, 1810, 2011, 2213,
+    2414, 2615, 2817, 3018, 3220, 3421, 3623, 3825, 4026, 4228, 4430, 4632,
+    4834, 5036, 5239, 5441, 5644, 5846, 6049, 6252, 6455, 6658, 6861, 7064,
+    7268, 7471, 7675, 7879, 8083, 8287, 8492, 8696, 8901, 9106, 9311, 9516,
+    9721, 9927, 10133, 10339, 10545, 10751, 10958, 11165, 11372, 11579, 11786, 11994,
+    12202, 12410, 12618, 12827, 13036, 13245, 13454, 13664, 13874, 14084, 14295, 14506,
+    14717, 14928, 15140, 15352, 15564, 15776, 15989, 16202, 16416, 16630, 16844, 17058,
+    17273, 17489, 17704, 17920, 18136, 18353, 18570, 18787, 19005, 19223, 19442, 19661,
+    19880, 20100, 20320, 20541, 20762, 20983, 21205, 21427, 21650, 21873, 22097, 22321,
+    22546, 22771, 22997, 23223, 23449, 23676, 23904, 24132, 24360, 24590, 24819, 25049,
+    25280, 25511, 25743, 25975, 26208, 26442, 26676, 26911, 27146, 27382, 27618, 27855,
+    28093, 28331, 28570, 28810, 29050, 29291, 29533, 29775, 30018, 30261, 30506, 30751,
+    30996, 31243, 31490, 31738, 31986, 32236, 32486, 32736, 32988, 33240, 33494, 33748,
+    34002, 34258, 34514, 34772, 35030, 35289, 35548, 35809, 36071, 36333, 36596, 36861,
+    37126, 37392, 37659, 37927, 38196, 38465, 38736, 39008, 39281, 39555, 39829, 40105,
+    40382, 40660, 40939, 41219, 41500, 41782, 42066, 42350, 42636, 42923, 43210, 43500,
+    43790, 44081, 44374, 44668, 44963, 45259, 45557, 45856, 46156, 46457, 46760, 47064,
+    47369, 47676, 47984, 48294, 48605, 48917, 49231, 49546, 49863, 50181, 50501, 50822,
+    51145, 51469, 51795, 52122, 52451, 52782, 53114, 53448, 53784, 54121, 54460, 54801,
+    55144, 55488, 55834, 56182, 56532, 56883, 57237, 57592, 57950, 58309, 58670, 59033,
+    59398, 59766, 60135, 60506, 60880, 61255, 61633, 62013, 62395, 62780, 63167, 63556,
+    63947, 64341, 64737, 65135, 65536, 65939, 66345, 66754, 67165, 67578, 67994, 68413,
+    68835, 69259, 69686, 70116, 70548, 70984, 71422, 71864, 72308, 72755, 73206, 73659,
+    74116, 74576, 75039, 75505, 75974, 76447, 76924, 77404, 77887, 78374, 78864, 79358,
+    79856, 80357, 80863, 81372, 81885, 82402, 82923, 83448, 83977, 84510, 85047, 85589,
+    86135, 86686, 87241, 87801, 88365, 88934, 89508, 90086, 90670, 91258, 91852, 92450,
+    93054, 93663, 94277, 94897, 95523, 96154, 96791, 97433, 98082, 98736, 99396, 100063,
+    100736, 101415, 102101, 102794, 103493, 104199, 104911, 105631, 106358, 107092, 107834, 108583,
+    109340, 110105, 110877, 111658, 112447, 113244, 114050, 114864, 115687, 116519, 117361, 118211,
+    119071, 119941, 120820, 121710, 122609, 123519, 124440, 125371, 126314, 127267, 128232, 129209,
+    130198, 131198, 132211, 133237, 134276, 135327, 136393, 137471, 138564, 139671, 140793, 141929,
+    143081, 144248, 145432, 146631, 147847, 149080, 150330, 151598, 152884, 154189, 155512, 156855,
+    158218, 159601, 161005, 162430, 163878, 165347, 166840, 168356, 169896, 171460, 173051, 174667,
+    176309, 177979, 179677, 181404, 183161, 184948, 186766, 188616, 190499, 192416, 194368, 196356,
+    198380, 200443, 202544, 204686, 206870, 209096, 211366, 213681, 216043, 218454, 220914, 223426,
+    225990, 228610, 231286, 234021, 236817, 239675, 242598, 245588, 248648, 251780, 254986, 258270,
+    261634, 265082, 268617, 272241, 275959, 279774, 283691, 287713, 291845, 296091, 300457, 304947,
+    309568, 314324, 319222, 324269, 329472, 334837, 340374, 346089, 351993, 358095, 364405, 370934,
+    377693, 384696, 391956, 399487, 407305, 415428, 423872, 432658, 441808, 451344, 461292, 471678,
+    482534, 493892, 505787, 518259, 531352, 545112, 559593, 574854, 590958, 607979, 625997, 645102,
+    665398, 686999, 710035, 734656, 761030, 789353, 819850, 852780, 888450, 927215, 969499, 1015802,
+    1066730, 1123011, 1185539, 1255414, 1334016, 1423089, 1524877, 1642314, 1779314, 1941210, 2135471, 2372887,
+    2669641, 3051162, 3559834, 4271948, 5340086, 7120271, 10680573, 16777216, 16777216,
+};
+static const int16_t OPX_G1[513] = {
+    0, 50, 100, 149, 199, 248, 296, 345, 393, 440, 488, 535,
+    582, 629, 675, 721, 767, 813, 858, 903, 948, 993, 1037, 1082,
+    1126, 1169, 1213, 1256, 1299, 1342, 1384, 1427, 1469, 1511, 1553, 1594,
+    1636, 1677, 1718, 1758, 1799, 1839, 1879, 1919, 1959, 1999, 2038, 2077,
+    2116, 2155, 2194, 2232, 2271, 2309, 2347, 2385, 2423, 2460, 2497, 2535,
+    2572, 2609, 2645, 2682, 2718, 2755, 2791, 2827, 2863, 2898, 2934, 2969,
+    3004, 3040, 3075, 3109, 3144, 3179, 3213, 3248, 3282, 3316, 3350, 3384,
+    3418, 3451, 3485, 3518, 3551, 3584, 3617, 3650, 3683, 3716, 3748, 3781,
+    3813, 3846, 3878, 3910, 3942, 3974, 4005, 4037, 4068, 4100, 4131, 4163,
+    4194, 4225, 4256, 4287, 4317, 4348, 4379, 4409, 4440, 4470, 4500, 4531,
+    4561, 4591, 4621, 4651, 4680, 4710, 4740, 4769, 4799, 4828, 4858, 4887,
+    4916, 4945, 4974, 5003, 5032, 5061, 5090, 5118, 5147, 5176, 5204, 5232,
+    5261, 5289, 5317, 5346, 5374, 5402, 5430, 5458, 5486, 5514, 5541, 5569,
+    5597, 5624, 5652, 5680, 5707, 5734, 5762, 5789, 5816, 5844, 5871, 5898,
+    5925, 5952, 5979, 6006, 6033, 6060, 6087, 6113, 6140, 6167, 6193, 6220,
+    6247, 6273, 6300, 6326, 6352, 6379, 6405, 6431, 6458, 6484, 6510, 6536,
+    6563, 6589, 6615, 6641, 6667, 6693, 6719, 6745, 6771, 6796, 6822, 6848,
+    6874, 6900, 6925, 6951, 6977, 7003, 7028, 7054, 7079, 7105, 7131, 7156,
+    7182, 7207, 7233, 7258, 7284, 7309, 7334, 7360, 7385, 7411, 7436, 7461,
+    7487, 7512, 7537, 7562, 7588, 7613, 7638, 7663, 7689, 7714, 7739, 7764,
+    7790, 7815, 7840, 7865, 7890, 7915, 7941, 7966, 7991, 8016, 8041, 8066,
+    8091, 8117, 8142, 8167, 8192, 8217, 8242, 8267, 8293, 8318, 8343, 8368,
+    8393, 8418, 8443, 8469, 8494, 8519, 8544, 8569, 8594, 8620, 8645, 8670,
+    8695, 8721, 8746, 8771, 8796, 8822, 8847, 8872, 8897, 8923, 8948, 8973,
+    8999, 9024, 9050, 9075, 9100, 9126, 9151, 9177, 9202, 9228, 9253, 9279,
+    9305, 9330, 9356, 9381, 9407, 9433, 9459, 9484, 9510, 9536, 9562, 9588,
+    9613, 9639, 9665, 9691, 9717, 9743, 9769, 9795, 9821, 9848, 9874, 9900,
+    9926, 9953, 9979, 10005, 10032, 10058, 10084, 10111, 10137, 10164, 10191, 10217,
+    10244, 10271, 10297, 10324, 10351, 10378, 10405, 10432, 10459, 10486, 10513, 10540,
+    10568, 10595, 10622, 10650, 10677, 10704, 10732, 10760, 10787, 10815, 10843, 10870,
+    10898, 10926, 10954, 10982, 11010, 11038, 11067, 11095, 11123, 11152, 11180, 11208,
+    11237, 11266, 11294, 11323, 11352, 11381, 11410, 11439, 11468, 11497, 11526, 11556,
+    11585, 11615, 11644, 11674, 11704, 11733, 11763, 11793, 11823, 11853, 11884, 11914,
+    11944, 11975, 12005, 12036, 12067, 12097, 12128, 12159, 12190, 12221, 12253, 12284,
+    12316, 12347, 12379, 12410, 12442, 12474, 12506, 12538, 12571, 12603, 12636, 12668,
+    12701, 12734, 12767, 12800, 12833, 12866, 12899, 12933, 12966, 13000, 13034, 13068,
+    13102, 13136, 13171, 13205, 13240, 13275, 13309, 13344, 13380, 13415, 13450, 13486,
+    13521, 13557, 13593, 13629, 13666, 13702, 13739, 13775, 13812, 13849, 13887, 13924,
+    13961, 13999, 14037, 14075, 14113, 14152, 14190, 14229, 14268, 14307, 14346, 14385,
+    14425, 14465, 14505, 14545, 14585, 14626, 14666, 14707, 14748, 14790, 14831, 14873,
+    14915, 14957, 15000, 15042, 15085, 15128, 15171, 15215, 15258, 15302, 15347, 15391,
+    15436, 15481, 15526, 15571, 15617, 15663, 15709, 15755, 15802, 15849, 15896, 15944,
+    15991, 16039, 16088, 16136, 16185, 16235, 16284, 16334, 16383,
+};
+#define OPX_FCMAX 1932735283u                        /* 0.45 fs, Q32 */
+typedef struct {                 /* an operator's filter for a block (opx_filt_block) */
+    uint32_t fc0;                /* the cutoff, Q32 of fs */
+    int32_t a1, a2, a3, k;       /* the state-variable filter's (Q16) */
+    int32_t g1, kl;              /* the ladder's one-pole (Q14), its feedback (Q15) */
+    uint8_t type, fm;
+} opx_fc_t;
+static opx_fc_t opx_fcb[OPX_NOP];              /* (the audio ISR's) */
+static inline int32_t opx_tanq(uint32_t fc, int32_t *g1)
+{
+    uint32_t i = fc >> 22, fr = (fc >> 6) & 0xFFFFu;
+    *g1 = OPX_G1[i] + (int32_t)(((OPX_G1[i + 1u] - OPX_G1[i]) * (int32_t)fr) >> 16);
+    return OPX_TAN[i] + (int32_t)(((int64_t)(OPX_TAN[i + 1u] - OPX_TAN[i]) * fr) >> 16);
+}
+static inline void opx_svf_coef(opx_fc_t *c, uint32_t fc)
+{
+    int32_t g = opx_tanq(fc, &c->g1);
+    uint32_t den = 65536u + (uint32_t)(((int64_t)g * (g + c->k)) >> 16);
+    c->a1 = (int32_t)(0xFFFFFFFFu / den);             /* 1 / (1 + g (g + k)), Q16 */
+    c->a2 = (int32_t)(((int64_t)g * c->a1) >> 16);
+    c->a3 = (int32_t)(((int64_t)g * c->a2) >> 16);
+}
+/* operator k's filter for this block: its cutoff (the operator's step inc x CUTOFF's factor mp[2]), RESO (mp[3]) */
+static void opx_filt_block(opx_fc_t *c, const int32_t *mp, uint32_t inc, uint32_t fm)
+{
+    uint64_t f = ((uint64_t)inc * (uint32_t)mp[2]) >> 15;
+    c->type = (uint8_t)mp[0];
+    c->fm = (uint8_t)fm;
+    c->fc0 = f > OPX_FCMAX ? OPX_FCMAX : (uint32_t)f;
+    c->k = 131072 - (int32_t)((int64_t)mp[3] * 128450 >> 15);   /* 2 .. 0.04 (Q16) */
+    c->kl = (int32_t)((int64_t)mp[3] * 127139 >> 15);  /* the ladder: 0 .. 3.88 (Q15) */
+    opx_svf_coef(c, c->fc0);
+}
+/* one sample x through operator k's filter (its state st[5]); m: its input (FILTER FM's cutoff) */
+static inline int32_t opx_filt(opx_fc_t *c, int32_t *st, int32_t x, int32_t m)
+{
+    int32_t y;
+    if (c->fm) {                                       /* FILTER FM: the cutoff +-4 octaves with the input */
+        int32_t e = clamp(m, -32767, 32767) * 2048;    /* (Q24 octaves: 4 x 2^24 / 32767 ~ 2048) */
+        uint64_t f = ((uint64_t)c->fc0 * (uint32_t)fm6_exp2(e - (9 << 24))) >> 15;
+        opx_svf_coef(c, f > OPX_FCMAX ? OPX_FCMAX : f < 4096u ? 4096u : (uint32_t)f);
+    }
+    if (c->type >= 4u && c->type <= 9u) {              /* MG: the ladder */
+        /* four trapezoidal one-poles (v = G (x - s), y = v + s, s = y + v; G Q13), the feedback from the last one's
+         * output a sample late; the states (st) to +-2^17, the products under 2^31 */
+        int32_t u = clamp(x - (int32_t)(((int64_t)c->kl * st[4]) >> 15), -65535, 65535), g = c->g1 >> 1, v, y1, y2, y3, y4;
+        v = (g * (u - st[0])) >> 13, y1 = v + st[0], st[0] = clamp(y1 + v, -131071, 131071);
+        v = (g * (y1 - st[1])) >> 13, y2 = v + st[1], st[1] = clamp(y2 + v, -131071, 131071);
+        v = (g * (y2 - st[2])) >> 13, y3 = v + st[2], st[2] = clamp(y3 + v, -131071, 131071);
+        v = (g * (y3 - st[3])) >> 13, y4 = v + st[3], st[3] = clamp(y4 + v, -131071, 131071);
+        st[4] = y4;                                      /* (the feedback's, next sample) */
+        switch (c->type) {
+        case 4: y = y2; break;                                                         /* LPF12 */
+        case 5: y = y4; break;                                                         /* LPF24 */
+        case 6: y = u - 2 * y1 + y2; break;                                            /* HPF12 */
+        case 7: y = u - 4 * y1 + 6 * y2 - 4 * y3 + y4; break;                          /* HPF24 */
+        case 8: y = 2 * (y1 - y2); break;                                              /* BPF6 */
+        default: y = 4 * (y2 - 2 * y3 + y4);                                           /* BPF12 */
+        }
+    } else {                                           /* the state-variable filter (and MS-20's) */
+        int32_t v3 = x - st[1], v1, v2;
+        v1 = (int32_t)(((int64_t)c->a1 * st[0] + (int64_t)c->a2 * v3) >> 16);
+        v2 = st[1] + (int32_t)(((int64_t)c->a2 * st[0] + (int64_t)c->a3 * v3) >> 16);
+        st[0] = clamp(2 * v1 - st[0], -2097152, 2097152);
+        st[1] = clamp(2 * v2 - st[1], -2097152, 2097152);
+        if (c->type >= 10u)                            /* MS-20: the resonance limited in the loop */
+            st[0] = clamp(st[0], -40000, 40000);
+        switch (c->type) {
+        case 1: case 11: y = x - (int32_t)(((int64_t)c->k * v1) >> 16) - v2; break;   /* HPF */
+        case 2: y = (int32_t)(((int64_t)c->k * v1) >> 16); break;                    /* BPF */
+        case 3: y = x - (int32_t)(((int64_t)c->k * v1) >> 16); break;                /* BRF */
+        default: y = v2;                                                             /* LPF */
+        }
+    }
+    return clamp(y, -65535, 65535);
+}
+
+/* M2b: the operator effects (EFFECT, FX p.34): the input and the oscillator at OSC MIX through one of ten. FREQ follows
+ * the operator's pitch (PEAK EQ, PHASER, COMB, DEC). Where the manual gives no figure the choice is noted (an
+ * assumption each):
+ *   PEAK EQ     a peaking biquad at FREQ, GAIN +-18 dB, Q 1 (assumed)
+ *   SHELV EQ    a low shelf at 250 Hz and a high one at 4 kHz (first order; the corners assumed), LOW / HIGH +-18 dB
+ *   PHASER      four first-order all-passes at FREQ, FB +-100 % (x0.9), the dry signal added (the notches)
+ *   SHORT DELAY the dry signal and a delay of TIME with FB, each at -3 dB. The delay line is the voice's own, 800
+ *               samples: TIME stops at 17 ms (the manual's 300 ms do not fit the FM-1's memory), and one operator a
+ *               voice has it (the highest-numbered one in SHORT DELAY or COMB: the first to run; another plays dry)
+ *   COMB        a comb at FREQ (its period read between samples), FB +-100 % (x0.98); the same line, 57 Hz at the lowest
+ *   DIST        the input driven x1 .. x50 into a hard clip, LOW the 250 Hz shelf after
+ *   DRIVE       x1 .. x10 into a soft (cubic) clip, LOW
+ *   DEC         held at FREQ x the operator's pitch (2.00 .. 256.00), BIT 2 .. 24 (whole bits; 16 and over: as it is)
+ *   WAVESHAPER  60 sine shapers of rising strength in place of the 01/W's tables (not published): y = sin(k x pi / 2),
+ *               k = 1 + TYPE / 4; DAMP a one-pole low-pass after (100 %: down to ~700 Hz)
+ *   PUNCH       a fast against a slow envelope of the input: its rise lifts the level (up to x3 at 100 %), HIGH the
+ *               4 kHz shelf after */
+typedef struct {                 /* an operator's effect for a block (opx_fx_block) */
+    int32_t c[6];                /* its coefficients */
+    int16_t *dl;                 /* SHORT DELAY / COMB: the voice's line (0: none, dry) */
+    uint32_t dw, fr;             /* the line's write place; DEC's step */
+    uint8_t type;
+} opx_ec_t;
+static opx_ec_t opx_ecb[OPX_NOP];              /* (the audio ISR's) */
+/* a one-pole (trapezoidal) low-pass step: state s, coefficient G (Q14) */
+static inline int32_t opx_lp1(int32_t *s, int32_t x, int32_t g)
+{
+    int32_t v = (int32_t)(((int64_t)g * (x - *s)) >> 14), y = v + *s;
+    *s = clamp(y + v, -262143, 262143);
+    return y;
+}
+#define OPX_G250 504                                     /* OPX_G1 at 250 Hz, 4 kHz: the shelves' corners (Q14) */
+#define OPX_G4K 3809
+/* 10^(dB x 0.1 / 20) and its 40th, Q15 (x0.1 dB) */
+static int32_t opx_db20(int32_t db10) { return fm6_exp2(clamp(db10, -400, 400) * 278667 - (9 << 24)); }
+static int32_t opx_db40(int32_t db10) { return fm6_exp2(clamp(db10, -400, 400) * 139334 - (9 << 24)); }
+/* the pitch FREQ semitones (x0.1) from the operator's step inc, at most 0.45 fs */
+static uint32_t opx_fx_freq(uint32_t inc, int32_t st10)
+{
+    uint64_t f = ((uint64_t)inc * (uint32_t)fm6_exp2(clamp(st10, -500, 500) * 139810 - (9 << 24))) >> 15;
+    return f > OPX_FCMAX ? OPX_FCMAX : f < 65536u ? 65536u : (uint32_t)f;
+}
+static void opx_fx_block(opx_ec_t *e, const int32_t *mp, uint32_t inc)
+{
+    int32_t E = mp[2], F = mp[3], *c = e->c, g1;
+    uint32_t f;
+    e->type = (uint8_t)mp[0];
+    switch (e->type) {
+    case 0: {                                          /* PEAK EQ: RBJ peaking, Q 1; normalised by a0, Q14 */
+        int32_t sn, cs, A, al, aa, ai, a0;
+        f = opx_fx_freq(inc, E);
+        sn = sine_i(f), cs = sine_i(f + 0x40000000u);
+        A = opx_db40(F);
+        al = sn >> 1;                                  /* alpha = sin / (2 Q) */
+        aa = (int32_t)(((int64_t)al * A) >> 15);
+        ai = (al << 15) / A;
+        a0 = 32768 + ai;
+        c[0] = ((32768 + aa) << 14) / a0;              /* (b0, b1, b2, a1, a2: Q14; 32-bit divides, each under 2^31) */
+        c[1] = ((-2 * cs) << 14) / a0;
+        c[2] = ((32768 - aa) << 14) / a0;
+        c[3] = c[1];
+        c[4] = ((32768 - ai) << 14) / a0;
+        break;
+    }
+    case 1:                                            /* SHELV EQ: the shelves' gains less 1 (Q15) */
+        c[0] = opx_db20(E) - 32768, c[1] = opx_db20(F) - 32768;
+        break;
+    case 2:                                            /* PHASER: the all-pass coefficient (tan - 1) / (tan + 1) = 2 G1 - 1 */
+        opx_tanq(opx_fx_freq(inc, E), &g1);
+        c[0] = 2 * g1 - 16384;                         /* (Q14) */
+        c[1] = F * 29491 / 100;                        /* FB x0.9 (Q15) */
+        break;
+    case 3:                                            /* SHORT DELAY: the delay (samples), FB */
+        c[0] = clamp(E * 441 / 10, 1, (int32_t)OPX_DLY - 2);
+        c[1] = F * 32767 / 100;
+        break;
+    case 4:                                            /* COMB: the period, Q8 samples (fs / f), FB x0.98 */
+        f = opx_fx_freq(inc, E);
+        c[0] = clamp((int32_t)(0xFFFFFFFFu / (f >> 8)), 256, ((int32_t)OPX_DLY - 2) << 8);
+        c[1] = F * 32112 / 100;
+        break;
+    case 5:                                            /* DIST: the drive (Q8, x1 .. x50), LOW's gain less 1 */
+        c[0] = 256 + E * 125;
+        c[1] = opx_db20(F) - 32768;
+        break;
+    case 6:                                            /* DRIVE: x1 .. x10 (Q8), LOW */
+        c[0] = 256 + E * 23;
+        c[1] = opx_db20(F) - 32768;
+        break;
+    case 7:                                            /* DEC: the hold step (FREQ x the pitch), the bits kept */
+        {                                              /* (FREQ / 100 as Q16: no 64-bit divide) */
+            uint64_t q = ((uint64_t)inc * (uint32_t)(E * 655)) >> 16;
+            e->fr = q > 0x7FFFFFFFu ? 0x7FFFFFFFu : q ? (uint32_t)q : 1u;
+        }
+        c[0] = F / 100 >= 16 ? 0 : 16 - F / 100;       /* (bits dropped of 16) */
+        break;
+    case 8:                                            /* WAVESHAPER: k x 16, DAMP's G (Q14: 16384 none .. ~700 Hz) */
+        c[0] = 16 + E * 4;
+        c[1] = 16384 - F * (16384 - 1370) / 100;
+        break;
+    default:                                           /* PUNCH: the lift (Q15 per unit of rise), HIGH */
+        c[0] = E * 65534 / 100;
+        c[1] = opx_db20(F) - 32768;
+    }
+}
+/* one sample x through operator k's effect (state st[5]) */
+static inline int32_t opx_fx(opx_ec_t *e, int32_t *st, int32_t x)
+{
+    const int32_t *c = e->c;
+    int32_t y, lo;
+    switch (e->type) {
+    case 0:                                            /* PEAK EQ: st x1 x2 y1 y2 */
+        y = (int32_t)(((int64_t)c[0] * x + (int64_t)c[1] * st[0] + (int64_t)c[2] * st[1] - (int64_t)c[3] * st[2] -
+                       (int64_t)c[4] * st[3]) >> 14);
+        y = clamp(y, -262143, 262143);
+        st[1] = st[0], st[0] = x, st[3] = st[2], st[2] = y;
+        break;
+    case 1:                                            /* SHELV EQ: st low-pass 250 Hz, low-pass 4 kHz */
+        lo = opx_lp1(&st[0], x, OPX_G250);
+        y = x + (int32_t)(((int64_t)c[0] * lo) >> 15);
+        y += (int32_t)(((int64_t)c[1] * (x - opx_lp1(&st[1], x, OPX_G4K))) >> 15);
+        break;
+    case 2: {                                          /* PHASER: st the four all-passes, the last output */
+        int32_t u = clamp(x + (int32_t)(((int64_t)c[1] * st[4]) >> 15), -131071, 131071), k;
+        for (k = 0; k < 4; k++) {
+            int32_t v = ((c[0] * u) >> 14) + st[k];
+            st[k] = clamp(u - ((c[0] * v) >> 14), -262143, 262143);
+            u = clamp(v, -131071, 131071);
+        }
+        st[4] = u;
+        y = (x + u) >> 1;
+        break;
+    }
+    case 3:                                            /* SHORT DELAY */
+    case 4: {                                          /* COMB */
+        int32_t d;
+        if (!e->dl)
+            return x;                                  /* (no line for this operator: dry) */
+        if (e->type == 3) {
+            d = e->dl[(e->dw + OPX_DLY - (uint32_t)c[0]) % OPX_DLY];
+            e->dl[e->dw] = (int16_t)clamp(x + ((d * c[1]) >> 15), -32767, 32767);
+            y = ((x + d) * 23170) >> 15;
+        } else {
+            uint32_t p = (uint32_t)c[0], i0 = (e->dw + OPX_DLY - (p >> 8)) % OPX_DLY, i1 = (i0 + OPX_DLY - 1u) % OPX_DLY;
+            d = e->dl[i0] + (((e->dl[i1] - e->dl[i0]) * (int32_t)(p & 255u)) >> 8);
+            y = clamp(x + ((d * c[1]) >> 15), -32767, 32767);
+            e->dl[e->dw] = (int16_t)y;
+        }
+        e->dw = e->dw + 1u < OPX_DLY ? e->dw + 1u : 0u;
+        break;
+    }
+    case 5:                                            /* DIST: st the LOW shelf's low-pass */
+    case 6: {                                          /* DRIVE */
+        int32_t u = (int32_t)(((int64_t)x * c[0]) >> 8);
+        if (e->type == 5) {
+            y = clamp(u, -32767, 32767);
+        } else {                                       /* v - 4/27 v^3 to 1.5 full scale: 1.0 there */
+            int32_t v = clamp(u, -49152, 49152), v3 = (int32_t)(((int64_t)((v * (int64_t)v) >> 15) * v) >> 15);
+            y = v - v3 * 4 / 27;
+        }
+        y += (int32_t)(((int64_t)c[1] * opx_lp1(&st[0], y, OPX_G250)) >> 15);
+        break;
+    }
+    case 7: {                                          /* DEC: st the held sample, taken yet, the phase */
+        uint32_t p0 = (uint32_t)st[2];
+        st[2] = (int32_t)(p0 + e->fr);
+        if ((uint32_t)st[2] < p0 || !st[1])            /* (a new period: take the sample) */
+            st[0] = x, st[1] = 1;
+        y = c[0] ? st[0] & ~((1 << c[0]) - 1) : st[0];
+        break;
+    }
+    case 8: {                                          /* WAVESHAPER: st DAMP's low-pass */
+        uint32_t ph = (uint32_t)(clamp(x, -65535, 65535) * c[0]) << 11;   /* x k / 4 of a cycle: sin(k x pi / 2) */
+        y = opx_lp1(&st[0], sine_i(ph), c[1]);
+        break;
+    }
+    default: {                                         /* PUNCH: st the fast and slow envelopes, the HIGH shelf */
+        int32_t a = x < 0 ? -x : x, rise;
+        st[0] += (a - st[0]) >> 4;
+        st[1] += (a - st[1]) >> 10;
+        rise = st[0] - st[1];
+        y = x;
+        if (rise > 0 && c[0])                          /* (the lift: rise / (slow + 1) of PUNCH, at most x3) */
+            y = (int32_t)(((int64_t)x * (32768 + clamp(rise * (c[0] >> 2) / ((st[1] + 512) >> 2), 0, 65536))) >> 15);
+        y += (int32_t)(((int64_t)c[1] * (y - opx_lp1(&st[2], y, OPX_G4K))) >> 15);
+    }
+    }
+    return clamp(y, -65535, 65535);
+}
+
 /* M2b: the modes other than FM. Their oscillator is not modulated (no FM, no FB, no WIDTH: those are FM's, MODE p.43):
  * a block of it first (opx_osc_block, opx_obuf), then each sample through the mode with the operator's input m (its
  * modulators' sum, as FM's) and its gain g (opx_mode_y):
@@ -760,7 +1161,9 @@ static void __attribute__((noinline)) opx_op_noise(opx_os_t *restrict o, const i
  *                (a triangle fold: every 2 x full scale over it, down again)
  *   BYPASS       the input as it comes (the operator's level and envelope not applied: an assumption, the manual says
  *                only that it helps editing); MUTE silence
- *   FILTER, FILTER FM, EFFECT  (not yet: the oscillator, as a placeholder)
+ *   FILTER       the input and the oscillator at OSC MIX through the operator filter (opx_filt)
+ *   FILTER FM    the oscillator through it, the input moving its cutoff
+ *   EFFECT       the input and the oscillator at OSC MIX through the operator effect (opx_fx)
  * Both orders (operator by operator, sample by sample) call opx_mode_y: the same output (opx_test) */
 static int32_t opx_obuf[OPX_NOP][CTL];         /* the oscillators of the operators not in FM (the audio ISR's) */
 static void __attribute__((noinline)) opx_osc_block(const opx_wsel_t *v, const int16_t *nb, uint32_t ph, uint32_t inc,
@@ -779,10 +1182,19 @@ static void __attribute__((noinline)) opx_osc_block(const opx_wsel_t *v, const i
             os[i] = opx_tab(t, v->sh, ph) & v->mk;
 }
 static inline __attribute__((always_inline)) int32_t opx_mode_y(uint32_t md, const int32_t *mp, int32_t os, int32_t m,
-                                                                 int32_t g)
+                                                                 int32_t g, opx_fc_t *fc, int32_t *st)
 {
     int32_t x;
     switch (md) {
+    case OPX_M_FILTER:                               /* the input and the oscillator at OSC MIX through the filter */
+        x = opx_filt(fc, st, clamp(m, -65535, 65535) + ((os * mp[1]) >> 15), 0);
+        break;
+    case OPX_M_FILTER_FM:                            /* the oscillator through it, its cutoff moved by the input */
+        x = opx_filt(fc, st, os, m);
+        break;
+    case OPX_M_EFFECT:                               /* the input and the oscillator at OSC MIX through the effect */
+        x = opx_fx(&opx_ecb[fc - opx_fcb], st, clamp(m, -65535, 65535) + ((os * mp[1]) >> 15));
+        break;
     case OPX_M_RING: {
         int32_t mm = clamp(m, -32767, 32767), ring;
         mm += (((mm < 0 ? -mm : mm) - mm) * mp[1]) >> 15;   /* SHAPE: towards |m| */
@@ -810,14 +1222,14 @@ static inline __attribute__((always_inline)) int32_t opx_mode_y(uint32_t md, con
 #define OPX_MODE_LOOP(MD)                                                                                          \
     for (i = 0; i < CTL; i++) {                                                                                      \
         yp = y;                                                                                                      \
-        y = opx_mode_y(MD, mp, os[i], mod[i], g);                                                                    \
+        y = opx_mode_y(MD, mp, os[i], mod[i], g, fc, st);                                                            \
         g += dg;                                                                                                     \
         yo[i] = y;                                                                                                   \
     }                                                                                                                \
     break
 static void __attribute__((noinline)) opx_op_mode(opx_os_t *restrict o, const int32_t *restrict mod,
                                                   int32_t *restrict yo, const int32_t *restrict os, uint32_t md,
-                                                  const int32_t *restrict mp)
+                                                  const int32_t *restrict mp, opx_fc_t *restrict fc, int32_t *restrict st)
 {
     uint32_t i;
     int32_t y = o->y, yp = o->yp, g = o->g, dg = o->dg;
@@ -826,7 +1238,9 @@ static void __attribute__((noinline)) opx_op_mode(opx_os_t *restrict o, const in
     case OPX_M_FOLD: OPX_MODE_LOOP(OPX_M_FOLD);
     case OPX_M_BYPASS: OPX_MODE_LOOP(OPX_M_BYPASS);
     case OPX_M_MUTE: OPX_MODE_LOOP(OPX_M_MUTE);
-    default: OPX_MODE_LOOP(OPX_M_FILTER);
+    case OPX_M_FILTER: OPX_MODE_LOOP(OPX_M_FILTER);
+    case OPX_M_FILTER_FM: OPX_MODE_LOOP(OPX_M_FILTER_FM);
+    default: OPX_MODE_LOOP(OPX_M_EFFECT);
     }
     o->y = y, o->yp = yp, o->g = g;
 }
@@ -836,7 +1250,7 @@ static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *re
     const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
     const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const opx_wsel_t *tb,
-    const int16_t (*nb)[CTL], const int32_t (*os)[CTL], int waves)
+    const int16_t (*nb)[CTL], const int32_t (*os)[CTL], int32_t (*fs)[5], int waves)
 {
     uint32_t i, q;
     for (i = 0; i < CTL; i++) {
@@ -849,7 +1263,7 @@ static inline __attribute__((always_inline)) int32_t opx_loop(const opx_rt_t *re
                 mod += (r->amt[kk][c] * y[r->src[kk][c]]) >> 15;
             if (waves && r->md[kk]) {                  /* (M2b: a mode other than FM) */
                 yp[kk] = y[kk];
-                y[kk] = opx_mode_y(r->md[kk], r->mp[kk], os[kk][i], mod, g[kk]);
+                y[kk] = opx_mode_y(r->md[kk], r->mp[kk], os[kk][i], mod, g[kk], &opx_fcb[kk], fs[kk]);
                 g[kk] += dg[kk];
                 ph[kk] += inc[kk];
                 if ((heard >> kk) & 1u)
@@ -877,15 +1291,15 @@ static int32_t __attribute__((noinline)) opx_loop_sine(const opx_rt_t *restrict 
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
     const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc)
 {
-    return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, 0, 0, 0, 0);
+    return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, 0, 0, 0, 0, 0);
 }
 static int32_t __attribute__((noinline)) opx_loop_wave(const opx_rt_t *restrict r, int32_t *restrict out,
     const uint32_t *restrict ord, uint32_t nact, uint32_t *restrict ph, const uint32_t *restrict inc,
     int32_t *restrict g, const int32_t *restrict dg, int32_t *restrict y, int32_t *restrict yp,
     const int32_t *restrict fbq, uint32_t heard, int32_t a, int32_t da, int32_t dc, const opx_wsel_t *tb,
-    const int16_t (*nb)[CTL], const int32_t (*os)[CTL])
+    const int16_t (*nb)[CTL], const int32_t (*os)[CTL], int32_t (*fs)[5])
 {
-    return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb, nb, os, 1);
+    return opx_loop(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb, nb, os, fs, 1);
 }
 /* one input of an operator for the block: m = (first ? 0 : m) + amt x ys >> 15, sample by sample */
 static void __attribute__((noinline)) opx_op_in(int32_t *restrict m, const int32_t *restrict ys, int32_t amt,
@@ -968,7 +1382,7 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     da = (mulq15(m->amp1, k) - a) >> CTL_LOG2;
     dc = n->dc;
     {   /* the samples: operator by operator, unless an operator takes a lower one's output (sample by sample) */
-        uint32_t wv = 0, back = 0, act = 0, c, mdx = 0;
+        uint32_t wv = 0, back = 0, act = 0, c, mdx = 0, dly_op = 6u;
         opx_wsel_t tb[OPX_NOP];
         int16_t nb[OPX_NOP][CTL];
         for (q = 0; q < nact; q++)
@@ -990,10 +1404,21 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
                     opx_noise_block(w, &n->nz[kk], ph[kk], inc[kk], nb[kk]);
                 if (r->md[kk])                         /* (M2b: the oscillator alone, for its mode) */
                     opx_osc_block(&tb[kk], nb[kk], ph[kk], inc[kk], opx_obuf[kk]);
+                if (r->md[kk] == OPX_M_FILTER || r->md[kk] == OPX_M_FILTER_FM)
+                    opx_filt_block(&opx_fcb[kk], r->mp[kk], inc[kk], r->md[kk] == OPX_M_FILTER_FM);
+                if (r->md[kk] == OPX_M_EFFECT) {
+                    opx_fx_block(&opx_ecb[kk], r->mp[kk], inc[kk]);
+                    opx_ecb[kk].dl = 0;
+                    if ((r->mp[kk][0] == 3 || r->mp[kk][0] == 4) && dly_op > 5u) {   /* (the voice's line: the first) */
+                        dly_op = kk;
+                        opx_ecb[kk].dl = opx_dline(t, v);
+                        opx_ecb[kk].dw = n->dw % OPX_DLY;
+                    }
+                }
             }
         if (back || opx_sample_order) {
             dc = wv ? opx_loop_wave(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb,
-                                    (const int16_t (*)[CTL])nb, (const int32_t (*)[CTL])opx_obuf)
+                                    (const int16_t (*)[CTL])nb, (const int32_t (*)[CTL])opx_obuf, n->fs)
                     : opx_loop_sine(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc);
         } else {
             const int32_t *hp[OPX_NOP];
@@ -1012,7 +1437,7 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
                 o.ph = ph[kk], o.inc = inc[kk], o.y = y[kk], o.yp = yp[kk], o.g = g[kk], o.dg = dg[kk];
                 o.fbq = fbq[kk];
                 if (r->md[kk])
-                    opx_op_mode(&o, mod, opx_ybuf[kk], opx_obuf[kk], r->md[kk], r->mp[kk]);
+                    opx_op_mode(&o, mod, opx_ybuf[kk], opx_obuf[kk], r->md[kk], r->mp[kk], &opx_fcb[kk], n->fs[kk]);
                 else if (!r->wv[kk])
                     opx_op_sine(&o, mod, opx_ybuf[kk]);
                 else if (!tb[kk].t)
@@ -1032,6 +1457,8 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     }
     n->dc = dc;
     for (k = 0; k < OPX_NOP; k++) {
+        if (r->md[k] == OPX_M_EFFECT && opx_ecb[k].dl && opx_ecb[k].dl == opx_dline(t, v))   /* (the line's next place) */
+            n->dw = (uint16_t)opx_ecb[k].dw;
         n->y[k] = y[k];
         n->yp[k] = yp[k];
     }
@@ -1097,5 +1524,5 @@ static const engine_t ENG_OPX = {
     .block = opx_block,
     .ownenv = 1,
     .done = opx_done,
-    .mem = sizeof(opx_note_t) * OPX_POLY,
+    .mem = (sizeof(opx_note_t) + OPX_DLY * sizeof(int16_t)) * OPX_POLY,   /* (the notes, the delay lines) */
 };

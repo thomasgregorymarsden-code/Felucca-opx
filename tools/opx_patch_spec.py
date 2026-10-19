@@ -215,7 +215,7 @@ for _o in range(1, 7):
                      f"op{_o}.eg_sus": 100, f"op{_o}.ktrk_center": 60, f"op{_o}.fm_width": 0,
                      # the modes' values ready to be heard when a mode is picked: the ring and the oscillator mixes full
                      f"op{_o}.ring_depth": 100, f"op{_o}.flt_oscmix": 100, f"op{_o}.fold_oscmix": 100,
-                     f"op{_o}.fx_oscmix": 100})
+                     f"op{_o}.fx_oscmix": 100, f"op{_o}.fx_e": 500, f"op{_o}.fx_f": 180})   # (PEAK EQ: 0 st, 0 dB)
 for _e in range(1, 4):
     DEFAULTS[f"eg{_e}.sus"] = 100
 for _l in range(1, 4):

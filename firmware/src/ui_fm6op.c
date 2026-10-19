@@ -400,18 +400,31 @@ static void xop_knob(uint32_t slot, int32_t steps)
         xop_out_turn(tr, fop_op % 6u, steps);
         return;
     }
-    v = opx_get(opx_pk[tr], f);
-    if (f == OPXF_OP(fop_op % 6u, OPXF_OP1_FIXED_FREQ))
-        v = k == XR_RATIO ? xop_pow(v, steps, 1059463u, 1000000u) : xop_pow(v, steps, 1000578u, 1000000u);
-    else if (xop_enum(k))
-        v += steps;
-    else
-        v += accel(EN_K4, steps, OPX_FIELDS[f].hi - OPX_FIELDS[f].lo);
-    v = clamp(v, OPX_FIELDS[f].lo, OPX_FIELDS[f].hi);
+    {
+        int32_t lo = OPX_FIELDS[f].lo, hi = OPX_FIELDS[f].hi;
+        if (k == XR_FXE || k == XR_FXF) {            /* (E and F: the effect type's own range, OPX_FXV) */
+            const int16_t *fv = OPX_FXV[clamp(xop_get(tr, OPXF_OP1_FX_TYPE), 0, 9)];
+            lo = 0, hi = k == XR_FXE ? fv[1] - fv[0] : fv[3] - fv[2];
+        }
+        v = opx_get(opx_pk[tr], f);
+        if (f == OPXF_OP(fop_op % 6u, OPXF_OP1_FIXED_FREQ))
+            v = k == XR_RATIO ? xop_pow(v, steps, 1059463u, 1000000u) : xop_pow(v, steps, 1000578u, 1000000u);
+        else if (xop_enum(k))
+            v += steps;
+        else
+            v += accel(EN_K4, steps, hi - lo);
+        v = clamp(v, lo, hi);
+    }
     if (v == opx_get(opx_pk[tr], f))
         return;
     edit_undo_take(TSEL, 0x4000u | f, UNDO_SOUND);   /* (a knob turned on, this field: one copy) */
     opx_edit(tr, f, v);
+    if (k == XR_FX) {                                /* another effect: its E and F at their neutral values */
+        static const uint16_t DEF[10][2] = {{500, 180}, {180, 180}, {500, 100}, {9, 30}, {500, 150}, {50, 180},
+                                            {50, 180}, {1400, 1000}, {0, 0}, {50, 180}};
+        opx_edit(tr, OPXF_OP(fop_op % 6u, OPXF_OP1_FX_E), DEF[v][0]);
+        opx_edit(tr, OPXF_OP(fop_op % 6u, OPXF_OP1_FX_F), DEF[v][1]);
+    }
     motion_undo_done(TSEL);
     xop_scroll();                                    /* (MODE: the section's rows change) */
 }
@@ -542,8 +555,26 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
             *ratio = -1;
         break;
     case XR_FXE:
-    case XR_FXF:
-        break;                                       /* (the effect's own units: with the effects) */
+    case XR_FXF: {                                   /* the effect type's own name and units (OPX_FXV) */
+        static const char *const NM[10][2] = {{"FREQ", "GAIN"}, {"LOW", "HIGH"}, {"FREQ", "FB"}, {"TIME", "FB"},
+            {"FREQ", "FB"}, {"DIST", "LOW"}, {"DRIVE", "LOW"}, {"FREQ", "BIT"}, {"TYPE", "DAMP"}, {"PUNCH", "HIGH"}};
+        /* the units: 0 % (unsigned), 1 % signed, 2 semitones x0.1, 3 dB x0.1, 4 ms, 5 x0.01, 6 a number */
+        static const uint8_t UN[10][2] = {{2, 3}, {3, 3}, {2, 1}, {4, 0}, {2, 1}, {0, 3}, {0, 3}, {5, 5}, {6, 0}, {0, 3}};
+        uint32_t ty = (uint32_t)clamp(xop_get(tr, OPXF_OP1_FX_TYPE), 0, 9), w = k == XR_FXF;
+        int32_t lo2 = OPX_FXV[ty][w * 2u], x = v + lo2;
+        *label = NM[ty][w];
+        *ratio = (int32_t)((int64_t)v * 1000 / (OPX_FXV[ty][w * 2u + 1u] - lo2));
+        switch (UN[ty][w]) {
+        case 1: xop_signed(val, x, 0); *unit = "%"; break;
+        case 2: xop_signed(val, x, 1); *unit = "ST"; break;
+        case 3: xop_signed(val, x, 1); *unit = "DB"; break;
+        case 4: fmt_int(val, x); *unit = "MS"; break;
+        case 5: fop_dec(val, (uint32_t)x / 100u, (uint32_t)x % 100u, 2u); break;
+        case 6: val[0] = (char)('0' + x / 10), val[1] = (char)('0' + x % 10), val[2] = 0; break;
+        default: fmt_int(val, x); *unit = "%";
+        }
+        return 1;
+    }
     case XR_FREQ:
         str_cpy(val, v ? "FIXED" : "RATIO", 12);
         *ratio = -1;

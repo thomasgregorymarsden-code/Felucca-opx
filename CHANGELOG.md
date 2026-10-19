@@ -5,6 +5,14 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPX operator modes:** RING MOD, FILTER (12 types: LPF HPF BPF BRF, MG LPF12/24 HPF12/24 BPF6/12, MS-20 LPF/HPF),
+  FILTER FM, WAVE FOLDER, EFFECT (PEAK EQ, SHELV EQ, PHASER, SHORT DELAY, COMB, DIST, DRIVE, DEC, WAVESHAPER, PUNCH),
+  BYPASS and MUTE beside FM. SHORT DELAY stops at 17 ms (memory), one operator per voice.
+- **OPX KTRK:** each operator's level follows the key: LOW and HIGH slopes about CENTER, LIN or EXP.
+- **OPX pages:** ALGO replaces EDIT 1 / 2 on an OPX track: the opsix's HOME (ALG, ATK, DEC) and SLOT. Felucca's macros
+  MLVL, FB, MRAT and DTUN are off on OPX (not part of the opsix). The algorithm chart has square boxes and sits in the
+  left half; OPERATORS shows it beside the list (right half), the selected operator highlighted. The list follows the
+  opsix's pages: MODE (the mode's own rows), PITCH, EG, KTRK, USER, ALGO.
 - **OPX waveforms:** each operator has a WAVE, the opsix's 23 (sines at 16, 12 and 8 bits, triangle, saw and square
   with HD versions, eleven additive waves, four noises), and WIDTH. On EDIT > OPERATORS > OSC: WAVE, FB, WIDTH.
   Existing patches keep their sine and sound as before.
