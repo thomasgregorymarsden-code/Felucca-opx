@@ -3,7 +3,9 @@
 Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork is based on, are in
 [docs/FELUCCA_HISTORY.md](docs/FELUCCA_HISTORY.md).
 
-## Unreleased
+## 0.1.0 (2026-10-19)
+
+Based on Felucca 1.5.1, as 0.0.1. Projects and patches saved with 0.0.1 open unchanged (the patch format is the same).
 
 - **OPX operator modes:** RING MOD, FILTER (12 types: LPF HPF BPF BRF, MG LPF12/24 HPF12/24 BPF6/12, MS-20 LPF/HPF),
   FILTER FM, WAVE FOLDER, EFFECT (PEAK EQ, SHELV EQ, PHASER, SHORT DELAY, COMB, DIST, DRIVE, DEC, WAVESHAPER, PUNCH),
@@ -19,15 +21,25 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 - **SELECT turns pages with BPM LOCK ON:** SELECT alone turns the page either way, round the family shown (HOME:
   HOME, MIXER, CLOCK); with BPM LOCK OFF it is the tempo as before. No new setting.
 - **OPX waveforms:** each operator has a WAVE, the opsix's 23 (sines at 16, 12 and 8 bits, triangle, saw and square
-  with HD versions, eleven additive waves, four noises), and WIDTH. On EDIT > OPERATORS > OSC: WAVE, FB, WIDTH.
+  with HD versions, eleven additive waves, four noises), and WIDTH. On EDIT > OPERATORS > MODE: WAVE, FB, WIDTH.
   Existing patches keep their sine and sound as before.
 - Each periodic waveform is a table read, as the sine is. SAW and SQR are band-limited to 10 kHz, HD to 20 kHz.
 - OPX renders an operator at a time over each 32-sample block (patches with a loop back to a lower operator keep the
-  sample-by-sample order; both give the same output). On the device, six notes take 38 % instead of 57 % with sines,
-  and 37–58 % with any waveform (was 87–166 %).
-- The benchmark (MENU > SYSTEM > INFO, OCT+) times FM6, OPX with each waveform, multiply-adds, branches, calls and
-  loads.
+  sample-by-sample order; both give the same output). On the device, six notes take 40 % instead of 57 % with sines,
+  and 39–60 % with any waveform (was 87–166 %), above the idle mix.
+- The benchmark (MENU > SYSTEM > INFO, OCT+) times FM6, OPX with each waveform and in each kind of mode,
+  multiply-adds, branches, calls and loads.
 - CI no longer publishes the `-mcpu=r3` build: it measured no faster (docs/OPX_PLAN.md).
+
+**Known limitations**
+
+- The operator filters and effects are standard designs with the opsix's names and ranges, not measured copies;
+  the modes have not yet been compared with an opsix by ear.
+- Processor time: about two operators in a filter mode per patch (two in FILTER FM go over; the audio then drops a
+  voice). See docs/OPX_PLAN.md, Cost.
+- SHORT DELAY stops at 17 ms (the opsix: 300 ms), one operator a voice.
+- Not yet: an OPX track's own patch in user presets and the editor's backup, the web editor's OPX page (M3); the
+  opsix's EG1-3, LFOs and virtual patch (M4); its main filter and effects (M5).
 
 ## 0.0.1 (2026-10-16)
 

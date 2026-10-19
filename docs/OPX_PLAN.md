@@ -14,7 +14,8 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M1.5 | Operator editing on the device (algorithm charts, USER matrix, OPERATORS list, scope); each track's patch kept in the stored format; saved with projects and the autosave | done |
 | | **First release, `0.0.1`: M0, M1 and M1.5** | |
 | M2a | The 23 waveforms and WIDTH; the renderer an operator at a time | done (device cost: see [Cost](#cost)) |
-| M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | done (device cost to be measured; SHORT DELAY limited to 17 ms, see below) |
+| M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | done (device cost: see [Cost](#cost); SHORT DELAY limited to 17 ms, see below; sound not yet compared with an opsix) |
+| | **Second release, `0.1.0`: M2a and M2b; the VOICE pages in OPERATORS; SELECT turns pages with BPM LOCK ON** | |
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | |
 | M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |
 | M5 | Main filter, effects 1–3, virtual patch, as far as the processor time allows | |
@@ -151,6 +152,26 @@ device, 0.0.2-dev:
 So six OPX notes with every operator on any wave take at most ~70 % in all with the idle mix, under the 85 % where
 the audio drops a voice. A patch with a loop back to a lower operator (below) still costs about the old SIN figure,
 ~57 %. M2b–M5 spend the rest.
+
+**The modes** (2026-10-19, the mode on all six operators of six notes, SIN, the values typical; the third column the
+cost of one operator in that mode over a sine operator, on six notes):
+
+| Mode | Six notes | One operator in it |
+|---|---|---|
+| RING MOD | 56.5 % | +2.7 % |
+| WAVE FOLDER | 58.3 % | +3.0 % |
+| FX COMB | 81.6 % | +6.9 % |
+| FX PEAK EQ | 99.5 % | +9.9 % |
+| FILTER LPF (state-variable) | 132.9 % | +15.5 % |
+| FX PHASER | 136.4 % | +16.1 % |
+| FILTER MG24 (ladder) | 141.8 % | +17.0 % |
+| FILTER FM | 185.8 % | +24.3 % |
+
+A patch has room for about two operators in a filter mode; two in FILTER FM (~89 % with the idle mix) go over the
+85 %. FILTER FM recomputes the filter's coefficients every sample (an exp2, a tangent table and a divide); the
+state-variable filter uses 64-bit products (52.7 ns against 33.3 ns a multiply-add). Both are to be made cheaper
+once the features are complete: coefficients every 2-4 samples for FILTER FM, 32-bit arithmetic for the filters.
+The waves' rows rose ~2 points with M2b (SIN 38.4 to 40.1 %), probably the per-operator mode checks (not confirmed).
 
 **What decided the cost**, found by elimination on the device (the benchmark's LOOP, BRANCH, CALL and LOAD rows):
 

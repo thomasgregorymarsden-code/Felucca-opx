@@ -35,7 +35,7 @@
 #ifndef FELUCCA_CPU_TAG
 #define FELUCCA_CPU_TAG ""              /* (OPX fork: build.py FELUCCA_CPU=r3 adds "-r3": the version says which core) */
 #endif
-#define FELUCCA_VERSION "v0.0.2-dev" FELUCCA_CPU_TAG /* (OPX fork: the next release + "-dev"; a release: build.py --release X.Y.Z)
+#define FELUCCA_VERSION "v0.1.1-dev" FELUCCA_CPU_TAG /* (OPX fork: the next release + "-dev"; a release: build.py --release X.Y.Z)
                                         * shown in the menu, the console and the editor */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
