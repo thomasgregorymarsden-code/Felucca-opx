@@ -865,20 +865,19 @@ static const uint8_t OPX_CELL[8][6] = {                 /* 33..40: per operator 
     {0x00, 0x10, 0x20, 0x30, 0x21, 0x22}, {0x00, 0x10, 0x20, 0x30, 0x40, 0x50}, {0x00, 0x10, 0x11, 0x02, 0x12, 0x13},
     {0x01, 0x02, 0x10, 0x11, 0x12, 0x13}, {0x00, 0x01, 0x10, 0x20, 0x11, 0x21}, {0x00, 0x01, 0x10, 0x11, 0x02, 0x12},
     {0x00, 0x01, 0x02, 0x03, 0x11, 0x12}, {0x00, 0x01, 0x02, 0x03, 0x11, 0x21}};
-#define OPX_CW 84                                        /* the chart's centre (x); the scope: OPX_SX .. 230 */
-#define OPX_SX 166
-static void graph_opx_chart(const track_t *t, uint16_t c, uint32_t a)
+#define OPX_HALF 120                                     /* the panel's halves: the chart / matrix left, scope / list right */
+#define OPX_CX 62                                        /* the chart's centre (x) in the left half (8 .. 116) */
+/* the chart of algorithm a in the left half, square operator boxes (13 px; the 6-row chain of 34: 12, rows closer).
+ * sel < 6: that operator's box ACCENT (EDIT > OPERATORS: the operator KNOB 1 picks). Canvas rows (cv_oy 0) */
+static void graph_opx_chart(const track_t *t, uint16_t c, uint32_t a, uint32_t sel)
 {
     const opx_alg_t *g = &OPX_ALG[a % OPX_NALG];
     const uint8_t *cell = a < 32u ? FM6_CELL[a] : OPX_CELL[a - 32u], *pk = opx_pk[(t - trk) % NTRK];
-    uint32_t k, j, top = 0, hi = 0, hot = ui.hot_t ? (uint32_t)cur_page()->id[ui.hot_col & 3u] : 0u, hotset = 0;
-    int32_t x[6], y[6], bh, rp, bus, cl = 240, cr = 0;
+    uint32_t k, j, top = 0, hi = 0, hot = ui.hot_t ? (uint32_t)cur_page()->id[ui.hot_col & 3u] : 0u;
+    int32_t x[6], y[6], bh, rp, cp, h, bus = 113, cl = 240, cr = 0, oy = cv_oy, xe;
     uint8_t fan[6] = {0, 0, 0, 0, 0, 0};
     char b[8] = {'A', 'L', 'G', ' ', (char)('0' + (a + 1u) / 10u), (char)('0' + (a + 1u) % 10u), 0};
-    if (hot == P_E3 || hot == P_E5)                      /* MLVL, MRAT: the modulators; DTUN: the heard ones */
-        hotset = 63u & ~g->out;
-    else if (hot == P_E6)
-        hotset = g->out;
+    cv_oy = 0;
     for (k = 0; k < 6u; k++) {
         uint32_t col = cell[k] & 7u, row = cell[k] >> 4;
         hi = col > hi ? col : hi;
@@ -886,14 +885,15 @@ static void graph_opx_chart(const track_t *t, uint16_t c, uint32_t a)
         for (j = 0; j < 6u; j++)
             fan[j] += (uint8_t)(g->mod[k] >> j & 1u);
     }
-    bh = top >= 4u ? 12 : FM_BH;                         /* (the 6-row chain of 34: smaller boxes, closer rows) */
-    rp = top >= 4u ? 17 : 23;
-    bus = 61 + (bh + 6 + rp * (int32_t)top) / 2;
-    bus = bus > 108 ? 108 : bus;                         /* (the bus inside the panel) */
+    bh = top >= 5u ? 12 : 13;                            /* (a box: bh x bh, its centre column x[k]) */
+    rp = top >= 5u ? 16 : 18;                            /* (rows: a box and a gap of 4 or 5 for the routes' jog) */
+    cp = hi >= 5u ? 16 : 18;
+    h = bh + rp * (int32_t)top;                          /* the chart's height above the bus, centred in 17 .. 113 */
+    bus = 113 - (96 - 5 - h) / 2;
+    bus = bus > 113 ? 113 : bus;
     for (k = 0; k < 6u; k++) {
-        int32_t cp = hi >= 5u ? 22 : 24;                 /* (six columns: a little closer, clear of the scope) */
-        x[k] = OPX_CW + (int32_t)(cell[k] & 7u) * cp - (int32_t)hi * cp / 2;
-        y[k] = bus - 6 - bh - rp * (int32_t)(cell[k] >> 4);
+        x[k] = OPX_CX + (int32_t)(cell[k] & 7u) * cp - (int32_t)hi * cp / 2;
+        y[k] = bus - 5 - bh - rp * (int32_t)(cell[k] >> 4);
         if (g->out >> k & 1u) { cl = x[k] < cl ? x[k] : cl; cr = x[k] > cr ? x[k] : cr; }
     }
     for (k = 0; k < 6u; k++) {
@@ -908,74 +908,78 @@ static void graph_opx_chart(const track_t *t, uint16_t c, uint32_t a)
             if (x[k] != cl) fm_dot(x[k], bus, T_MID);
         }
     }
-    cv_rect(cl, bus, cr + 18 - cl, 1, T_MID);            /* the output bus, an arrow out (short of the scope) */
-    cv_line(cr + 14, bus - 3, cr + 17, bus, T_MID); cv_line(cr + 14, bus + 3, cr + 17, bus, T_MID);
+    xe = cr + 14 < OPX_HALF - 4 ? cr + 14 : OPX_HALF - 4;   /* the output bus, an arrow out (inside the half) */
+    cv_rect(cl, bus, xe - cl + 1, 1, T_MID);
+    cv_line(xe - 3, bus - 3, xe, bus, T_MID); cv_line(xe - 3, bus + 3, xe, bus, T_MID);
     if (g->loop) {                                       /* ALG FB: out of src's right, up, into dst's top */
         uint32_t sj = (g->loop >> 4) - 1u, dk = (g->loop & 15u) - 1u;
-        int32_t xr = (x[sj] > x[dk] ? x[sj] : x[dk]) + 16, yt = y[dk] - 5, ys = y[sj] + bh / 2;
-        uint16_t lc = hot == P_E4 ? T_ACCENT : opx_get(pk, OPXF_PROG_ALG_FB) ? T_MID : T_DIM;
-        cv_rect(x[sj] + 11, ys, xr - x[sj] - 10, 1, lc);
+        int32_t xr = (x[sj] > x[dk] ? x[sj] : x[dk]) + bh / 2 + 5, yt = y[dk] - 4, ys = y[sj] + bh / 2;
+        uint16_t lc = opx_get(pk, OPXF_PROG_ALG_FB) ? T_MID : T_DIM;
+        cv_rect(x[sj] + bh / 2 + 1, ys, xr - x[sj] - bh / 2, 1, lc);
         cv_rect(xr, yt, 1, ys - yt + 1, lc);
         cv_rect(x[dk], yt, xr - x[dk], 1, lc);
-        cv_rect(x[dk], yt, 1, 4, lc);
+        cv_rect(x[dk], yt, 1, 3, lc);
         cv_line(x[dk] - 2, y[dk] - 3, x[dk] - 1, y[dk] - 2, lc); cv_line(x[dk] + 2, y[dk] - 3, x[dk] + 1, y[dk] - 2, lc);
     } else if (g->fb) {                                  /* the chart's self loop (each operator has its own FB) */
         uint32_t f = g->fb - 1u;
-        uint16_t lc = hot == P_E4 ? T_ACCENT : opx_get(pk, OPXF_OP(f, OPXF_OP1_FM_FB)) ? T_MID : T_DIM;
-        cv_rect(x[f] + 11, y[f] + bh / 2, 5, 1, lc);
-        cv_rect(x[f] + 15, y[f] - 4, 1, bh / 2 + 5, lc);
-        cv_rect(x[f], y[f] - 4, 15, 1, lc);
-        cv_rect(x[f], y[f] - 4, 1, 4, lc);
+        int32_t xr = x[f] + bh / 2 + 4;
+        uint16_t lc = opx_get(pk, OPXF_OP(f, OPXF_OP1_FM_FB)) ? T_MID : T_DIM;
+        cv_rect(x[f] + bh / 2 + 1, y[f] + bh / 2, xr - x[f] - bh / 2, 1, lc);
+        cv_rect(xr, y[f] - 4, 1, bh / 2 + 5, lc);
+        cv_rect(x[f], y[f] - 4, xr - x[f], 1, lc);
+        cv_rect(x[f], y[f] - 4, 1, 3, lc);
         cv_line(x[f] - 2, y[f] - 3, x[f] - 1, y[f] - 2, lc); cv_line(x[f] + 2, y[f] - 3, x[f] + 1, y[f] - 2, lc);
     }
     for (k = 0; k < 6u; k++) {
         uint32_t on = opx_get(pk, OPXF_OP(k, OPXF_OP1_LEVEL)) != 0, car = (g->out >> k & 1u) && on;
-        uint16_t f = hotset >> k & 1u ? T_ACCENT : c, fill = car ? f : T_RAISE;
+        uint16_t fill = k == sel ? T_ACCENT : car ? c : T_RAISE;
         char n[2] = {(char)('1' + k), 0};
-        cv_rrect(x[k] - 10, y[k], 21, bh, 3, fill, T_SURF);
-        GFX_HOOK_ALIGN(x[k] - 10, y[k], x[k] + 11, y[k] + bh, AL_HV, "OPX operator number in its box");
-        cv_text_in(x[k] - 10, y[k] + (bh == FM_BH ? CAP_IN(S, FM_BH) : CAP_IN(S, 12)), 21, &AF_S, n,
-                   car ? T_INK : on ? f : T_DIM, fill);
+        cv_rrect(x[k] - bh / 2, y[k], bh, bh, 2, fill, T_SURF);
+        GFX_HOOK_ALIGN(x[k] - bh / 2, y[k], x[k] - bh / 2 + bh, y[k] + bh, AL_HV, "OPX operator number in its box");
+        cv_text_in(x[k] - bh / 2, y[k] + (bh == 13 ? CAP_IN(S, 13) : CAP_IN(S, 12)), bh, &AF_S, n,
+                   car || k == sel ? T_INK : on ? c : T_DIM, fill);
     }
-    cv_text(10, 4 - GOY, &AF_S, b, hot == P_E0 ? T_ACCENT : T_MID);
+    cv_text(10, 1 + CAP_IN(S, 14), &AF_S, b, hot == P_E0 ? T_ACCENT : T_MID);
+    cv_oy = oy;
 }
 /* USER: the matrix (ui_fm6op.c xmat_*), square cells XM_P px apart from XM_X0: column = the operator sending (1..6),
  * row = the one receiving (1..6), then OUT; a dot as big as the amount (0: a point), the diagonal (self feedback) on
  * RAISE; OUT's dot as big as the operator's LEVEL while it is heard, a dash while it is not; the picked cell (EDIT 1)
  * on ACCENT; the row and column numbers centred on their cells */
-#define XM_P 15                                          /* a cell: 14 px and a 1 px gap, across and down */
-#define XM_X0 36
+#define XM_P 14                                          /* a cell: 13 px and a 1 px gap, across and down */
+#define XM_X0 32
 #define XM_Y0 16
-#define XM_W (XM_X0 + 6 * XM_P)                          /* the matrix's right edge (the scope after it) */
-static void graph_opx_matrix(const track_t *t, uint16_t c, int pick)
+#define XM_W (XM_X0 + 6 * XM_P)                          /* the matrix's right edge (116: the left half) */
+static void graph_opx_matrix(const track_t *t, uint16_t c, int pick, uint32_t op)
 {
     const uint8_t *pk = opx_pk[(t - trk) % NTRK];
     uint32_t r, k;
     int32_t oy = cv_oy;
     cv_oy = 0;                                           /* (the panel's own rows: the 100 px scale is too short) */
-    cv_text(10, 1 + CAP_IN(S, 14), &AF_S, "USR", T_DIM);
+    cv_text(8, 1 + CAP_IN(S, 13), &AF_S, "USR", T_DIM);
     for (k = 0; k < 6u; k++) {                           /* the columns: the operators sending */
         char n[2] = {(char)('1' + k), 0};
-        cv_text_in(XM_X0 + (int32_t)k * XM_P, 1 + CAP_IN(S, 14), 14, &AF_S, n, pick && k == xmat_col ? T_ACCENT : T_MID, T_SURF);
+        cv_text_in(XM_X0 + (int32_t)k * XM_P, 1 + CAP_IN(S, 13), 13, &AF_S, n,
+                   (pick && k == xmat_col) || k == op ? T_ACCENT : T_MID, T_SURF);
     }
     for (r = 0; r < 7u; r++) {
         int32_t yy = XM_Y0 + (int32_t)r * XM_P;
         char n[4] = {(char)('1' + r), 0, 0, 0};
         if (r == 6u)
             str_cpy(n, "OUT", 4);
-        GFX_HOOK_ALIGN(0, yy, 0, yy + 14, AL_V, "OPX matrix row label centred on its row");
-        cv_text(10, yy + CAP_IN(S, 14), &AF_S, n, pick && r == xmat_row ? T_ACCENT : T_MID);
+        GFX_HOOK_ALIGN(0, yy, 0, yy + 13, AL_V, "OPX matrix row label centred on its row");
+        cv_text(8, yy + CAP_IN(S, 13), &AF_S, n, (pick && r == xmat_row) || r == op ? T_ACCENT : T_MID);
         for (k = 0; k < 6u; k++) {
-            int32_t x0 = XM_X0 + (int32_t)k * XM_P, cx = x0 + 7, cy = yy + 7, v, sel = pick && r == xmat_row && k == xmat_col;
+            int32_t x0 = XM_X0 + (int32_t)k * XM_P, cx = x0 + 6, cy = yy + 6, v, sel = pick && r == xmat_row && k == xmat_col;
             uint16_t bg = sel ? T_ACCENT : r == k ? T_RAISE : T_SURF, fg = sel ? T_INK : c;
             if (r == 6u)                                 /* OUT: the operator's LEVEL while heard, else -1 */
                 v = xop_out((uint32_t)(t - trk) % NTRK, k);
             else
                 v = opx_get(pk, opxf_ua(k, r));
             if (sel || r == k)
-                cv_rrect(x0, yy, 14, 14, 3, bg, T_SURF);
+                cv_rrect(x0, yy, 13, 13, 3, bg, T_SURF);
             if (v > 0) {
-                int32_t d = 2 + v * 8 / 100;             /* 2..10 px */
+                int32_t d = 3 + v * 6 / 100;             /* 3..9 px, odd and even about the centre */
                 cv_rrect(cx - d / 2, cy - d / 2, d, d, d / 2, fg, bg);
             } else if (v < 0) {
                 cv_rect(cx - 3, cy, 7, 1, sel ? T_INK : T_DIM);   /* OUT off: a dash */
@@ -1027,16 +1031,20 @@ static void graph_scope_mini(const track_t *t, uint16_t c, int32_t x0, int32_t w
     }
     cv_oy = oy;
 }
+/* EDIT > ALGO and EDIT > OPERATORS: the user matrix or the preset algorithm's chart in the left half; ALGO: the scope in
+ * the right half (OPERATORS: the list, graph_opxlist). sel < 6: the operator OPERATORS picks */
+static void graph_opx_left(const track_t *t, uint16_t c, int pick, uint32_t sel)
+{
+    uint32_t heard;
+    if (xmat_user(t))
+        graph_opx_matrix(t, c, pick, sel);
+    else
+        graph_opx_chart(t, c, xop_alg(t, &heard), sel);
+}
 static void graph_opx_algo(const track_t *t, uint16_t c, int edit1)
 {
-    if (xmat_user(t)) {
-        graph_opx_matrix(t, c, edit1);
-        graph_scope_mini(t, c, XM_W + 8, 229 - (XM_W + 8));   /* (the matrix leaves the scope more room) */
-    } else {
-        uint32_t heard;
-        graph_opx_chart(t, c, xop_alg(t, &heard));
-        graph_scope_mini(t, c, OPX_SX, 229 - OPX_SX);
-    }
+    graph_opx_left(t, c, edit1, 6u);
+    graph_scope_mini(t, c, OPX_HALF + 8, 229 - (OPX_HALF + 8));
 }
 #endif
 
@@ -1634,35 +1642,43 @@ static int32_t ev_value(int32_t y, const char *v, const char *unit, uint16_t fg,
     return cv_text_r(x, y + LIST_TY, &AF_M, v, fg, bg);
 }
 #if FELUCCA_OPX
-/* EDIT > OPERATORS (OPX fork, ui_fm6op.c): the section's rows around the one picked, as AUTOMATION's: the name at the
- * left (M), the value at the right with its unit; the picked row on THEME; a row that does not sound now DIM (USER's,
- * when the track plays a preset algorithm; LEVEL 0) */
-static void graph_opxlist(void)
+/* EDIT > OPERATORS (OPX fork, ui_fm6op.c): the algorithm (or the user matrix) in the left half, the picked operator on
+ * ACCENT; in the right half the rows around the one picked, in S: the name at the left, the value right with its unit;
+ * the picked row on THEME; a row that does not sound now DIM (USER's, when the track plays a preset algorithm; LEVEL 0) */
+#define XLR_X 122                                        /* the right half's rows: x 122 .. 232 */
+#define XLR_Y(k) (1 + 15 * (int32_t)(k))                 /* 8 rows of 14 px, 1 px apart */
+static void graph_opxlist(const track_t *t, uint16_t c)
 {
     uint32_t cur = xop_row(), top, i;
     int32_t row;
+    graph_opx_left(t, c, 0, xop_sec_of(cur) == XS_ALGO ? 6u : fop_op % 6u);
+    cv_rect(OPX_HALF, 6, 1, 110, T_RAISE);               /* (the rule between the halves) */
     xop_scroll();
     top = xop_top;
     for (row = 0; row < (int32_t)XL_SHOW && top + (uint32_t)row < XL_N; row++) {
-        int32_t y = LIST_Y(row), ratio;
+        int32_t y = XLR_Y(row), ratio, x;
         const char *label, *unit;
         char val[16];
         int sel, on;
-        uint16_t bg;
+        uint16_t bg, fg;
         i = top + (uint32_t)row;
         if ((row == 0 && top) || (row == (int32_t)XL_SHOW - 1 && i < XL_N - 1u)) {   /* rows hidden above / below */
-            GFX_HOOK_ALIGN(0, y, 0, y + 16, AL_V, "list row text centred up/down");
-            cv_text_on(14, y + LIST_TY, &AF_M, "...", T_DIM, T_SURF);
+            GFX_HOOK_ALIGN(0, y, 0, y + 14, AL_V, "list row text centred up/down");
+            cv_text_on(XLR_X + 6, y + CAP_IN(S, 14), &AF_S, "...", T_DIM, T_SURF);
             continue;
         }
         sel = i == cur;
         bg = sel ? T_THEME : T_SURF;
         on = xop_rowtext(i, &label, val, &unit, &ratio);
+        fg = sel ? T_INK : on ? T_TEXT : T_DIM;
         if (sel)
-            cv_rrect(6, y, 228, 16, 4, T_THEME, T_SURF);
-        GFX_HOOK_ALIGN(0, y, 0, y + 16, AL_V, "list row text centred up/down");
-        cv_text_on(14, y + LIST_TY, &AF_M, label, sel ? T_INK : on ? T_MID : T_DIM, bg);
-        ev_value(y, val, unit, sel ? T_INK : on ? T_TEXT : T_DIM, bg);
+            cv_rrect(XLR_X, y, 232 - XLR_X, 14, 3, T_THEME, T_SURF);
+        GFX_HOOK_ALIGN(0, y, 0, y + 14, AL_V, "list row text centred up/down");
+        cv_text_on(XLR_X + 5, y + CAP_IN(S, 14), &AF_S, label, sel ? T_INK : on ? T_MID : T_DIM, bg);
+        x = 228;
+        if (unit && unit[0])
+            x = cv_text_r(x, y + CAP_IN(S, 14), &AF_S, unit, fg, bg) - 2;
+        cv_text_r(x, y + CAP_IN(S, 14), &AF_S, val, fg, bg);
     }
 }
 #endif
@@ -2558,7 +2574,7 @@ static void draw_graph(void)
 #if FELUCCA_OPX
         case GR_OPXL:
             cv_oy = 0;
-            if (xop_ok()) graph_opxlist();
+            if (xop_ok()) graph_opxlist(t, c);
             break;
 #endif
         default:

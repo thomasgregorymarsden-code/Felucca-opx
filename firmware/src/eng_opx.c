@@ -20,21 +20,22 @@
  * -18 dB at 50); envelope times on the patch format's TIME10 code (tools/opx_patch_spec.py); CURVE 10 is an
  * exponential approach (2^-10 at the end of the stage), 1..9 between it and linear.
  *
- * The device's eight EDIT values are macros over the patch, as FM6's:
+ * The device's EDIT values over the patch: the opsix's HOME page (p.42), and SLOT:
  *   ALG   PAT = the patch's algorithm, 1..40 another one, USR the patch's user matrix
  *   ATK   all operators' attack times, longer (+) or shorter (-) (the opsix's HOME ATK)
  *   DEC   all operators' decay and release times (HOME DECAY)
- *   MLVL  the level of every operator that is not heard (-24 .. +24 dB): the brightness
- *   FB    added to every operator's feedback and to ALG FB
- *   MRAT  added to the coarse ratio of the operators that are not heard
- *   DTUN  spreads the heard operators apart (up to +-25 cents between the outer ones)
  *   SLOT  F1..F7 load a factory patch into the track; OWN the track's own (edited on the operator pages, ui_fm6op.c,
  *         or loaded with a project, opx_store.c). The patch is opx_patch.c's packed record per track
+ * Felucca's FM6-style macros (E3..E6: MLVL, FB, MRAT, DTUN) are not the opsix's: off (OPX_FELUCCA_MACROS 0; the track
+ * keeps their values, nothing reads them, no page shows them: ui.c page_visible)
  * The operator envelopes are the voice's amplitude and end it (engine_t.ownenv / done). The track's FLT moves MLVL,
  * SHP the feedback, PIT the pitch.
  *
  * State: per voice an opx_note_t in the part's engine memory (engines.c eng_mem), per part the patch through the
  * macros (opx_rt, rebuilt once a block in opx_block). */
+#ifndef OPX_FELUCCA_MACROS
+#define OPX_FELUCCA_MACROS 0     /* MLVL FB MRAT DTUN (E3..E6): Felucca's, not the opsix's; off */
+#endif
 #define OPX_POLY 6               /* engine_t.poly: as FM6, until the target's cost is measured */
 #define OPX_NOP 6
 #define OPX_NALG 40              /* preset algorithms; 40 = USER */
@@ -235,8 +236,13 @@ static void opx_build(const track_t *t, opx_rt_t *r)
 {
     const opx_patch_t *pt = opx_own[(uint32_t)(t - trk) % NTRK];
     int32_t alg = t->p[P_E0], datk = clamp(t->p[P_E1], -64, 63) * 4, ddec = clamp(t->p[P_E2], -64, 63) * 4;
+#if OPX_FELUCCA_MACROS
     int32_t m = clamp(t->p[P_E3], -64, 63), dfb = clamp(t->p[P_E4], -64, 63) * 100 / 64, mrat = t->p[P_E5];
-    int32_t spread = clamp(t->p[P_E6], 0, 127), mlvl, k, j, ncar = 0, ci = 0;
+    int32_t spread = clamp(t->p[P_E6], 0, 127);
+#else
+    const int32_t m = 0, dfb = 0, mrat = 0, spread = 0;
+#endif
+    int32_t mlvl, k, j, ncar = 0, ci = 0;
     uint32_t a = (uint32_t)(alg - 1) > OPX_USER ? OPX_USER : (uint32_t)(alg - 1);   /* (ALG PAT: below) */
     int32_t self[OPX_NOP];
     if (!pt)
@@ -919,7 +925,7 @@ static const preset_t OPX_PRESETS[] = {
 static const engine_t ENG_OPX = {
     .name = "OPX",
     .page_title = {"ALGO", "MOD"},
-    .edit = {
+    .edit = {                                        /* (E3..E6: Felucca's macros, off: OPX_FELUCCA_MACROS) */
         {"ALG", F_INT, 0, OPX_NALG + 1, 0, N_OPX_ALG, 0},
         {"ATK", F_BIPCT, -64, 63, 0, 0, 0},
         {"DEC", F_BIPCT, -64, 63, 0, 0, 0},
@@ -933,7 +939,7 @@ static const engine_t ENG_OPX = {
     .npresets = NELEM(OPX_PRESETS),
     .note_on = opx_note_on,
     .render = opx_render,
-    .knob = {P_E3, P_E4, P_E2, P_E7},
+    .knob = {P_E0, P_E1, P_E2, P_E7},                /* (HOME: ALG ATK DEC SLOT) */
     .poly = OPX_POLY,
     .block = opx_block,
     .ownenv = 1,

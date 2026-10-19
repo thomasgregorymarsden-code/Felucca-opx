@@ -583,6 +583,20 @@ static void test_orders(void)
     }
 }
 
+/* Felucca's macros MLVL FB MRAT DTUN (E3..E6) are off: they change nothing (OPX_FELUCCA_MACROS 0) */
+static void test_macros_off(void)
+{
+    static double y0[FS / 4], y1[FS / 4];
+    int16_t e0[8] = {0, 0, 0, 0, 0, 0, 0, 0}, e1[8] = {0, 0, 0, 40, 40, 8, 100, 0};
+    memset(&P, 0, sizeof P);
+    P = OPX_FACTORY[0];
+    setup(&P, e0);
+    engine_render(60, 100, y0, FS / 4, FS / 8, 0);
+    setup(&P, e1);
+    engine_render(60, 100, y1, FS / 4, FS / 8, 0);
+    check("Felucca's macros MLVL FB MRAT DTUN (E3..E6) off: the sound unchanged", !memcmp(y0, y1, sizeof y0));
+}
+
 /* USER plays the matrix as it is: without a heard operator, silence (no fallback to the patch's algorithm) */
 static void test_user_empty(void)
 {
@@ -808,6 +822,7 @@ int main(int argc, char **argv)
     }
     test_reference();
     test_orders();
+    test_macros_off();
     test_envelopes();
     test_feedback();
     test_velocity();

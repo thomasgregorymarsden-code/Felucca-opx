@@ -9054,7 +9054,7 @@ static void xo_set(uint32_t knob, int32_t to, int32_t span)   /* a knob to its l
 }
 static int test_opx_ops(void)
 {
-    static const char *const CYC_O[] = {"EDIT 1", "EDIT 2", "OPERATORS", "VOICE", "VOICE 2", "VOICE 3", "EDIT 1"};
+    static const char *const CYC_O[] = {"ALGO", "OPERATORS", "VOICE", "VOICE 2", "VOICE 3", "ALGO"};
     int bad = 0, ok;
     uint32_t tr, at = 0, opn, row, n = 0, f;
     uint8_t before[OPX_PK_BYTES], v[OPX_PK_BYTES];
@@ -9063,7 +9063,7 @@ static int test_opx_ops(void)
     tr = song.sel;
     set_engine_of(TSEL, ENGI_OPX);
     frame();
-    bad += check("OPX ops: OPX's EDIT cycle EDIT 1 EDIT 2 OPERATORS VOICE .. EDIT 1 (FM6's pages not shown)",
+    bad += check("OPX ops: OPX's EDIT cycle ALGO OPERATORS VOICE .. ALGO (EDIT 1 / 2 and FM6's pages not shown)",
                  TSEL->eng_req == ENGI_OPX && engine_cycle(CYC_O, NELEM(CYC_O)));
     ok = TSEL->p[P_E7] == 0 && opx_slot[tr] == 0u && opx_own[tr] && opx_own[tr]->op[0].level == OPX_FACTORY[0].op[0].level;
     bad += check("OPX ops: the track's patch is F1 (E.PIANO), the audio plays the decoded copy", ok);
@@ -9249,7 +9249,9 @@ static int test_opx_ops(void)
             ok &= fm6_car_ops(a) == OPX_ALG[a].out;
         }
         bad += check("OPX EDIT 1: algorithms 1..32 route as FM6's (the charts' cells are FM6's)", ok);
-        go_title("EDIT 1"); frame();
+        go_title("ALGO"); frame();
+        ok = cur_page()->id[0] == P_E0 && cur_page()->id[1] == P_E1 && cur_page()->id[2] == P_E2 && cur_page()->id[3] == P_E7;
+        bad += check("OPX ALGO: the knobs ALG ATK DEC SLOT (the opsix's HOME; Felucca's MLVL FB MRAT DTUN not shown)", ok);
         TSEL->p[P_E0] = 5;
         frame();
         k = (uint32_t)TSEL->p[P_E1];
@@ -9258,7 +9260,7 @@ static int test_opx_ops(void)
         turn(EN_K1, 41);                             /* KNOB 1: ALG to USR (41, the last) */
         frame();
         ok &= TSEL->p[P_E0] == 41 && xmat_on();
-        bad += check("OPX EDIT 1: a preset algorithm keeps ATK DEC MLVL; KNOB 1 to USR shows the matrix", ok);
+        bad += check("OPX ALGO: a preset algorithm keeps ALG ATK DEC SLOT; KNOB 1 to USR shows the matrix", ok);
         ok = 1;
         for (rr = 0; rr < 7u; rr++)                  /* every cell: KNOB 2 3 pick it, KNOB 4 writes its field only */
             for (cc = 0; cc < 6u; cc++) {
@@ -9321,10 +9323,10 @@ static int test_opx_ops(void)
             ok &= opx_get(opx_pk[tr], OPXF_UA_OUT(3)) == 1 && opx_get(opx_pk[tr], OPXF_OP(3, OPXF_OP1_LEVEL)) == 70;
         }
         bad += check("OPX EDIT 1 USER: OUT is the operator's level (0..100 = LEVEL, below 0 OFF keeping it), back on at its kept LEVEL", ok);
-        go_title("EDIT 2"); frame();
-        ok = !xmat_on() && xmat_user(TSEL);         /* (EDIT 2: the matrix shown, its knobs FB MRAT DTUN SLOT) */
+        go_title("OPERATORS"); frame();
+        ok = !xmat_on() && xmat_user(TSEL);         /* (OPERATORS: the matrix shown in the left half, the list's knobs) */
         TSEL->p[P_E0] = 0;
-        bad += check("OPX EDIT 2 on USER: the matrix shown, the knobs its own", ok);
+        bad += check("OPX OPERATORS on USER: the matrix shown, the knobs the list's", ok);
         (void)j;
     }
     return bad;

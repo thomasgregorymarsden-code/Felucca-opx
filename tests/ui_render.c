@@ -1255,19 +1255,19 @@ static void setup(int s)
         opx_edit(song.sel, OPXF_OP(4, OPXF_OP1_FREQ_FIXED), 1); opx_edit(song.sel, OPXF_OP(4, OPXF_OP1_FIXED_FREQ), 123456);
         go_title("OPERATORS"); ui.hot_col = 3; ui.hot_t = 30; break;
     case S_OPX_ALGO: eng(ENGI_OPX); opx_poll(); XO_AT(XL_N - 1u); go_title("OPERATORS"); break;
-    /* OPX's EDIT 1: E.PIANO's algorithm 5 (MLVL just turned: the modulators ACCENT), 34 (the 6-chain and its loop), 36;
-     * USER: the matrix with X-MOD's values, the cell OP 3 -> OP 1 picked (its amount just turned), then OUT's row; EDIT 2 */
-    case S_OPX_ALG5: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 0; go_title("EDIT 1"); ui.hot_col = 3; ui.hot_t = 30; break;
-    case S_OPX_ALG34: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 34; opx_scope_c4(); go_title("EDIT 1"); break;
-    case S_OPX_ALG36: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 36; go_title("EDIT 1"); break;
+    /* OPX's ALGO: E.PIANO's algorithm 5 (ALG just turned), 34 (the 6-chain and its loop), 36; USER: the matrix with
+     * X-MOD's values, the cell OP 3 -> OP 1 picked (its amount just turned), then OUT's row; OPERATORS on USER, OP 1 */
+    case S_OPX_ALG5: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 0; go_title("ALGO"); ui.hot_col = 0; ui.hot_t = 30; break;
+    case S_OPX_ALG34: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 34; opx_scope_c4(); go_title("ALGO"); break;
+    case S_OPX_ALG36: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 36; go_title("ALGO"); break;
     case S_OPX_MATRIX: eng(ENGI_OPX); TSEL->p[P_E7] = 6; opx_poll(); TSEL->p[P_E0] = 41; xmat_row = 0; xmat_col = 2; opx_scope_c4();
-        go_title("EDIT 1"); ui.hot_col = 3; ui.hot_t = 30; break;
+        go_title("ALGO"); ui.hot_col = 3; ui.hot_t = 30; break;
     case S_OPX_MATRIX_OUT: eng(ENGI_OPX); TSEL->p[P_E7] = 6; opx_poll(); TSEL->p[P_E0] = 41; xmat_row = 6; xmat_col = 1;
-        go_title("EDIT 1"); break;
-    case S_OPX_MATRIX_E2: eng(ENGI_OPX); TSEL->p[P_E7] = 6; opx_poll(); TSEL->p[P_E0] = 41; go_title("EDIT 2"); break;
+        go_title("ALGO"); break;
+    case S_OPX_MATRIX_E2: eng(ENGI_OPX); TSEL->p[P_E7] = 6; opx_poll(); TSEL->p[P_E0] = 41; xmat_row = 0; xmat_col = 0; go_title("OPERATORS"); break;
     /* the small scope's time scale: a C4 (261.63 Hz) with its second harmonic, no voice sounding (the last note: 60):
      * two periods across the scope */
-    case S_OPX_SCOPE: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 0; opx_scope_c4(); go_title("EDIT 1"); break;
+    case S_OPX_SCOPE: eng(ENGI_OPX); opx_poll(); TSEL->p[P_E0] = 0; opx_scope_c4(); go_title("ALGO"); break;
 #endif
     case S_CONFIRM_SEQ: ui.confirm = CF_CLEAR_SEQ; ui.confirm_trk = 2; break;
     case S_CONFIRM_PROJ: ui.confirm = CF_OVR_PROJ; ui.confirm_trk = 0; break;

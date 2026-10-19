@@ -203,7 +203,7 @@ static int fop_card(uint32_t slot, const char **label, char *val, const char **u
  *   KNOB 2  a section at a time (to the first row of the next / previous one)
  *   KNOB 3  the row
  *   KNOB 4  the row's value
- * The panel rolls: 7 rows on show, a row of "..." at the bottom (top) while more are below (above); the picked row
+ * The panel rolls: 8 rows on show (the right half; the algorithm or the matrix in the left, ui_graph.c), a row of "..." at the bottom (top) while more are below (above); the picked row
  * moves down to the last whole row, then the list moves up under it. A detent of KNOB 4 writes one field (opx_edit: the
  * patch becomes the track's own, SLOT OWN), one undo per knob gesture (SAVE held). The user algorithm's matrix is EDIT
  * 1's too (ui_fm6op.c xmat_*), drawn; this list gives its numbers. The macros (EDIT 1 / 2) still apply on top, as FM6's. */
@@ -249,7 +249,7 @@ static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
 }
 /* the rolling window: 7 places; "..." at the bottom (top) when rows are hidden below (above). Keeps the picked row on
  * an item place, moving the window only when it would land on a "..." (or past the end) */
-#define XL_SHOW 7u
+#define XL_SHOW 8u
 static void xop_scroll(void)
 {
     uint32_t cur = xop_row(), top = xop_top, first, last;
@@ -419,7 +419,7 @@ static void xop_hz(int32_t f, char *s)
 /* row r of the section shown: its label, value (12), unit, gauge (0..1000, -1 none); 0 = it does not sound now (DIM) */
 static int xop_rowtext(uint32_t r, const char **label, char *val, const char **unit, int32_t *ratio)
 {
-    static const char *const LBL[] = {"MODE", "RATIO", "FINE", "DTUN", "TRANS", "LEVEL", "ATK", "DEC", "SUS", "REL",
+    static const char *const LBL[] = {"FREQ", "RATIO", "FINE", "DTUN", "TRANS", "LEVEL", "ATK", "DEC", "SUS", "REL",
                                       "CURVE", "VEL", "FB", "WAVE", "WIDTH", "TO OP", "SELF", "OUT", "ALG", "ALG FB"};
     uint32_t tr = song.sel % NTRK, f, k = xop_rowf(r, tr, &f);
     int32_t v = opx_get(opx_pk[tr], f), lo = OPX_FIELDS[f].lo, hi = OPX_FIELDS[f].hi;
@@ -437,7 +437,7 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
     case XR_FINE:
         if (f == OPXF_OP(fop_op % 6u, OPXF_OP1_FIXED_FREQ)) {
             if (k == XR_RATIO) {
-                *label = "FREQ";
+                *label = "FIXED";
                 xop_hz(v, val);
             } else {                                 /* FINE: the same frequency to 0.01 Hz (what a cent moves) */
                 fop_dec(val, (uint32_t)v / 100u, (uint32_t)v % 100u, 2u);

@@ -396,6 +396,11 @@ static int page_visible(uint32_t i)
         return TSEL->eng_req % NENGINES == ENGI_FM6;
     if (PAGES[i].graph == GR_OPXL)                    /* (OPX fork) */
         return FELUCCA_OPX && TSEL->eng_req % NENGINES == ENGI_OPX;
+#if FELUCCA_OPX
+    if (PAGES[i].scope == SC_ENGINE)                  /* (OPX fork) an OPX track: ALGO (ALG ATK DEC SLOT) in place of EDIT
+                                                       * 1 / 2 (their E3..E6 are Felucca's macros, off); the others: not ALGO */
+        return (TSEL->eng_req % NENGINES == ENGI_OPX) == (PAGES[i].id[0] == P_E0 && PAGES[i].id[3] == P_E7);
+#endif
 #if FELUCCA_SLICE
     if (PAGES[i].graph == GR_SLICES)
         return ENGINES[TSEL->eng_req % NENGINES] == &ENG_SLICE;
@@ -407,9 +412,13 @@ static int page_visible(uint32_t i)
              PAGES[i].id[0] <= P_FM4_LEVEL) || (FELUCCA_FM4 && TSEL->eng_req % NENGINES == ENGI_DIGITAL);
 }
 
-static uint32_t page_first(uint32_t fam)
+static uint32_t page_first(uint32_t fam)            /* the family's first page shown (OPX fork: an OPX track's EDIT
+                                                     * opens on ALGO, EDIT 1 hidden); none shown: its first */
 {
     uint32_t i;
+    for (i = 0; i < NPAGES; i++)
+        if (PAGES[i].fam == fam && page_visible(i))
+            return i;
     for (i = 0; i < NPAGES; i++)
         if (PAGES[i].fam == fam)
             return i;
