@@ -7937,25 +7937,48 @@ static int test_bpm_lock(void)
     press(B_HOME);
     bad += check("#58 MENU > BPM LOCK: KNOB 1 right / OCT+ ON, left / OCT- OFF; SELECT in the menu is no tempo", ok && !ui.menu);
 
-    /* ON: no tempo from SELECT on HOME and the pages; "BPM LOCKED" once per burst */
-    ok = 1;
-    for (i = 0; i < 3u; i++) {
-        if (i == 1u) go_title("ENV");
-        if (i == 2u) go_title("STEP");
-        frame();
-        ui.msg_t = 0; fm1_ms += 1200u;
+    /* ON: SELECT alone turns the page (OPX fork: ui.c page_turn), round the family shown, either way, a turn a page;
+     * HOME's family HOME MIXER CLOCK as HOME's taps; never the tempo */
+    {
+        uint32_t st, nx;
         b0 = song.g[G_BPM];
-        turn(EN_SELECT, 1);
-        ok &= song.g[G_BPM] == b0 && msg_is("BPM LOCKED") && !ui.bpm_t;
+        go_home(); frame();
         ui.msg_t = 0;
-        turn(EN_SELECT, -4);                                          /* (the same burst: said once) */
-        ok &= song.g[G_BPM] == b0 && !ui.msg_t;
+        turn(EN_SELECT, 1); ok = !ui.home && str_eq(cur_page()->title, "MIXER");
+        turn(EN_SELECT, 1); ok &= str_eq(cur_page()->title, "CLOCK");
+        turn(EN_SELECT, 1); ok &= ui.home;
+        turn(EN_SELECT, -1); ok &= !ui.home && str_eq(cur_page()->title, "CLOCK");
+        turn(EN_SELECT, -1); ok &= str_eq(cur_page()->title, "MIXER");
+        turn(EN_SELECT, -1); ok &= ui.home;
+        go_title("ENV"); frame();
+        turn(EN_SELECT, 1); ok &= str_eq(cur_page()->title, "ENV DEST");
+        turn(EN_SELECT, 1); ok &= str_eq(cur_page()->title, "ENV");          /* (round) */
+        turn(EN_SELECT, -1); ok &= str_eq(cur_page()->title, "ENV DEST");
+        turn(EN_SELECT, 3); ok &= str_eq(cur_page()->title, "ENV");          /* (one frame's detents: one page) */
+        go_title("STEP"); frame();
+        st = ui.page;
+        press(B_SEQ); nx = ui.page;                                           /* (SEQ's next: as its button's tap) */
+        go_title("STEP"); frame();
+        turn(EN_SELECT, 1); ok &= ui.page == nx && nx != st;
+        turn(EN_SELECT, -1); ok &= ui.page == st && song.seq_mode;
+        ok &= song.g[G_BPM] == b0 && !ui.bpm_t && !msg_is("BPM LOCKED");
+        bad += check("#58 BPM LOCK ON: SELECT alone turns the page (round its family, either way; HOME MIXER CLOCK), "
+                     "never the tempo", ok);
     }
-    fm1_ms += 1200u;
+    /* ON, another layer held (not GLO): no page under it, no tempo; "BPM LOCKED" once per burst */
+    go_title("ENV"); frame();
+    page = ui.page;
+    b0 = song.g[G_BPM];
+    btn_down(B_FX); frame();
+    ui.msg_t = 0; fm1_ms += 1200u;
     turn(EN_SELECT, 1);
-    ok &= msg_is("BPM LOCKED");                                       /* (a new burst: said again) */
+    ok = song.g[G_BPM] == b0 && msg_is("BPM LOCKED") && ui.page == page;
+    ui.msg_t = 0;
+    turn(EN_SELECT, -4);                                              /* (the same burst: said once) */
+    ok &= song.g[G_BPM] == b0 && !ui.msg_t && ui.page == page;
+    btn_up(B_FX); frame();
     ok &= text_w(&AF_S, "BPM LOCKED") <= 236 - 106;                   /* (fits the header's message zone) */
-    bad += check("#58 BPM LOCK ON: SELECT leaves the tempo on HOME and the pages, \"BPM LOCKED\" once per turn burst", ok);
+    bad += check("#58 BPM LOCK ON: a layer held (not GLO): SELECT no page, no tempo, \"BPM LOCKED\" once per burst", ok);
 
     /* ON: HOME > CLOCK's BPM knob (up to 1.1.5 GLO > GLOBAL's) */
     go_home(); press(B_HOME); press(B_HOME); frame();   /* (HOME > MIXER > CLOCK) */
@@ -9054,7 +9077,7 @@ static void xo_set(uint32_t knob, int32_t to, int32_t span)   /* a knob to its l
 }
 static int test_opx_ops(void)
 {
-    static const char *const CYC_O[] = {"ALGO", "OPERATORS", "VOICE", "VOICE 2", "VOICE 3", "ALGO"};
+    static const char *const CYC_O[] = {"ALGO", "OPERATORS", "ALGO"};
     int bad = 0, ok;
     uint32_t tr, at = 0, opn, row, n = 0, f;
     uint8_t before[OPX_PK_BYTES], v[OPX_PK_BYTES];
@@ -9063,14 +9086,14 @@ static int test_opx_ops(void)
     tr = song.sel;
     set_engine_of(TSEL, ENGI_OPX);
     frame();
-    bad += check("OPX ops: OPX's EDIT cycle ALGO OPERATORS VOICE .. ALGO (EDIT 1 / 2 and FM6's pages not shown)",
+    bad += check("OPX ops: OPX's EDIT cycle ALGO OPERATORS ALGO (EDIT 1 / 2, VOICE 1..3 and FM6's pages not shown)",
                  TSEL->eng_req == ENGI_OPX && engine_cycle(CYC_O, NELEM(CYC_O)));
     ok = TSEL->p[P_E7] == 0 && opx_slot[tr] == 0u && opx_own[tr] && opx_own[tr]->op[0].level == OPX_FACTORY[0].op[0].level;
     bad += check("OPX ops: the track's patch is F1 (E.PIANO), the audio plays the decoded copy", ok);
 
     go_title("OPERATORS"); frame();
     xo_set(EN_K3, 0, 30);
-    ok = xop_row() == 0u && xop_top == 0u && xop_sec_of(0) == XS_MODE && xop_kind(0) == XR_MODE && xop_n() == 30u;
+    ok = xop_row() == 0u && xop_top == 0u && xop_sec_of(0) == XS_MODE && xop_kind(0) == XR_MODE && xop_n() == 39u;
     turn(EN_K2, 1);
     ok &= xop_row() == xop_find(XR_FREQ) && xop_sec_of(xop_row()) == XS_PITCH;   /* (FM: MODE WAVE FB WIDTH, then PITCH) */
     turn(EN_K2, 1);
@@ -9079,8 +9102,12 @@ static int test_opx_ops(void)
     ok &= xop_row() == xop_find(XR_KLOW) && xop_sec_of(xop_row()) == XS_KTRK;
     turn(EN_K2, 1);
     ok &= xop_row() == xop_find(XR_TO0) && xop_sec_of(xop_row()) == XS_USER;
+    turn(EN_K2, 1);
+    ok &= xop_row() == xop_find(XR_ALG) && xop_sec_of(xop_row()) == XS_ALGO;
     turn(EN_K2, 5);
-    ok &= xop_row() == xop_find(XR_ALG) && xop_sec_of(xop_row()) == XS_ALGO;   /* (the last: no wrap) */
+    ok &= xop_row() == xop_find(XR_V0) && xop_sec_of(xop_row()) == XS_VOICE;   /* (the last: no wrap) */
+    turn(EN_K2, -1);
+    ok &= xop_row() == xop_find(XR_ALG);
     turn(EN_K3, 1);
     turn(EN_K2, -1);
     ok &= xop_row() == xop_find(XR_ALG);             /* (left: this section's first row, then the one before) */
@@ -9088,7 +9115,31 @@ static int test_opx_ops(void)
     ok &= xop_row() == xop_find(XR_TO0);
     turn(EN_K2, -9);
     ok &= xop_row() == 0u;
-    bad += check("OPX ops: one list (MODE PITCH EG KTRK USER ALGO); KNOB 2 a section a detent (its first row; left: this one's, then the previous)", ok);
+    bad += check("OPX ops: one list (MODE PITCH EG KTRK USER ALGO VOICE); KNOB 2 a section a detent (its first row; left: this one's, then the previous)", ok);
+
+    /* VOICE: the track's VOICE pages' parameters (TSEL->p), shown and turned as there; no operator */
+    {
+        const char *lb, *un;
+        char val[12];
+        int32_t ra;
+        uint32_t ic;
+        xo_set(EN_K3, (int32_t)xop_find(XR_V0), 60);
+        TSEL->p[P_VOICE] = 0, TSEL->p[P_SPRD] = 0, TSEL->p[P_GLIDE] = 0;
+        ok = xop_kind(xop_row()) == XR_V0 && xop_rowtext(xop_row(), &lb, val, &un, &ra) && str_eq(lb, "VOICE") &&
+             str_eq(val, "POLY") && ra < 0;
+        turn(EN_K4, 1);
+        xop_rowtext(xop_row(), &lb, val, &un, &ra);
+        ok &= TSEL->p[P_VOICE] == 1 && str_eq(val, "MONO");
+        ok &= !xop_card(0, &lb, val, &un, &ra, &ic);                  /* (OP: DIM, the track's row) */
+        xo_set(EN_K3, (int32_t)xop_find(XR_V8), 60);
+        turn(EN_K4, 5);
+        xop_rowtext(xop_row(), &lb, val, &un, &ra);
+        ok &= TSEL->p[P_SPRD] == 5 && str_eq(lb, "SPREAD") && str_eq(un, "%") && ra > 0;
+        xo_set(EN_K3, (int32_t)xop_find(XR_V0 + 1u), 60);
+        turn(EN_K4, 3);
+        ok &= TSEL->p[P_GLIDE] == 3;
+        bad += check("OPX ops: VOICE: the track's VOICE GLIDE .. SPREAD as the VOICE pages show and turn them", ok);
+    }
 
     /* the roll: 8 places, "..." below while rows are hidden there, above likewise; the picked row never on a "..." */
     {
@@ -9220,7 +9271,7 @@ static int test_opx_ops(void)
             opx_edit(tr, OPXF_OP(3, OPXF_OP1_MODE), MR[m].md);
             for (i = 0; i < 6u && MR[m].rows[i] != XR_FREQ; i++)
                 ok &= xop_kind(i) == MR[m].rows[i];
-            ok &= xop_kind(i) == XR_FREQ && xop_n() == i + 26u;
+            ok &= xop_kind(i) == XR_FREQ && xop_n() == i + 35u;
             xop_rowtext(0, &lb, val, &u, &r);
             ok &= str_eq(lb, "MODE") && str_eq(val, N_OPX_MODE[MR[m].md]);
         }

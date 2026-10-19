@@ -203,6 +203,9 @@ static int fop_card(uint32_t slot, const char **label, char *val, const char **u
  *   USER   TO OP1 .. TO OP6 (the picked operator's own row: "(SELF)", its self feedback), OUT (as ALGO's matrix: its
  *          LEVEL while heard, OFF), the matrix's values as numbers; DIM unless the track plays USER
  *   ALGO   ALG ALG FB
+ *   VOICE  the track's VOICE pages (VOICE GLIDE GLIDE MODE PRIORITY, ALLOC DETUNE PAN MUTE, SPREAD): Felucca's own
+ *          parameters (TSEL->p, as those pages edit them: motion, MIDI LEARN), which an OPX track shows here only (ui.c
+ *          page_visible)
  * The list is the picked operator's: its MODE section follows its mode (xop_list).
  *   KNOB 1  the operator (OP 1..6; shared with FM6's pages: fop_op)
  *   KNOB 2  a section at a time (to the first row of the next / previous one)
@@ -212,15 +215,18 @@ static int fop_card(uint32_t slot, const char **label, char *val, const char **u
  * "..." at the bottom (top) while more are below (above); the picked row moves down to the last whole row, then the
  * list moves up under it. A detent of KNOB 4 writes one field (opx_edit: the patch becomes the track's own, SLOT OWN),
  * one undo per knob gesture (SAVE held). The user algorithm's matrix is ALGO's too (ui_fm6op.c xmat_*) */
-enum { XS_MODE, XS_PITCH, XS_EG, XS_KTRK, XS_USER, XS_ALGO, XS_N };
+enum { XS_MODE, XS_PITCH, XS_EG, XS_KTRK, XS_USER, XS_ALGO, XS_VOICE, XS_N };
 enum { XR_MODE, XR_WAVE, XR_FB, XR_WIDTH, XR_RDEPTH, XR_RSHAPE, XR_FTYPE, XR_FMIX, XR_CUT, XR_RESO, XR_FGAIN, XR_GMIX,
        XR_BIAS, XR_FX, XR_XMIX, XR_FXE, XR_FXF,                                            /* MODE */
        XR_FREQ, XR_RATIO, XR_FINE, XR_DTUN, XR_TRANS,                                      /* PITCH */
        XR_LVL, XR_ATK, XR_DEC, XR_SUS, XR_REL, XR_CRV, XR_VEL,                             /* EG */
        XR_KLOW, XR_KCTR, XR_KHIGH, XR_KLC, XR_KHC,                                         /* KTRK */
        XR_TO0, XR_TO5 = XR_TO0 + 5, XR_OUT,                                                /* USER */
-       XR_ALG, XR_ALGFB, XR_N };                                                           /* ALGO */
-static const char *const XS_NAME[XS_N] = {"MODE", "PITCH", "EG", "KTRK", "USER", "ALGO"};
+       XR_ALG, XR_ALGFB,                                                                   /* ALGO */
+       XR_V0, XR_V8 = XR_V0 + 8, XR_N };                                                   /* VOICE */
+static const char *const XS_NAME[XS_N] = {"MODE", "PITCH", "EG", "KTRK", "USER", "ALGO", "VOICE"};
+static const uint8_t XV_ID[9] = {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO, P_ALLOC, P_DETUNE, P_PAN, P_MUTE, P_SPRD};
+static int xop_voice(uint32_t k) { return k >= XR_V0 && k <= XR_V8; }
 static const char *const N_OPX_MODE[OPX_NMODE] = {"FM", "RING MOD", "FILTER", "FILTER FM", "WAVE FOLDER", "EFFECT",
                                                   "BYPASS", "MUTE"};
 static const char *const N_OPX_FLT[12] = {"LPF", "HPF", "BPF", "BRF", "MG LPF12", "MG LPF24", "MG HPF12", "MG HPF24",
@@ -267,7 +273,7 @@ static uint32_t xop_sec_of(uint32_t i)
 {
     uint32_t k = xop_kind(i);
     return k < XR_FREQ ? XS_MODE : k < XR_LVL ? XS_PITCH : k < XR_KLOW ? XS_EG : k < XR_TO0 ? XS_KTRK :
-           k <= XR_OUT ? XS_USER : XS_ALGO;
+           k <= XR_OUT ? XS_USER : k < XR_V0 ? XS_ALGO : XS_VOICE;
 }
 /* row i's kind (XR_*) and its field (XR_TO*: the amount the picked operator sends to that one; its own: its self
  * feedback. XR_OUT: its OUT bit, though the row shows and sets xop_out) */
@@ -287,6 +293,8 @@ static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
         *field = opxf_ua(op, k - XR_TO0);
     else if (k == XR_OUT)
         *field = OPXF_UA_OUT(op);
+    else if (xop_voice(k))
+        *field = 0;                                  /* (VOICE: the track's parameter XV_ID, not the patch's) */
     else
         *field = k == XR_ALG ? OPXF_ALGO : OPXF_PROG_ALG_FB;
     return k;
@@ -400,6 +408,16 @@ static void xop_knob(uint32_t slot, int32_t steps)
         xop_out_turn(tr, fop_op % 6u, steps);
         return;
     }
+    if (xop_voice(k)) {                              /* VOICE: as the VOICE pages' knob (ui_input.c edit_param) */
+        uint32_t id = XV_ID[k - XR_V0];
+        const param_desc_t *d = track_desc(TSEL, id);
+        if (d->max == d->min)
+            return;
+        TSEL->p[id] = (int16_t)param_turn(d, TSEL->p[id], accel(EN_K4, steps, d->fmt == F_ENUM ? 0 : d->max - d->min));
+        motion_capture(TSEL, id, TSEL->p[id]);
+        ml_knob(TSEL, id);
+        return;
+    }
     {
         int32_t lo = OPX_FIELDS[f].lo, hi = OPX_FIELDS[f].hi;
         if (k == XR_FXE || k == XR_FXF) {            /* (E and F: the effect type's own range, OPX_FXV) */
@@ -497,11 +515,22 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
     static const char *const LBL[XR_N] = {"MODE", "WAVE", "FB", "WIDTH", "DEPTH", "SHAPE", "TYPE", "OSC MIX",
         "CUTOFF", "RESO", "GAIN", "OSC MIX", "BIAS", "FX", "OSC MIX", "E", "F", "FREQ", "RATIO", "FINE", "DTUN", "TRANS",
         "LEVEL", "ATK", "DEC", "SUS", "REL", "CURVE", "VEL", "LOW", "CENTER", "HIGH", "L CRV", "H CRV",
-        "TO OP", "TO OP", "TO OP", "TO OP", "TO OP", "TO OP", "OUT", "ALG", "ALG FB"};
+        "TO OP", "TO OP", "TO OP", "TO OP", "TO OP", "TO OP", "OUT", "ALG", "ALG FB",
+        "VOICE", "GLIDE", "GLIDE MODE", "PRIORITY", "ALLOC", "DETUNE", "PAN", "MUTE", "SPREAD"};
     static const char NOTE[12][3] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
     uint32_t tr = song.sel % NTRK, f, k = xop_rowf(r, tr, &f);
-    int32_t v = opx_get(opx_pk[tr], f), lo = OPX_FIELDS[f].lo, hi = OPX_FIELDS[f].hi;
+    int32_t v, lo, hi;
     int on = 1;
+    if (xop_voice(k)) {                              /* VOICE: the track's parameter, as its page shows it */
+        uint32_t id = XV_ID[k - XR_V0];
+        const param_desc_t *d = track_desc(TSEL, id);
+        v = TSEL->p[id];
+        *label = LBL[k];
+        param_format(d, v, val, unit);
+        *ratio = d->fmt == F_ENUM || d->max == d->min ? -1 : (int32_t)((int64_t)(v - d->min) * 1000 / (d->max - d->min));
+        return 1;
+    }
+    v = opx_get(opx_pk[tr], f), lo = OPX_FIELDS[f].lo, hi = OPX_FIELDS[f].hi;
     *label = LBL[k];
     *unit = "";
     *ratio = (int32_t)((int64_t)(v - lo) * 1000 / (hi - lo));
@@ -654,7 +683,8 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         ICON_GENERIC, ICON_GENERIC, ICON_RATIO, ICON_RATIO, ICON_TUNE, ICON_DETUNE, ICON_TRANSPOSE, ICON_LEVEL,
         ICON_ATTACK, ICON_DECAY, ICON_SUSTAIN, ICON_RELEASE, ICON_ENV, ICON_ACCENT, ICON_KEYTRACK, ICON_KEYTRACK,
         ICON_KEYTRACK, ICON_KEYTRACK, ICON_KEYTRACK, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD,
-        ICON_MIX, ICON_ALGORITHM, ICON_FEEDBACK};
+        ICON_MIX, ICON_ALGORITHM, ICON_FEEDBACK, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE,
+        ICON_NONE, ICON_NONE, ICON_NONE};                /* (VOICE: the parameter's own, param_icon) */
     uint32_t tr = song.sel % NTRK, f;
     *unit = "";
     *ratio = -1;
@@ -664,7 +694,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         *unit = "/6";
         *ratio = (int32_t)fop_op * 200;
         *icon = ICON_ALGORITHM;
-        return xop_sec_of(xop_row()) != XS_ALGO;      /* (ALGO's rows: the patch's, no operator) */
+        return xop_sec_of(xop_row()) < XS_ALGO;       /* (ALGO's rows: the patch's, VOICE's the track's: no operator) */
     }
     if (slot == 1u) {
         uint32_t sc = xop_sec_of(xop_row());
@@ -690,7 +720,8 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         uint32_t k = xop_rowf(xop_row(), tr, &f);
         int on = xop_rowtext(xop_row(), label, val, unit, ratio);
         int self = k >= XR_TO0 && k <= XR_TO5 && k - XR_TO0 == fop_op % 6u;
-        *icon = self ? ICON_FEEDBACK : ICN[k];
+        *icon = self ? ICON_FEEDBACK : xop_voice(k) ? param_icon(track_desc(TSEL, XV_ID[k - XR_V0]), TSEL->p[XV_ID[k - XR_V0]])
+                                              : ICN[k];
         if (self)
             *label = "SELF";                         /* (the card's title is short: "TO OP3 (SELF)" in the list) */
         if (k == XR_WAVE) {                          /* (the card is narrow: the list has the manual's full names) */
@@ -707,7 +738,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         return on;
     }
 }
-_Static_assert(XR_N == 43, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
+_Static_assert(XR_N == 52, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
 #endif
 
 /* the dispatch: FM6's pages, or OPX's OPERATORS (OPX fork) */

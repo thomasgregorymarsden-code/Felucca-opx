@@ -1661,8 +1661,12 @@ static void ui_input(void)
         if (glo || !(ui_prefs & PREF_BPM_LOCK)) {
             song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
             ui.bpm_t = 40;                              /* the header's BPM lights up; no message over the header */
-        } else {                                        /* MENU > BPM LOCK ON (#58): only with GLO held (and on HOME >
-                                                         * CLOCK, GLO's F4 TAP); a turn burst says so once */
+        } else if (!lay) {                              /* MENU > BPM LOCK ON (#58): the tempo only with GLO held (and
+                                                         * HOME > CLOCK, GLO's F4 TAP); SELECT alone turns the page
+                                                         * (OPX fork: ui.c page_turn) */
+            page_turn(s);
+        } else {                                        /* (another layer held: no page under it; a turn burst says
+                                                         * so once) */
             if (!lock_ms || fm1_ms - lock_ms > 1000u)
                 ui_message("BPM LOCKED");
             lock_ms = fm1_ms | 1u;

@@ -14,6 +14,10 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
   (ENV DEST, LFO DEST, the MOD matrix's CUT and SHP; their cards dimmed on OPX). PIT works as before. The algorithm chart has square boxes and sits in the
   left half; OPERATORS shows it beside the list (right half), the selected operator highlighted. The list follows the
   opsix's pages: MODE (the mode's own rows), PITCH, EG, KTRK, USER, ALGO.
+- **OPX VOICE section:** on an OPX track, VOICE, VOICE 2 and VOICE 3 are the last section of OPERATORS (VOICE, GLIDE,
+  GLIDE MODE, PRIORITY, ALLOC, DETUNE, PAN, MUTE, SPREAD); EDIT goes ALGO, OPERATORS. Other engines keep the pages.
+- **SELECT turns pages with BPM LOCK ON:** SELECT alone turns the page either way, round the family shown (HOME:
+  HOME, MIXER, CLOCK); with BPM LOCK OFF it is the tempo as before. No new setting.
 - **OPX waveforms:** each operator has a WAVE, the opsix's 23 (sines at 16, 12 and 8 bits, triangle, saw and square
   with HD versions, eleven additive waves, four noises), and WIDTH. On EDIT > OPERATORS > OSC: WAVE, FB, WIDTH.
   Existing patches keep their sine and sound as before.

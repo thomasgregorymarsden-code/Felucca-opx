@@ -1651,7 +1651,7 @@ static void graph_opxlist(const track_t *t, uint16_t c)
 {
     uint32_t cur = xop_row(), top, i, n = xop_n();
     int32_t row;
-    graph_opx_left(t, c, 0, xop_sec_of(cur) == XS_ALGO ? 6u : fop_op % 6u);
+    graph_opx_left(t, c, 0, xop_sec_of(cur) >= XS_ALGO ? 6u : fop_op % 6u);
     cv_rect(OPX_HALF, 6, 1, 110, T_RAISE);               /* (the rule between the halves) */
     xop_scroll();
     top = xop_top;

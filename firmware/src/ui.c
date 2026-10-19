@@ -397,6 +397,10 @@ static int page_visible(uint32_t i)
     if (PAGES[i].graph == GR_OPXL)                    /* (OPX fork) */
         return FELUCCA_OPX && TSEL->eng_req % NENGINES == ENGI_OPX;
 #if FELUCCA_OPX
+    if (PAGES[i].fam == FAM_EDIT && PAGES[i].scope == SC_TRACK &&   /* (OPX fork) VOICE, VOICE 2, VOICE 3: an OPX track's
+                                                       * are OPERATORS' VOICE section (ui_fm6op.c XS_VOICE) */
+        (PAGES[i].id[0] == P_VOICE || PAGES[i].id[0] == P_ALLOC || PAGES[i].id[0] == P_SPRD))
+        return TSEL->eng_req % NENGINES != ENGI_OPX;
     if (PAGES[i].scope == SC_ENGINE)                  /* (OPX fork) an OPX track: ALGO (ALG ATK DEC SLOT) in place of EDIT
                                                        * 1 / 2 (their E3..E6 are Felucca's macros, off); the others: not ALGO */
         return (TSEL->eng_req % NENGINES == ENGI_OPX) == (PAGES[i].id[0] == P_E0 && PAGES[i].id[3] == P_E7);
@@ -713,6 +717,43 @@ static void home_tap(void)
     } else {
         go_home();
     }
+}
+
+/* (OPX fork) MENU > BPM LOCK ON: SELECT turned alone turns the page, either way, round the family shown (the pages its
+ * button's taps go through, those shown for this track: open_family). HOME's family goes round HOME, MIXER, CLOCK as
+ * HOME's taps do (home_tap). A turn (a frame's detents) is one page */
+static void page_turn(int32_t dir)
+{
+    uint32_t fam, i, j = NPAGES;
+    if (ui.home || cur_page()->fam == FAM_TRK) {
+        if (dir > 0) {
+            home_tap();
+            return;
+        }
+        if (ui.home) {                                 /* left from HOME: its last page (CLOCK) */
+            for (i = 0; i < NPAGES; i++)
+                if (PAGES[i].fam == FAM_TRK)
+                    j = i;
+            ui.fam_last[FAM_TRK] = (uint8_t)j;
+            open_family(FAM_TRK);
+            return;
+        }
+    }
+    fam = cur_page()->fam;
+    for (i = 1; i < NPAGES && j == NPAGES; i++) {
+        uint32_t q = (ui.page + (dir > 0 ? i : NPAGES - i)) % NPAGES;
+        if (PAGES[q].fam == fam && page_visible(q))
+            j = q;
+    }
+    if (fam == FAM_TRK && j > ui.page) {              /* left past HOME's first page (MIXER): HOME */
+        go_home();
+        return;
+    }
+    if (j == NPAGES)                                   /* (the family's only page: GLO's SONG) */
+        return;
+    ui.page = (uint8_t)j;
+    ui.fam_last[fam] = ui.page;
+    page_entered();
 }
 
 /* ------------------------------------------------------- track setup --- */

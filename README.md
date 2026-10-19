@@ -78,7 +78,8 @@ them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SA
 
 ### The pages
 
-On an OPX track, EDIT goes **ALGO, OPERATORS**, then VOICE, VOICE 2 and VOICE 3 as on every engine. Both OPX pages
+On an OPX track, EDIT goes **ALGO, OPERATORS** and back: VOICE, VOICE 2 and VOICE 3 are OPERATORS' VOICE section on an
+OPX track (the same parameters). Both OPX pages
 show the algorithm in the left half: a chart of square operator boxes for a preset algorithm, the matrix for USER.
 
 **ALGO** has the opsix's HOME knobs (ALG, ATK, DEC) and SLOT, with a small oscilloscope in the right half. The scope
@@ -104,7 +105,7 @@ rows hidden above or below.
 | Knob | Selects |
 |---|---|
 | 1 | the operator, 1–6 |
-| 2 | a section per click: MODE, PITCH, EG, KTRK, USER, ALGO |
+| 2 | a section per click: MODE, PITCH, EG, KTRK, USER, ALGO, VOICE |
 | 3 | the row |
 | 4 | the row's value (a list such as MODE, TYPE or FX: one step per click) |
 
@@ -116,6 +117,7 @@ rows hidden above or below.
 | KTRK | LOW, CENTER, HIGH, L CRV, H CRV |
 | USER | TO OP1 … TO OP6: what this operator sends to each, as exact numbers (its own row reads "(SELF)" and is its self feedback); OUT, as on the matrix. Dimmed unless the track plays USER |
 | ALGO | ALG (the patch's algorithm), ALG FB |
+| VOICE | the track's VOICE pages: VOICE (POLY, MONO, LEG, UNI), GLIDE, GLIDE MODE, PRIORITY, ALLOC, DETUNE, PAN, MUTE, SPREAD, as on every engine (automation and MIDI LEARN included) |
 
 **SAVE held** undoes the last knob gesture, the patch and SLOT included; held again it redoes.
 
@@ -239,7 +241,7 @@ The pages by button:
 | GLO | SONG | the GLO layer (mutes, solos, levels, TAP tempo, D4: MIDI LEARN) |
 | SAVE | USER, PRESETS, PHRASES (the pattern loader), PROJECT, TOOLS | UNDO |
 | LFO | LFO, LFO 2, LFO DEST, MOD | MOMENTARY (with a knob) |
-| EDIT | EDIT 1, EDIT 2, VOICE, VOICE 2, VOICE 3 (FM6 adds OPERATOR, OP ENV, OPERATOR 2; OPX has ALGO and OPERATORS in place of EDIT 1 / 2; DRUM LANES; SLICE SLICES; ANALOG FILTER) | the EDIT layer (the engines; on DRUM the black keys mute lanes) |
+| EDIT | EDIT 1, EDIT 2, VOICE, VOICE 2, VOICE 3 (FM6 adds OPERATOR, OP ENV, OPERATOR 2; OPX has only ALGO and OPERATORS, the VOICE pages a section of OPERATORS; DRUM LANES; SLICE SLICES; ANALOG FILTER) | the EDIT layer (the engines; on DRUM the black keys mute lanes) |
 | FX, SCL, ENV, ARP | their pages (FX: INSERT and INSERT 2 after the SLICER) | FX and SCL: their layers |
 | REC | arms the track | the REC layer (CLEAR, CLICK, COUNT-IN, CLICK LEVEL) |
 
@@ -282,7 +284,8 @@ way as from the menu, in the same tabs.
 - **FX LATCH:** ON, FX + an effect key turns the effect on until pressed again, the knob macros stay
   where you leave them, and FX + OCT− turns everything off
 - **BPM LOCK:** ON, SELECT no longer changes the tempo; hold GLO and turn SELECT, tap F4 in the GLO
-  layer or use HOME > CLOCK instead
+  layer or use HOME > CLOCK instead. SELECT alone then turns the page, either way, round the pages of the button
+  last pressed (HOME: HOME, MIXER, CLOCK)
 - **SCALE LEDS:** OFF or ON: the keys show the selected track's scale all the time (the root a little
   brighter); not on DRUM or SLICE tracks
 - **STEP PREVIEW:** OFF (default) or ON: on SEQ > STEP with the transport stopped, moving the cursor plays the step
