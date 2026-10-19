@@ -27,9 +27,11 @@
  *   SLOT  F1..F7 load a factory patch into the track; OWN the track's own (edited on the operator pages, ui_fm6op.c,
  *         or loaded with a project, opx_store.c). The patch is opx_patch.c's packed record per track
  * Felucca's FM6-style macros (E3..E6: MLVL, FB, MRAT, DTUN) are not the opsix's: off (OPX_FELUCCA_MACROS 0; the track
- * keeps their values, nothing reads them, no page shows them: ui.c page_visible)
- * The operator envelopes are the voice's amplitude and end it (engine_t.ownenv / done). The track's FLT moves MLVL,
- * SHP the feedback, PIT the pitch.
+ * keeps their values, nothing reads them, no page shows them: ui.c page_visible). So are Felucca's general modulation
+ * routes into the engine: FLT (ENV / LFO -> FLT, the matrix's CUT: the modulators' level) and SHP (the feedback).
+ * PIT stays: it is the note's pitch itself (bend, glide, vibrato), which the opsix has too
+ * The operator envelopes are the voice's amplitude and end it (engine_t.ownenv / done). The track's PIT moves the
+ * pitch (FLT and SHP: off, above).
  *
  * State: per voice an opx_note_t in the part's engine memory (engines.c eng_mem), per part the patch through the
  * macros (opx_rt, rebuilt once a block in opx_block). */
@@ -1345,9 +1347,13 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
         n->down = 0;
     }
     lf = fm6_note_logfreq(m->pitch16, m->fine);
+#if OPX_FELUCCA_MACROS
     vf = clamp((m->shape - (64 << 8)) >> 2, -4096, 4096);   /* SHP: the feedback, x0.5 .. x1.5 at the ends */
     if (m->cutoff)                                  /* FLT (ENV / LFO -> FLT, the matrix's CUT): MLVL, per voice */
         mf = fm6_exp2(clamp(m->cutoff >> 8, -96, 96) * (1 << 20) - (9 << 24));
+#else
+    vf = 0;                                         /* (Felucca's FLT and SHP routes: off on OPX, as its macros) */
+#endif
     for (k = 0; k < OPX_NOP; k++) {
         int32_t lvl = opx_eg_step(&n->eg[k], r, (uint32_t)k), g2;
         uint32_t f = r->finc[k];

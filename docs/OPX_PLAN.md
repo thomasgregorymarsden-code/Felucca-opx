@@ -88,7 +88,9 @@ Notes for changing them:
 - **USER always plays the matrix**; one with no heard operator is silent, as on the opsix.
 - **ALG ATK DEC** (the opsix's HOME, on ALGO) apply on top of the patch at every block (`eng_opx.c` `opx_build`);
   automation and step locks reach them, the patch's own fields not. Felucca's FM6-style macros MLVL FB MRAT DTUN
-  (E3..E6) are off on OPX (`OPX_FELUCCA_MACROS`): not read, not shown (`ui.c` `page_visible`), no MIDI CC.
+  (E3..E6) are off on OPX (`OPX_FELUCCA_MACROS`): not read, not shown (`ui.c` `page_visible`), no MIDI CC. So are
+  Felucca's FLT and SHP routes (ENV DEST, LFO DEST, the MOD matrix's CUT and SHP): `opx_render` ignores the voice's
+  cutoff and shape, and their cards are DIM on an OPX track (`ui_draw.c` `opx_route_off`). PIT stays.
 
 ## What is stored
 

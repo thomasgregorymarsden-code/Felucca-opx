@@ -9,6 +9,13 @@
  * and layer cells, graph annotations, document text; L (28 px) the one big readout of a screen. Where M cannot fit
  * (a card value with its unit wider than the card, a dialog question or a header message too long) it is set in S;
  * free text (names) is ellipsised at its size. */
+/* (OPX fork) Felucca's FLT and SHP routes (ENV / LFO DEST, the matrix's CUT and SHP) do nothing on an OPX track: their
+ * cards DIM (eng_opx.c OPX_FELUCCA_MACROS) */
+#if FELUCCA_OPX
+static int opx_route_off(const track_t *t) { return !OPX_FELUCCA_MACROS && t->eng_req % NENGINES == ENGI_OPX; }
+#else
+static int opx_route_off(const track_t *t) { (void)t; return 0; }
+#endif
 static void draw_menu(void);
 static int name_on(void);                              /* NAME (ui_name.c) */
 static uint64_t lock_held(void);                       /* parameter locks: the steps held on STEP (ui_input.c) */
@@ -1093,7 +1100,8 @@ static void draw_columns(void)
         fmt_int(val, (int32_t)mod_ui_slot + 1);
         draw_column(0, "SLOT", val, "/4", VAL(0u), (int32_t)mod_ui_slot * 1000 / 3, mod_src_icon(MS_OFF));   /* (the mod icon) */
         draw_column(1, "SRC", N_MSRC[clamp(s, 0, MS_N - 1)], "", s ? VAL(1u) : T_DIM, -1, mod_src_icon(s));
-        draw_column(2, "DST", mod_dst_name(t, d), "", d ? VAL(2u) : T_DIM, -1, mod_dst_icon(t, d));
+        draw_column(2, "DST", mod_dst_name(t, d), "", d && !(opx_route_off(t) && (d == MD_CUT || d == MD_SHP)) ? VAL(2u) :
+                    T_DIM, -1, mod_dst_icon(t, d));   /* (OPX fork: CUT and SHP do nothing on OPX, DIM) */
         param_format(&TP[id + 2u], a, val, &unit);
         draw_column(3, "AMT", val, unit, a ? VAL(3u) : T_DIM, RATIO(&TP[id + 2u], a), mod_src_icon(MS_OFF));
         return;
@@ -1220,6 +1228,11 @@ static void draw_columns(void)
         }
         param_format(d, *vp, val, &unit);
         card_mot_of(vp);                                /* (a global: never) */
+        if (opx_route_off(TSEL) &&
+            (vp == &TSEL->p[P_ED_FLT] || vp == &TSEL->p[P_ED_SHP] || vp == &TSEL->p[P_LD_FLT] || vp == &TSEL->p[P_LD_SHP])) {
+            draw_column(c, d->label, val, unit, T_DIM, RATIO(d, *vp), param_icon(d, *vp));   /* (OPX fork: FLT and SHP do */
+            continue;                                                                       /* nothing on OPX, DIM) */
+        }
         if (vp == &TSEL->p[P_LRATE] && TSEL->p[P_LSYNC]) {   /* LFO 2 SYNC on: RATE does nothing, DIM (1.2) */
             draw_column(c, d->label, val, unit, T_DIM, RATIO(d, *vp), param_icon(d, *vp));
             continue;

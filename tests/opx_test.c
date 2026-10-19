@@ -50,6 +50,7 @@ static void setup(const opx_patch_t *p, const int16_t *e)
     trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = 0;
 }
 
+static int32_t opx_t_cut, opx_t_shape;          /* (Felucca's FLT / SHP routes: test_macros_off) */
 /* the engine alone, one voice: note at vel, n samples, gate released at rel (0: held). y: the render's out[] */
 static void engine_render(uint32_t note, uint32_t vel, double *y, uint32_t n, uint32_t rel, int *ended)
 {
@@ -66,7 +67,8 @@ static void engine_render(uint32_t note, uint32_t vel, double *y, uint32_t n, ui
     m.amp0 = m.amp1 = 32767;
     m.pitch16 = (int32_t)note * 16;
     m.inc = pitch_inc((uint32_t)m.pitch16);
-    m.shape = 64 << 8;
+    m.shape = (64 << 8) + opx_t_shape;
+    m.cutoff = opx_t_cut;
     opx_block(t);
     opx_note_on(t, v);
     if (ended)
@@ -821,6 +823,11 @@ static void test_macros_off(void)
     setup(&P, e1);
     engine_render(60, 100, y1, FS / 4, FS / 8, 0);
     check("Felucca's macros MLVL FB MRAT DTUN (E3..E6) off: the sound unchanged", !memcmp(y0, y1, sizeof y0));
+    setup(&P, e0);
+    opx_t_cut = 40 << 8, opx_t_shape = 50 << 8;      /* (ENV / LFO -> FLT and SHP as far as they go) */
+    engine_render(60, 100, y1, FS / 4, FS / 8, 0);
+    opx_t_cut = opx_t_shape = 0;
+    check("Felucca's FLT and SHP routes off on OPX: the sound unchanged", !memcmp(y0, y1, sizeof y0));
 }
 
 /* USER plays the matrix as it is: without a heard operator, silence (no fallback to the patch's algorithm) */

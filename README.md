@@ -92,8 +92,10 @@ shows two periods of the note the track is playing (or the last note played).
 | 4 | SLOT: F1–F7 load a factory patch; OWN is the track's own | the amount, 0–100 % (the diagonal: self feedback). On OUT: the operator's output level, 0–100, and below 0 OFF (not heard; turning up again restores its level) |
 
 ALG, ATK and DEC change the sound on top of the patch without changing it; automation and step locks reach them.
-HOME's four knobs on an OPX track are ALG, ATK, DEC and SLOT. (Felucca's FM6-style macros MLVL, FB, MRAT and DTUN
-are not part of the opsix and are switched off on OPX.)
+HOME's four knobs on an OPX track are ALG, ATK, DEC and SLOT. Felucca's FM6-style macros (MLVL, FB, MRAT, DTUN) and
+its general modulation routes into the engine (FLT and SHP: ENV DEST, LFO DEST and the MOD matrix's CUT and SHP) are
+not part of the opsix and are switched off on OPX; their cards are dimmed on an OPX track. PIT (pitch: bend, glide,
+vibrato) works as on every engine.
 
 **OPERATORS** lists the selected operator's parameters in the right half, in the opsix's page order, then the
 patch's own; the selected operator is highlighted in the chart. The list moves up under the selection; "…" marks
