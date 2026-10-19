@@ -13,7 +13,7 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M1 | Six operators in FM mode (sine), all 40 algorithms plus USER, ratio and fixed pitch, per-operator FB, ALG FB loops, per-operator ATK/DEC/SUS/REL/CURVE envelopes, level velocity; device macros; cost against FM6 | done |
 | M1.5 | Operator editing on the device (algorithm charts, USER matrix, OPERATORS list, scope); each track's patch kept in the stored format; saved with projects and the autosave | done |
 | | **First release, `0.0.1`: M0, M1 and M1.5** | |
-| M2a | The 23 waveforms and WIDTH | done (device cost: see [Cost](#cost)) |
+| M2a | The 23 waveforms and WIDTH; the renderer an operator at a time | done (device cost: see [Cost](#cost)) |
 | M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | |
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | |
 | M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |
@@ -106,15 +106,19 @@ device, 0.0.2-dev:
 
 | | 2026-10-16: one loop, every wave inline | 2026-10-19: an operator at a time, tables | One note, now |
 |---|---|---|---|
-| Idle (the mix, effects, no voice) | 12.3 % | 12.5 % | |
-| FM6, F1 | 26.8 % | 27.0 % | 4.5 % |
-| OPX, SIN | 56.7 % | 38.9 % | 6.4 % |
-| OPX, SIN 12BIT / 8BIT | 100.5 % | 55.5 % (before their own loop) | 9.2 % |
-| OPX, TRI / SAW / SAW HD | 87.2 / 101.0 / 135.2 % | 41.8 / 43.7 / 43.4 % | 7 % |
-| OPX, SQR / SQR HD | 116.5 / 165.5 % | 64.9 / 65.0 % (before their own loop) | 10.8 % |
-| OPX, ADTV (all eleven) | 104.5–125.7 % | 42.0 % | 7.0 % |
-| OPX, NOISE S/H / WHITE | 99.1 / 94.7 % | 42.9 / 46.1 % | 7.1 / 7.6 % |
-| OPX, NOISE PINK / BLUE | 128.7 % | 87.3 / 87.8 % (before 32-bit) | 14.5 % |
+| Idle (the mix, effects, no voice) | 12.3 % | 12.4 % | |
+| FM6, F1 | 26.8 % | 26.6 % | 4.4 % |
+| OPX, SIN | 56.7 % | 38.4 % | 6.4 % |
+| OPX, SIN 12BIT / 8BIT | 100.5 % | 40.6 % | 6.7 % |
+| OPX, TRI / SAW / SAW HD | 87.2 / 101.0 / 135.2 % | 41.6 / 43.5 / 43.6 % | 6.9 / 7.2 % |
+| OPX, SQR / SQR HD (two table reads) | 116.5 / 165.5 % | 53.3 / 53.4 % | 8.8 % |
+| OPX, ADTV (all eleven) | 104.5–125.7 % | 41.8 % | 6.9 % |
+| OPX, NOISE S/H / WHITE | 99.1 / 94.7 % | 39.5 / 37.0 % | 6.5 / 6.1 % |
+| OPX, NOISE PINK / BLUE | 128.7 % | 57.6 / 57.2 % | 9.6 % |
+
+So six OPX notes with every operator on any wave take at most ~70 % in all with the idle mix, under the 85 % where
+the audio drops a voice. A patch with a loop back to a lower operator (below) still costs about the old SIN figure,
+~57 %. M2b–M5 spend the rest.
 
 **What decided the cost**, found by elimination on the device (the benchmark's LOOP, BRANCH, CALL and LOAD rows):
 

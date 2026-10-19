@@ -10,8 +10,8 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
   Existing patches keep their sine and sound as before.
 - Each periodic waveform is a table read, as the sine is. SAW and SQR are band-limited to 10 kHz, HD to 20 kHz.
 - OPX renders an operator at a time over each 32-sample block (patches with a loop back to a lower operator keep the
-  sample-by-sample order; both give the same output). On the device, six notes take 39 % instead of 57 % with sines,
-  and ~42 % instead of ~100 % with most waveforms.
+  sample-by-sample order; both give the same output). On the device, six notes take 38 % instead of 57 % with sines,
+  and 37–58 % with any waveform (was 87–166 %).
 - The benchmark (MENU > SYSTEM > INFO, OCT+) times FM6, OPX with each waveform, multiply-adds, branches, calls and
   loads.
 - CI no longer publishes the `-mcpu=r3` build: it measured no faster (docs/OPX_PLAN.md).
