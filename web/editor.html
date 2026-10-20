@@ -171,6 +171,7 @@
     <nav class="tabs" id="tabs" role="tablist">
       <button role="tab" data-tab="sound" data-t="sound" data-ic="symbol_audio"></button>
       <button role="tab" data-tab="fm6" data-t="tabFm6" data-ic="ui_knob"></button>
+      <button role="tab" data-tab="opx" data-t="tabOpx" data-ic="ui_knob"></button>
       <button role="tab" data-tab="sequencer" data-t="tabSeq" data-ic="symbol_grid"></button>
       <button role="tab" data-tab="tracks" data-t="tabTracks" data-ic="ui_slider_vertical"></button>
       <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
@@ -221,6 +222,30 @@
     <div class="group">
       <h2 data-t="fm6Ops" data-ic="function_env_adsr_exp"></h2>
       <div id="fm6ops"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-opx" data-tab="opx" data-dev hidden>
+    <p class="dim" data-t="opxHelp"></p>
+    <div class="group">
+      <h2 data-t="opxSource" data-ic="symbol_folder"></h2>
+      <p class="bar"><label><span data-t="track"></span> <select id="opxtrk"></select></label>
+        <button id="opxread" data-t="opxReadBtn"></button> <button id="opxsend" data-t="opxSendBtn"></button>
+        <label><input type="checkbox" id="opxlive"> <span data-t="opxLive"></span></label></p>
+      <p class="bar"><label><span data-t="opxFactories"></span> <select id="opxslot"></select></label>
+        <button id="opxload" data-t="load"></button> <button id="opxinit" data-t="opxInit"></button></p>
+      <p class="bar"><button id="opximport" data-t="opxImport" data-ic="symbol_upload"></button>
+        <input type="file" id="opxfile" accept=".opx,application/octet-stream" hidden>
+        <button id="opxexport" data-t="opxExport" data-ic="symbol_download"></button></p>
+      <p class="dim" data-t="opxKeep"></p>
+    </div>
+    <div class="group">
+      <h2 data-t="opxPatch" data-ic="ui_knob"></h2>
+      <div id="opxpatch"></div>
+    </div>
+    <div class="group">
+      <h2 data-t="opxOps" data-ic="function_env_adsr_exp"></h2>
+      <div id="opxops"></div>
     </div>
   </section>
 
@@ -360,7 +385,10 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   TRACK_PARAM: 31, TRACK_CHANGED: 32, SONG: 33,
   UI_STATE: 34, UI_SET: 35, UI_PALETTES: 36, FAV_GET: 37, FAV_SET: 38,
   MOTION: 64, BACKUP_LIST: 65, BACKUP_GET: 66, BACKUP_PUT: 67,
-  FM6_GET: 68, FM6_PUT: 69, FM6_LIST: 70, FM6_ERASE: 71 };
+  FM6_GET: 68, FM6_PUT: 69, FM6_LIST: 70, FM6_ERASE: 71,
+  OPX_GET: 121, OPX_PUT: 122 };                    /* (OPX fork: firmware/src/editor_opx.c) */
+/* OPX fork: OPX patches (INFO opx): targets 0 a track, 1 a factory patch, 2 a user preset's; the record as 434 bytes */
+const OPX = { TARGET: { TRACK: 0, FACTORY: 1, USER: 2 } };
 /* frames the device sends on its own (while WATCH is on); never replies */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED]);
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
@@ -454,6 +482,10 @@ const parse = {
       if (trailer[r] === 0x4E && trailer[r + 1] === 1) r += 3;                            /* and the MENU settings (1.0.4) */
       if (o.syncCaps && trailer[r] === 0x52 && trailer[r + 1] === 1) o.ratchet = trailer[r + 2];   /* RATCH: max hits */
     }
+    o.opx = null;                                 /* OPX fork: the last block, 4F 01 version size(2) factories engine */
+    const q = trailer.length - 7;
+    if (q >= 0 && trailer[q] === 0x4F && trailer[q + 1] === 1)
+      o.opx = { version: trailer[q + 2], bytes: trailer[q + 3] | trailer[q + 4] << 7, factory: trailer[q + 5], engine: trailer[q + 6] };
     return o;
   },
   [CMD.UI_STATE](a) {
@@ -588,6 +620,9 @@ const parse = {
     return o;
   },
   [CMD.FM6_ERASE](a) { return { index: a[0], rc: a[1] }; },
+  /* OPX fork: packed is the record (Uint8Array, info.opx.bytes long), null on an error */
+  [CMD.OPX_GET](a) { return { target: a[0], index: a[1], rc: a[2], packed: a[2] ? null : unpack7(a.slice(3)) }; },
+  [CMD.OPX_PUT](a) { return { target: a[0], index: a[1], rc: a[2] }; },
 };
 
 /* a name the device accepts: printable ASCII, 1..12 characters */
@@ -656,6 +691,9 @@ const req = {
   fm6Put: (target, i, packed) => [CMD.FM6_PUT, [target & 0x7F, i & 0x7F, ...packed.map((x) => x & 0x7F)]],
   fm6List: () => [CMD.FM6_LIST, []],
   fm6Erase: (i) => [CMD.FM6_ERASE, [i & 0x7F]],
+  /* OPX fork: OPX patches (firmware with info.opx) */
+  opxGet: (target, i) => [CMD.OPX_GET, [target & 0x7F, i & 0x7F]],
+  opxPut: (target, i, packed) => [CMD.OPX_PUT, [target & 0x7F, i & 0x7F, ...pack7(packed)]],
 };
 
 /* which reply belongs to which request (the device echoes these) */
@@ -673,6 +711,7 @@ function replyMatches(cmd, args, a) {
     case CMD.SMP_WRITE: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.SONG: return a[0] === args[0];
     case CMD.FM6_GET: case CMD.FM6_PUT: return a[0] === args[0] && a[1] === args[1];
+    case CMD.OPX_GET: case CMD.OPX_PUT: return a[0] === args[0] && a[1] === args[1];
     case CMD.FM6_ERASE: return a[0] === args[0];
     case CMD.PROJECT: return a[0] === args[0] && a[1] === args[1];
     case CMD.UP_LIST: case CMD.UP_GET: case CMD.UP_PUT: case CMD.UP_STORE: case CMD.UP_LOAD: case CMD.UP_ERASE:
@@ -1128,6 +1167,8 @@ function cleanPatch(pt) {
   if (Number.isInteger(pt.slot)) o.slot = pt.slot;
   if (Array.isArray(pt.fm6) && pt.fm6.length === FM6.PACKED) o.fm6 = pt.fm6.map((x) => (x | 0) & 127);   /* (a converted */
   if (Array.isArray(pt.fm4)) o.fm4 = pt.fm4.map((v) => (Number.isFinite(v) ? Math.round(v) : null));    /* DIGITAL sound) */
+  if ((Array.isArray(pt.opx) || ArrayBuffer.isView(pt.opx)) && pt.opx.length === 434)   /* (OPX fork: an OPX sound's own */
+    o.opx = Array.from(pt.opx, (x) => (x | 0) & 255);                                     /* patch, the packed record) */
   return o;
 }
 
@@ -1220,11 +1261,17 @@ const bank = {
       const g = parse[CMD.FM6_GET](await rq(req.fm6Get(FM6.TARGET.USER, slot)));
       if (!g.rc) u.fm6 = g.packed;
     }
+    if (u.used && info.opx && u.engine === info.opx.engine) {   /* (OPX fork: an OPX sound's own patch) */
+      const g = parse[CMD.OPX_GET](await rq(req.opxGet(OPX.TARGET.USER, slot)));
+      if (!g.rc) u.opx = g.packed;
+    }
     return u;
   },
   /* -> rc (0 ok); with info, an FM6 sound's patch (pt.fm6) goes with it */
   async put(rq, slot, pt, info) {
     const rc = parse[CMD.UP_PUT](await rq(req.upPut(slot, pt), FLASH_OPT)).rc;
+    if (!rc && pt.opx && info && info.opx && pt.engine === info.opx.engine)   /* (OPX fork: its patch with it) */
+      return parse[CMD.OPX_PUT](await rq(req.opxPut(OPX.TARGET.USER, slot, pt.opx), FLASH_OPT)).rc;
     if (rc || !pt.fm6 || !presetPatches(info) || info.engines[pt.engine] !== "FM6") return rc;
     return parse[CMD.FM6_PUT](await rq(req.fm6Put(FM6.TARGET.USER, slot, pt.fm6), FLASH_OPT)).rc;
   },
@@ -1245,8 +1292,14 @@ async function capturePatch(rq, info, name) {
     const g = parse[CMD.FM6_GET](await rq(req.fm6Get(FM6.TARGET.TRACK, sel)));
     if (!g.rc) fm6 = g.packed;
   }
+  let opx = null;                                      /* (OPX fork: an OPX track's own patch) */
+  if (info.opx && dump.engine === info.opx.engine) {
+    const sel = info.ntrk ? parse[CMD.TRACK](await rq(req.track())).sel : 0;
+    const g = parse[CMD.OPX_GET](await rq(req.opxGet(OPX.TARGET.TRACK, sel)));
+    if (!g.rc) opx = g.packed;
+  }
   return { patch: cleanPatch({ name, engine: dump.engine, engineName: info.engines[dump.engine], p: dump.p, pattern: patternFromSteps(steps),
-    grid: drum ? gridFromSteps(steps) : null, fm6 }), dump, steps };
+    grid: drum ? gridFromSteps(steps) : null, fm6, opx }), dump, steps };
 }
 
 /* the track's own parameters, which no sound load changes (ui.c param_kept): LEVEL, the ARP and ARP 2 pages,
@@ -1274,6 +1327,8 @@ async function auditionPatch(rq, info, pt, opt = {}) {
   }
   if (pt.fm6 && info.fm6)                         /* a converted DIGITAL sound: its own FM6 patch on the track */
     await rq(req.fm6Put(FM6.TARGET.TRACK, opt.track ?? 0, pt.fm6));
+  if (pt.opx && info.opx && pt.engine === info.opx.engine)   /* (OPX fork: an OPX sound's own patch on the track) */
+    await rq(req.opxPut(OPX.TARGET.TRACK, opt.track ?? 0, pt.opx));
   return {};
 }
 
@@ -2091,6 +2146,7 @@ function makeMockDevice(opt = {}) {
           if (st.uiCaps) { b(0x55); b(1); b(st.uiCaps); b(0x4d); b(1); b(64); b(1); if (!opt.noFm6) { b(0x46); b(1); b(FM6.FACTORY_PK.length); b(0); }
             if (syncCaps()) { b(0x53); b(1); b(syncCaps()); if (!opt.noFm6) { b(0x50); b(1); b(3); } if (ratchetOn()) { b(0x52); b(1); b(4); } } }   /* (FM6 v2: no bank, preset patches) */
         }
+        if (opt.opx) { b(0x4F); b(1); b(1); b(434 & 127); b(434 >> 7); b(7); b(opt.opx.engine); }   /* (OPX fork, last) */
         break;
       case CMD.GET: case CMD.SET: {
         if (a.length < 2) return null;
@@ -2156,6 +2212,27 @@ function makeMockDevice(opt = {}) {
         const x = st.step[a[0]];
         if (cmd === CMD.STEP_SET && a.length >= 9) stepIn(x, a.slice(1));
         b(a[0]); stepOut(x, b);
+        break;
+      }
+      case CMD.OPX_GET: case CMD.OPX_PUT: {       /* OPX fork (editor_opx.c): the records as bytes, unchecked */
+        if (!opt.opx) return null;
+        const user = (k) => k < NB && st.bank[k] && st.bank[k].engine === opt.opx.engine;
+        let rc = a.length < 2 ? 1 : 0, pk = null;
+        if (cmd === CMD.OPX_GET) {
+          if (!rc && a[0] === 0 && a[1] < NTRK) pk = st.tracks[a[1]].opx || opt.opx.factory[0];
+          else if (!rc && a[0] === 1 && a[1] < opt.opx.factory.length) pk = opt.opx.factory[a[1]];
+          else if (!rc && a[0] === 2 && a[1] < NB) { pk = user(a[1]) ? st.bank[a[1]].opx : null; rc = pk ? 0 : 2; }
+          else rc = 1;
+          b(a[0] ?? 127); b(a[1] ?? 127); b(rc);
+          if (!rc) pack7(pk).forEach(b);
+        } else {
+          pk = rc ? null : unpack7(a.slice(2));
+          if (!pk || pk.length !== 434) rc = 1;
+          else if (a[0] === 0 && a[1] < NTRK) st.tracks[a[1]].opx = pk;
+          else if (a[0] === 2 && a[1] < NB) { if (user(a[1])) st.bank[a[1]].opx = pk; else rc = 2; }
+          else rc = 1;
+          b(a[0] ?? 127); b(a[1] ?? 127); b(rc);
+        }
         break;
       }
       case CMD.FM6_GET: case CMD.FM6_PUT: case CMD.FM6_LIST: case CMD.FM6_ERASE: {   /* editor_fm6.c */
@@ -2533,6 +2610,17 @@ const TEXT = {
     fm6Factories: "ファクトリー音色",
     fm6NeedDevice: "FM-1 を接続すると 6-OP FM の音色を編集してトラックへ送れます。",
     fm6NoFw: "このファームウェアには 6-OP FM（FM6）がありません。Felucca 1.0 以降に更新すると使えます。",
+    tabOpx: "OPX", opxHelp: "OPX エンジンの音色をまるごと編集します（本体の EDIT > OPERATORS と同じ値）。トラックから読み、編集してトラックへ送るとすぐ鳴ります。送った音色はそのトラックの音色になります（SLOT は OWN）。",
+    opxSource: "音色の出し入れ", opxReadBtn: "トラックから読む", opxSendBtn: "トラックへ送る", opxLive: "編集しながら送る",
+    opxFactories: "ファクトリー音色", opxInit: "初期音色", opxImport: "ファイルを読み込む", opxExport: "ファイルに書き出し",
+    opxKeep: "残すには、トラックへ送ってから本体でユーザープリセット（SAVE、OPX は 16 個まで）かプロジェクトに保存してください。",
+    opxPatch: "音色", opxOps: "オペレーター", opxMode: "モード", opxPitch: "ピッチ", opxEg: "EG", opxKtrk: "キートラック",
+    opxUser: "USER アルゴリズム", opxUserHelp: "行が送り先、列が送り元のオペレーター（対角はセルフフィードバック）。OUT: 直接出力。",
+    opxAlg: "アルゴリズム", opxAlgFb: "ALG FB", opxNoise: "ノイズ波形では FB と WIDTH は効きません",
+    opxSent: "トラックへ送りました:", opxRead: "トラックから読みました", opxLoaded: "読み込みました",
+    opxBadFile: "OPX の音色ファイルではありません（434 バイト、このファームウェアの形式）",
+    opxNeedDevice: "FM-1 を接続すると OPX の音色を編集してトラックへ送れます。",
+    opxNoFw: "このファームウェアには OPX がありません。Felucca-OPX 0.2 以降に更新すると使えます。",
     motion: "オートメーション", motionOn: "再生", motionClear: "オートメーションを消去", motionConfirm: "選択トラックのオートメーションを消しますか？", chance: "確率 %", ratchet: "ラチェット", motionStep: "ステップ", motionParam: "パラメーター", motionValue: "値",
     backupTitle: "全体バックアップ", backupExport: "バックアップ保存", backupImport: "バックアップ復元", backupHelp: "現在の曲・A〜D・音色バンク・ユーザーサンプル・設定を、このパソコンへ保存。", backupOld: "全体バックアップには対応版への更新が必要です。", backupConfirm: "全体バックアップを復元しますか？ 現在の曲、保存データとサンプルを置き換えます。USBを抜かないでください。", backupWorking: "バックアップ処理中 ", backupDone: "バックアップを保存しました", backupRestored: "全体バックアップを復元しました",
     deviceDisplay: "本体の画面",
@@ -2636,6 +2724,17 @@ const TEXT = {
     fm6Factories: "Factory patch",
     fm6NeedDevice: "Connect the FM-1 to edit 6-OP FM voices and send them to a track.",
     fm6NoFw: "This firmware has no 6-OP FM (FM6). Update to Felucca 1.0 or later to use it.",
+    tabOpx: "OPX", opxHelp: "Edit the whole patch of the OPX engine (the values of EDIT > OPERATORS on the device). Read a track, edit, send it back: it plays at once. What you send becomes the track's patch (SLOT shows OWN).",
+    opxSource: "Patches in and out", opxReadBtn: "Read from track", opxSendBtn: "Send to track", opxLive: "Send while editing",
+    opxFactories: "Factory patch", opxInit: "Init patch", opxImport: "Import file", opxExport: "Export file",
+    opxKeep: "To keep a patch, send it to a track, then save a user preset (SAVE; up to 16 OPX ones) or a project on the device.",
+    opxPatch: "Patch", opxOps: "Operators", opxMode: "Mode", opxPitch: "Pitch", opxEg: "EG", opxKtrk: "Key track",
+    opxUser: "USER algorithm", opxUserHelp: "Rows: the operator receiving; columns: the operator sending (the diagonal: self feedback). OUT: heard directly.",
+    opxAlg: "Algorithm", opxAlgFb: "ALG FB", opxNoise: "FB and WIDTH do nothing on the noise waves",
+    opxSent: "Sent to track", opxRead: "Read from track", opxLoaded: "Loaded",
+    opxBadFile: "Not an OPX patch file (434 bytes, this firmware's format)",
+    opxNeedDevice: "Connect the FM-1 to edit OPX patches and send them to a track.",
+    opxNoFw: "This firmware has no OPX. Update to Felucca-OPX 0.2 or later to use it.",
     motion: "Automation", motionOn: "Play automation", motionClear: "Clear automation", motionConfirm: "Clear this track's automation?", chance: "Chance %", ratchet: "Ratchet", motionStep: "Step", motionParam: "Parameter", motionValue: "Value",
     backupTitle: "Complete backup", backupExport: "Save backup", backupImport: "Restore backup", backupHelp: "Save the current music, A–D, sound banks, user samples and settings to this computer.", backupOld: "Complete backups need firmware with archive support.", backupConfirm: "Restore this complete backup? Current music, saved data and samples will be replaced. Keep USB connected.", backupWorking: "Backing up / restoring ", backupDone: "Backup saved", backupRestored: "Complete backup restored",
     deviceDisplay: "Device display",
@@ -2743,7 +2842,7 @@ $("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; 
 
 /* ---------------------------------------------------------------- tabs --- */
 /* one panel at a time; the last one is remembered (localStorage) and in the URL hash (#sound ...) */
-const TABS = ["sound", "fm6", "sequencer", "tracks", "library", "samples", "projects", "settings"];
+const TABS = ["sound", "fm6", "opx", "sequencer", "tracks", "library", "samples", "projects", "settings"];
 const TAB_KEY = "felucca-editor-tab";
 const TRACK_TABS = new Set(["sound", "sequencer", "tracks"]);
 let tab = (() => {
@@ -2763,11 +2862,13 @@ function showTab(name) {
   renderPanels();
   if (name === "tracks" && prev !== "tracks" && hasTracks() && dev.dump) op(readMixer);
   if (name === "fm6" && prev !== "fm6" && dev && dev.dump && dev.info.fm6 && !fm6Listing) op(fm6Refresh);
+  if (name === "opx" && prev !== "opx" && dev && dev.dump && dev.info.opx) op(opxRefresh);
 }
 function renderPanels() {
   /* the Tracks tab only with a four-track firmware */
   const tracksOk = !dev || hasTracks() || !dev.info;
   const fm6Off = !!dev && !!dev.info && !dev.info.fm6;             /* the 6-OP FM tab: a hint without FM6 firmware */
+  const opxOff = !!dev && !!dev.info && !dev.info.opx;             /* (OPX fork) the OPX tab likewise */
   const want = tab === "tracks" && dev && dev.info && !hasTracks() ? "sound" : tab;
   for (const b of $("tabs").querySelectorAll("button[data-tab]")) {
     const on = b.dataset.tab === want;
@@ -2780,8 +2881,9 @@ function renderPanels() {
   for (const p of document.querySelectorAll(".panel")) {
     const mine = p.dataset.tab === want;
     let show = mine && (!("dev" in p.dataset) || ready);
-    if (mine && "dev" in p.dataset && !dev) hint = want === "fm6" ? "fm6NeedDevice" : "needDevice";   /* (while connecting the status line says it) */
+    if (mine && "dev" in p.dataset && !dev) hint = want === "fm6" ? "fm6NeedDevice" : want === "opx" ? "opxNeedDevice" : "needDevice";   /* (while connecting the status line says it) */
     if (show && want === "fm6" && fm6Off) { show = false; hint = "fm6NoFw"; }
+    if (show && want === "opx" && opxOff) { show = false; hint = "opxNoFw"; }
     if (show && want === "samples" && !dev.smp) { show = false; hint = "smpNone"; }
     p.hidden = !show;
   }
@@ -2790,6 +2892,7 @@ function renderPanels() {
   $("trackbar").hidden = !(ready && hasTracks() && TRACK_TABS.has(want));
   /* the FM6 slot names: listed once the tab shows with a device (also when it was already open at connect) */
   if (ready && want === "fm6" && dev.info.fm6 && !fm6List && !fm6Asked) { fm6Asked = true; op(fm6Refresh); }
+  if (ready && want === "opx" && dev.info.opx && !opxNames && !opxAsked) { opxAsked = true; op(opxRefresh); }   /* (OPX fork) */
 }
 $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (b) showTab(b.dataset.tab); });
 $("tabs").addEventListener("keydown", (e) => {          /* arrow keys move between the tabs */
@@ -2891,7 +2994,11 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1" }); access = mock.access; }
+      if (MOCK) {                                  /* (OPX fork: the mock has OPX patches, unless ?legacy=1) */
+        const legacy = QS.get("legacy") === "1", X = legacy ? null : await opxLoad();
+        const fac = X && Array.from({ length: 7 }, (_, k) => { const pk = X.defaults(); X.setName(pk, `MOCK F${k + 1}`); X.put(pk, "algo", k * 5); return pk; });
+        mock = makeMockDevice({ legacy, opx: X ? { engine: 15, factory: fac } : null }); access = mock.access;
+      }
       else {
         try { access = await navigator.requestMIDIAccess({ sysex: true }); }
         catch (e) { sayK("denied"); return; }
@@ -3059,6 +3166,9 @@ function buildUI() {
   fm6Asked = false;
   fm6Picked = -1;
   renderFm6();
+  opxNames = null;
+  opxAsked = false;
+  renderOpx();
 }
 
 /* the track selector (v3): the four parts; the editor shows the selected one */
@@ -4883,7 +4993,7 @@ function bankGet(slot) {
     const u = await bank.get(rqf, dev.info, slot);
     if (!u.used) { sayK("emptySlot", slotName(slot)); return; }
     const pt = { name: u.name, engine: u.engine, engineName: dev.info.engines[u.engine], p: u.p, pattern: u.pattern, grid: u.grid, tags: ["device"],
-      fm6: u.fm6 };
+      fm6: u.fm6, opx: u.opx };
     await libAdd([reservedFm4(dev.info.engines, u.engine) ? fromDigital(pt, dev.info.engines, dev.info.pe0) : pt]);
     sayK("copiedLib", u.name);
   });
@@ -4911,7 +5021,7 @@ $("bkexport").addEventListener("click", () => libOp(async (d, rqf) => {
     if (!x.used) continue;
     sayK("readingBank", ` ${slotName(x.slot)}`);
     const u = await bank.get(rqf, dev.info, x.slot);
-    if (u.used) out.push({ name: u.name, engine: u.engine, p: u.p, pattern: u.pattern, grid: u.grid, slot: x.slot, fm6: u.fm6,
+    if (u.used) out.push({ name: u.name, engine: u.engine, p: u.p, pattern: u.pattern, grid: u.grid, slot: x.slot, fm6: u.fm6, opx: u.opx,
       engineName: reservedFm4(dev.info.engines, u.engine) ? "DIGITAL" : dev.info.engines[u.engine] });   /* (DIGITAL's values) */
   }
   download(`felucca-bank-${today()}.json`, libraryFile("bank", out, libCtx()));
@@ -5060,6 +5170,167 @@ function downloadBytes(name, bytes) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 $("fm6export").addEventListener("click", () => downloadBytes(`${fileSlug(FM6.name(fm6v))}.syx`, FM6.singleSysex(fm6v)));
+
+/* OPX fork: the OPX tab (firmware with INFO's opx block): the whole patch of an OPX track as EDIT > OPERATORS shows
+   it, the fields the engine plays (web/opx_patch.js reads and writes the packed record, opx_fields.js its layout, from
+   tools/opx_patch_spec.py). Read a track's patch or a factory one, edit, send it to a track (live while editing);
+   a file holds the record as it is (434 bytes). The track keeps it (SLOT OWN); a user preset or a project on the
+   device keeps it after that. */
+let OX = null;                         /* web/opx_patch.js, once loaded */
+let opxPk = null;                      /* the record being edited */
+let opxNames = null;                   /* the factory patches' names (OPX_GET of each) */
+let opxAsked = false;                  /* read once for this connection (renderPanels) */
+let opxTimer = null;
+const opxOk = () => !!dev && !!dev.info && !!dev.info.opx;
+const opxTrack = () => +$("opxtrk").value || 0;
+async function opxLoad() { if (!OX) OX = await import("./opx_patch.js"); if (!opxPk) opxPk = OX.defaults(); return OX; }
+function opxChanged(full) {
+  if (full) renderOpx();
+  if ($("opxlive").checked && opxOk()) {
+    clearTimeout(opxTimer);
+    opxTimer = setTimeout(() => op(() => opxSend(true)), 150);
+  }
+}
+/* a number input for field n: shown as (stored + add) / scale, `step` the shown step */
+function opxNum(n, opt = {}) {
+  const [lo, hi] = OX.range(n), add = opt.add ?? 0, scale = opt.scale ?? 1;
+  const lo2 = opt.lo ?? lo, hi2 = opt.hi ?? hi;
+  const show = () => (OX.get(opxPk, n) + add) / scale;
+  const i = el("input", { type: "number", min: (lo2 + add) / scale, max: (hi2 + add) / scale, step: opt.step ?? 1 / scale,
+    value: show(), title: opt.title || n, class: "fm6n", style: opt.wide ? "width:5.5em" : null,
+    onchange: (e) => { OX.put(opxPk, n, Math.max(lo2, Math.min(hi2, Math.round(+e.target.value * scale) - add)));
+      e.target.value = show(); opxChanged(opt.full); if (txt) txt.textContent = opt.text(); } });
+  const txt = opt.text ? el("span", { class: "dim", text: " " + opt.text() }) : null;
+  return txt ? el("span", {}, i, txt) : i;
+}
+function opxSel(n, names, opt = {}) {
+  const sl = el("select", { title: opt.title || n, onchange: (e) => { OX.put(opxPk, n, +e.target.value); if (opt.then) opt.then(+e.target.value); opxChanged(true); } },
+    ...names.map((x, k) => el("option", { value: k + (opt.add ?? 0), text: x })));
+  sl.value = OX.get(opxPk, n);
+  return sl;
+}
+const opxTable = (head, rows) => el("div", { class: "fm6ops" }, el("table", {}, el("tr", {}, ...head.map((h) => el("th", { text: h }))), ...rows));
+const OPS = [1, 2, 3, 4, 5, 6];
+function renderOpxPatch() {
+  const nm = el("input", { type: "text", maxlength: 16, value: OX.name(opxPk), size: 17,
+    onchange: (e) => { OX.setName(opxPk, e.target.value); e.target.value = OX.name(opxPk); opxChanged(false); } });
+  const algs = [...Array.from({ length: OX.ALGOS }, (_, k) => String(k + 1)), "USER"];
+  const row = (label, ...kids) => el("tr", {}, el("th", { text: label }), el("td", {}, ...kids));
+  $("opxpatch").replaceChildren(el("table", {}, row(t("name"), nm), row(t("opxAlg"), opxSel("algo", algs)),
+    row(t("opxAlgFb"), opxNum("prog.alg_fb", { text: () => "%" }))));
+}
+function renderOpxOps() {
+  const P = (k, f) => `op${k}.${f}`;
+  const modeRows = OPS.map((k) => {
+    const md = OX.get(opxPk, P(k, "mode")), wv = OX.get(opxPk, P(k, "wave"));
+    const own = OX.MODE_ROWS[md].map(([f, label]) => {
+      const n = P(k, f);
+      let x;
+      if (f === "flt_type") x = opxSel(n, OX.FILTERS);
+      else if (f === "fx_type") x = opxSel(n, OX.EFFECTS, { then: (ty) => { OX.put(opxPk, P(k, "fx_e"), OX.FX_NEUTRAL[ty][0]); OX.put(opxPk, P(k, "fx_f"), OX.FX_NEUTRAL[ty][1]); } });
+      else if (f === "fx_e" || f === "fx_f") {
+        const ty = OX.get(opxPk, P(k, "fx_type")), w = f === "fx_f" ? 1 : 0, lo = OX.FXV[ty][w * 2], hi = OX.FXV[ty][w * 2 + 1];
+        const u = OX.FX_UNITS[ty][w], scale = u === 2 || u === 3 ? 10 : u === 5 ? 100 : 1;
+        label = OX.FX_NAMES[ty][w];
+        x = opxNum(n, { add: lo, scale, lo: 0, hi: hi - lo, wide: true, text: () => OX.text(opxPk, k, f) });
+      } else if (f === "flt_cutoff") x = opxNum(n, { scale: 10, wide: true, text: () => "ST" });
+      else x = opxNum(n, { text: () => (f === "fm_width" && !OX.get(opxPk, n) ? "OFF" : "%") });
+      return el("label", {}, label + " ", x, " ");
+    });
+    const noise = wv >= OX.NOISE0 && md === 0 ? el("span", { class: "dim", text: " " + t("opxNoise") }) : "";
+    return el("tr", {}, el("th", { text: String(k) }), el("td", {}, opxSel(P(k, "mode"), OX.MODES)),
+      el("td", {}, md >= 6 ? "" : opxSel(P(k, "wave"), OX.WAVES)), el("td", {}, ...own, noise));
+  });
+  const pitchRows = OPS.map((k) => {
+    const fixed = OX.get(opxPk, P(k, "freq_fixed"));
+    return el("tr", {}, el("th", { text: String(k) }), el("td", {}, opxSel(P(k, "freq_fixed"), ["RATIO", "FIXED"])),
+      el("td", {}, fixed ? opxNum(P(k, "fixed_freq"), { scale: 100, wide: true, text: () => "HZ" }) : opxSel(P(k, "coarse"), OX.COARSE)),
+      el("td", {}, fixed ? "" : opxNum(P(k, "fine"), { scale: 1000, wide: true })),
+      el("td", {}, opxNum(P(k, "detune"), { text: () => "CT" })), el("td", {}, opxNum(P(k, "trans"), { text: () => "ST" })));
+  });
+  const egRows = OPS.map((k) => el("tr", {}, el("th", { text: String(k) }),
+    el("td", {}, opxNum(P(k, "level"))),
+    ...["eg_atk", "eg_dec"].map((f) => el("td", {}, opxNum(P(k, f), { wide: true, text: () => OX.text(opxPk, k, f) }))),
+    el("td", {}, opxNum(P(k, "eg_sus"))), el("td", {}, opxNum(P(k, "eg_rel"), { wide: true, text: () => OX.text(opxPk, k, "eg_rel") })),
+    el("td", {}, opxNum(P(k, "eg_curve"), { text: () => OX.text(opxPk, k, "eg_curve") })), el("td", {}, opxNum(P(k, "lmod_vel")))));
+  const notes = Array.from({ length: 88 }, (_, i) => OX.noteName(21 + i));
+  const ktRows = OPS.map((k) => el("tr", {}, el("th", { text: String(k) }),
+    el("td", {}, opxNum(P(k, "ktrk_low"), { text: () => "%" })), el("td", {}, opxSel(P(k, "ktrk_center"), notes, { add: 21 })),
+    el("td", {}, opxNum(P(k, "ktrk_high"), { text: () => "%" })), el("td", {}, opxSel(P(k, "ktrk_lcrv"), ["LIN", "EXP"])),
+    el("td", {}, opxSel(P(k, "ktrk_hcrv"), ["LIN", "EXP"]))));
+  const parts = [
+    el("h3", { text: t("opxMode") }), opxTable(["OP", "MODE", "WAVE", ""], modeRows),
+    el("h3", { text: t("opxPitch") }), opxTable(["OP", "FREQ", "RATIO", "FINE", "DTUN", "TRANS"], pitchRows),
+    el("h3", { text: t("opxEg") }), opxTable(["OP", "LEVEL", "ATK", "DEC", "SUS", "REL", "CURVE", "VEL"], egRows),
+    el("h3", { text: t("opxKtrk") }), opxTable(["OP", "LOW", "CENTER", "HIGH", "L CRV", "H CRV"], ktRows)];
+  if (OX.get(opxPk, "algo") === OX.USER) {             /* the matrix: rows receive, columns send (EDIT 1's on the device) */
+    const ua = OPS.map((y) => el("tr", {}, el("th", { text: `OP${y}` }), ...OPS.map((x) => el("td", {}, opxNum(OX.uaField(x, y))))));
+    const out = el("tr", {}, el("th", { text: "OUT" }), ...OPS.map((x) => el("td", {}, opxSel(OX.outField(x), ["OFF", "ON"]))));
+    parts.push(el("h3", { text: t("opxUser") }), opxTable(["", ...OPS.map((x) => `OP${x}`)], [...ua, out]),
+      el("p", { class: "dim", text: t("opxUserHelp") }));
+  }
+  $("opxops").replaceChildren(...parts);
+}
+function renderOpx() {
+  if (!opxOk()) return;
+  if (!OX) { opxLoad().then(renderOpx); return; }
+  const ts = $("opxtrk"), keepT = ts.value, ss = $("opxslot"), keepS = ss.value, nf = dev.info.opx.factory;
+  ts.replaceChildren(...Array.from({ length: dev.info.ntrk || 1 }, (_, i) => el("option", { value: i, text: String(i + 1) })));
+  ts.value = keepT || (dev.sel ?? 0);
+  ss.replaceChildren(...Array.from({ length: nf }, (_, i) => el("option", { value: i, text: `F${i + 1} ${opxNames ? opxNames[i] : ""}`.trim() })));
+  ss.value = keepS !== "" && +keepS < nf ? keepS : "0";
+  renderOpxPatch();
+  renderOpxOps();
+}
+async function opxGet(target, i) {
+  const r = parse[CMD.OPX_GET](await sessionRequest(dev, req.opxGet(target, i)));
+  checkRc(r.rc);
+  await opxLoad();
+  if (!OX.ok(r.packed)) throw new Error(t("opxBadFile"));
+  return r.packed;
+}
+async function opxRefresh(d = dev) {          /* the factory names, then the selected track's patch */
+  await opxLoad();
+  if (!opxNames) {
+    const names = [];
+    for (let i = 0; i < d.info.opx.factory; i++) names.push(OX.name(await opxGet(OPX.TARGET.FACTORY, i)));
+    opxNames = names;
+  }
+  opxPk = await opxGet(OPX.TARGET.TRACK, d.sel ?? 0);
+  $("opxtrk").value = d.sel ?? 0;
+  renderOpx();
+}
+async function opxSend(quiet) {
+  const r = parse[CMD.OPX_PUT](await sessionRequest(dev, req.opxPut(OPX.TARGET.TRACK, opxTrack(), opxPk)));
+  checkRc(r.rc);
+  if (!quiet) sayK("opxSent", ` ${opxTrack() + 1}`);
+}
+$("opxread").addEventListener("click", () => op(async () => {
+  opxPk = await opxGet(OPX.TARGET.TRACK, opxTrack());
+  renderOpx();
+  sayK("opxRead", ` ${opxTrack() + 1}: ${OX.name(opxPk)}`);
+}));
+$("opxsend").addEventListener("click", () => op(() => opxSend(false)));
+$("opxload").addEventListener("click", () => op(async () => {
+  const i = +$("opxslot").value;
+  opxPk = await opxGet(OPX.TARGET.FACTORY, i);
+  renderOpx();
+  sayK("opxLoaded", ` F${i + 1}: ${OX.name(opxPk)}`);
+}));
+$("opxinit").addEventListener("click", () => opxLoad().then(() => { opxPk = OX.defaults(); renderOpx(); }));
+$("opximport").addEventListener("click", () => $("opxfile").click());
+$("opxfile").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  await opxLoad();
+  const b = new Uint8Array(await f.arrayBuffer());
+  if (!OX.ok(b)) { sayK("opxBadFile", `: ${f.name}`); return; }
+  opxPk = b;
+  renderOpx();
+  sayK("opxLoaded", ` ${f.name}: ${OX.name(opxPk)}`);
+});
+$("opxexport").addEventListener("click", () => opxLoad().then(() => downloadBytes(`${fileSlug(OX.name(opxPk) || "opx")}.opx`, opxPk)));
 
 $("connect").addEventListener("click", () => {
   if (dev) { wantConnected = false; disconnect(); } else connect();

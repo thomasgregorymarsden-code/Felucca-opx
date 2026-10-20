@@ -780,10 +780,13 @@ this firmware sends 3. Requests name objects, never flash addresses.
 | 6, 7 | user preset banks (slots 1..16, 17..32) | the bank's size, or 0 if empty |
 | 8 | the FM6 patch bank of 1.0..1.0.2 (B1..B27). Since 1.0.3 always listed empty (see below) | 3472, or 0 if empty |
 | 9 | the user presets' FM6 patches (1.0.3; `up_fm6.c`: per slot a tag and the packed patch) | 3728, or 0 if none |
+| 10, 11 | OPX fork (0.2): the projects' OPX patches, projects 1-2 and 3-4 (`opx_store.c` `opx_pair_t`), as stored | 3496, or 0 if none |
+| 12, 13 | OPX fork (0.2): the OPX user presets' patches, 8 each (`upx_obj_t`), as stored | 3560, or 0 if none |
+| 14 | OPX fork (0.2): the four tracks' OPX patches now (434 bytes each); restored after id 0 | 1736 |
 | 32..34 | user sample slots 1..3: header (512 bytes) then ADPCM data | 512 + data length, or 0 if empty |
 
 Reading: `BACKUP_LIST` (no arguments) stops the transport, then takes a snapshot of the runtime object and
-answers `1, rc, count` (13 since 1.0.3, 12 with FM6 up to 1.0.2, 11 before) and, per object in the order above, `id, size u32, crc u32` (CRC-32, zlib). The other objects are read as
+answers `1, rc, count` (18 with OPX's ids 10..14, 13 since 1.0.3, 12 with FM6 up to 1.0.2, 11 before) and, per object in the order above, `id, size u32, crc u32` (CRC-32, zlib). The other objects are read as
 they are in RAM or flash. Then `BACKUP_GET` reads an object in pieces: `id, offset u32, count lo, count hi`
 (count 1..256, LSB first 7 bit pair) answers `id, rc, offset u32, count lo, count hi` and the data as pack7. Check each object's CRC
 against the list; if it differs the device changed, so start again.
@@ -818,6 +821,26 @@ earlier objects restored; the file is still the source.
 
 `BACKUP_LIST` answers `1, rc, 0` when rc is not 0. `GET` and `PUT` answer id 127 when they got no arguments.
 A `LIST` replaces the snapshot, and a `PUT` begin ends it: a `GET` after a begin gets rc 5.
+
+## OPX patches (121, 122; OPX fork 0.2)
+
+INFO ends with `4F 01 version size_lo size_hi factories engine`: the record's format version (1), its size (434, two
+7-bit bytes), the factory patches (7) and the OPX engine's number (15). A patch travels as its packed record
+(`tools/opx_patch_spec.py`; the web editor's `web/opx_fields.js` is generated from it), pack7 as `BACKUP_GET`'s data.
+
+| Command | Arguments | Reply |
+| --- | --- | --- |
+| 121 OPX_GET | target, index | target, index, rc, then (rc 0) the record, pack7 (496 bytes) |
+| 122 OPX_PUT | target, index, the record, pack7 | target, index, rc |
+
+Targets: 0 a track's patch (index 0..3), 1 a factory patch (0..6, `OPX_GET` only), 2 a user preset's patch (0..31,
+an OPX user preset). rc: 0 ok; 1 a bad request (target, index, the record's length or version, a field above its range);
+2 none (a user preset with no OPX patch, or a `PUT` to a slot that is not an OPX preset, or a flash error); 3 stop
+playback first (a user preset's `PUT` writes flash); 4 no room (16 OPX user presets keep a patch). A `PUT` to a track
+plays at once and makes the patch the track's own (SLOT OWN; a factory patch unchanged shows as its F n).
+
+A user preset's record goes first (`UP_PUT`), its patch second (`OPX_PUT` target 2); the web editor's library does both,
+and reads both (`UP_GET`, `OPX_GET`).
 
 ## FM6 patches (68-71)
 

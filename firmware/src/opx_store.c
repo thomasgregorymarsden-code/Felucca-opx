@@ -290,9 +290,8 @@ static int upx_room(uint32_t k)
     uint32_t j, n;
     return !flash_ok || upx_place(k, &j, &n) == 0;
 }
-/* up_store: slot k (its record just written from track tr) gets that track's patch: 0 ok, 2 flash error, 3 no flash,
- * 4 no room */
-static int upx_store(uint32_t k, uint32_t tr)
+/* slot k (an OPX record) gets patch pk: 0 ok, 2 flash error, 3 no flash, 4 no room */
+static int upx_put(uint32_t k, const uint8_t *pk)
 {
     uint32_t j, n, m;
     upx_ent_t *e;
@@ -309,9 +308,11 @@ static int upx_store(uint32_t k, uint32_t tr)
     e = &opx_sb.up.e[n];
     e->slot = (uint8_t)k;
     e->tag = upf_tag(up_rec(k));
-    memcpy(e->pk, opx_pk[tr % NTRK], OPX_PK_BYTES);
+    memcpy(e->pk, pk, OPX_PK_BYTES);
     return st_save(OBJ_OPX0 + 2u + j, &opx_sb.up, sizeof opx_sb.up) ? 2 : 0;
 }
+/* up_store: slot k (its record just written from track tr) gets that track's patch (upx_put's result) */
+static int upx_store(uint32_t k, uint32_t tr) { return upx_put(k, opx_pk[tr % NTRK]); }
 /* slot k's patch: its stored bytes (in opx_sb), 0 none */
 static const uint8_t *upx_find(uint32_t k)
 {
@@ -329,6 +330,7 @@ static const uint8_t *upx_find(uint32_t k)
 #else
 static uint32_t opx_ext_convert(void) { return 0; }
 static int upx_room(uint32_t k) { (void)k; return 1; }
+static int upx_put(uint32_t k, const uint8_t *pk) { (void)k; (void)pk; return 3; }
 static int upx_store(uint32_t k, uint32_t tr) { (void)k; (void)tr; return 3; }
 static const uint8_t *upx_find(uint32_t k) { (void)k; return 0; }
 #endif

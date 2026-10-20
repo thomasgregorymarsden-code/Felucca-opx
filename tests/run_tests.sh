@@ -171,6 +171,7 @@ run() { echo "== $1"; shift; "$@" || fail=1; }
 $CC -o "$OUT/flashscan_test" tests/flashscan_test.c
 run "OPX fork: FLASH_SCAN against a simulated NOR (erased / used sectors, CRC, range, read-only)" "$OUT/flashscan_test"
 run "OPX fork: patch format (tools/opx_patch_spec.py): pack / unpack round trips" python3 tools/opx_patch_spec.py --test
+run "OPX fork: the web editor's field table (web/opx_fields.js) is the spec's" python3 tools/opx_patch_spec.py --check-js web/opx_fields.js
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
@@ -438,6 +439,8 @@ run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/inst
 if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol + samples, package builder, update protocol" node web/test_web.mjs
     run "web backup: capture, validation before writes, restore order" node web/test_backup.mjs
+    python3 tools/opx_patch_spec.py --vectors 40 > "$OUT/opx_vectors.json"
+    run "OPX fork: web/opx_patch.js reads and writes the spec's records" node web/test_opx.mjs "$OUT/opx_vectors.json"
 else
     echo "== skip web tests (no node)"
 fi

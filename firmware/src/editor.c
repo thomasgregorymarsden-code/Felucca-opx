@@ -350,6 +350,9 @@ static int ed_flash_stop(void)
 #include "editor_menu.c"
 #include "editor_learn.c"                    /* 1.5: MIDI LEARN's map (cmds 78, 79) */
 #include "editor_flashscan.c"                /* OPX fork: read-only flash survey (cmd 120) */
+#if FELUCCA_OPX
+#include "editor_opx.c"                      /* OPX fork: OPX patches (cmds 121, 122) */
+#endif
 
 /* MOTION's reply: the records of track k as (step, id, v14), a lock's id without its MOTION_LOCK bit (a 7-bit SysEx
  * byte); kinds (1.1: the ops 5..7): then one byte per record, in the same order, 0 automation, 1 lock. The query and
@@ -439,6 +442,9 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
     if (ed_menu_handle(cmd, a, na)) { ed_send(); return; }
     if (ed_learn_handle(cmd, a, na)) { ed_send(); return; }
     if (ed_flashscan_handle(cmd, a, na)) { ed_send(); return; }
+#if FELUCCA_OPX
+    if (ed_opx_handle(cmd, a, na)) { ed_send(); return; }
+#endif
     switch (cmd) {
     case ED_MOTION: {
         track_t *t = &trk[a[0]]; uint32_t rc = 0;
@@ -484,6 +490,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b(0x57); ed_b(1); ed_b(NTRK);   /* 1.2: song sections with a slot per track (SONG ops 4..7) */
         ed_b(0x56); ed_b(1); ed_b(FM6_NBANK);   /* 1.4.1: FM6's voice bank (cmds 74..77; SLOT 9..40 = B1..B32) */
         ed_b(0x43); ed_b(1); ed_b(ML_N);   /* 1.5: MIDI LEARN's map (cmds 78, 79; editor_learn.c) */
+#if FELUCCA_OPX
+        ed_b(0x4F); ed_b(1); ed_b(OPX_FORMAT_VERSION);   /* OPX fork: OPX patches (cmds 121, 122; editor_opx.c): the */
+        ed_b(OPX_PK_BYTES & 127u); ed_b(OPX_PK_BYTES >> 7); ed_b(OPX_NFACTORY);   /* record's version and size, the */
+        ed_b(ENGI_OPX);                                  /* factory patches, the engine's number */
+#endif
         break;
     case ED_GET:
     case ED_SET:

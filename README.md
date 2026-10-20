@@ -219,7 +219,7 @@ Felucca's release history is in [docs/FELUCCA_HISTORY.md](docs/FELUCCA_HISTORY.m
   controller to any knob's parameter of any track, on the device; **Program Change** loads a track's sound by its
   number in PRESETS
 - **Web:** editor for every parameter (with a 6-operator FM patch editor that also sends a whole 32-voice bank),
-  step grid, mixer, preset library, sample upload and recording with trim, the MENU settings; full backup and restore
+  step grid, mixer, preset library, sample upload and recording with trim, the MENU settings; full backup and restore; an OPX tab edits a track's whole OPX patch
   (everything but the FM6 voice bank, keep its .syx file, and OPX tracks' own patches);
   return to the official firmware; Felucca itself running in the browser
 

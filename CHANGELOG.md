@@ -10,6 +10,10 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
   0.1.0 load their SLOT's factory patch, as before.
 - **The full backup includes OPX:** the projects' and user presets' OPX patches and the tracks' current ones. Archives
   of 0.1.0 and Felucca still restore; a new archive restored onto 0.1.0 skips the OPX parts.
+- **The web editor's OPX tab:** read a track's OPX patch or a factory one, edit every operator value the engine plays
+  (MODE and its values, PITCH, EG, KTRK, the USER matrix), send it to a track (also while editing), save it as a file
+  (`.opx`, the 434-byte record) or load one. The library keeps an OPX sound's patch, and moves it to and from the
+  device's user presets. New editor commands OPX_GET / OPX_PUT (121, 122).
 - **Storage:** the projects' OPX patches are kept two projects per storage object (was one each), which frees room
   for the user presets' without taking more of sample slot 3. The first start after updating moves 0.1.0's layout
   over once; a power cut during the move loses nothing (tested at every write). Going back to 0.1.0 afterwards loses

@@ -169,7 +169,7 @@ static int preferences(void)
     int bad = 0;
     uint8_t a[4] = {0, 7, 0, 0};
     reset();
-    uint32_t n = request(ED_INFO, a, 0);
+    uint32_t n = request(ED_INFO, a, 0) - (FELUCCA_OPX ? 7u : 0u);   /* (OPX fork: its 4F block last, 7 bytes) */
     bad += check("INFO explicitly tags display capabilities after SONG without changing command 33",
         ED_SONG == 33 && ED_UI_STATE == 34 && ED_FAV_SET == 38 &&
         host_wire[n - 47] == CHAIN_ROWS && host_wire[n - 46] == 0x55 &&
@@ -486,6 +486,67 @@ static int malformed_saves(void)
 
 /* FM6 patches (cmds 68..71): a track's own patch, the retired bank ("no bank"), the factory patches, the user presets'
  * patches (target 3), malformed frames */
+#if FELUCCA_OPX
+/* OPX fork: OPX_GET / OPX_PUT (121, 122): a track's patch, a factory patch; pack7 both ways */
+static int opx_patches(void)
+{
+    int bad = 0;
+    static uint8_t a[2 + 512], pk[OPX_PK_BYTES], f2[OPX_PK_BYTES], got[OPX_PK_BYTES];
+    uint32_t n, m;
+    reset();
+    opx_poll();
+    a[0] = ED_OPX_FACTORY; a[1] = 2;
+    n = request(ED_OPX_GET, a, 2);
+    opx_encode(&OPX_FACTORY[2], f2);
+    bad += check("OPX_GET factory 3: the record, pack7 (434 bytes in 496)",
+                 n == 5u + 3u + 496u + 1u && host_wire[7] == 0 && ed_unpack7(host_wire + 8, 496, got, OPX_PK_BYTES) ==
+                 OPX_PK_BYTES && !memcmp(got, f2, OPX_PK_BYTES));
+    memcpy(pk, f2, OPX_PK_BYTES);
+    opx_put(pk, OPXF_OP(4, OPXF_OP1_LEVEL), 12);
+    trk[1].eng_req = trk[1].engine = ENGI_OPX;
+    a[0] = ED_OPX_TRACK; a[1] = 1;
+    m = pack7(pk, OPX_PK_BYTES, a + 2);
+    n = request(ED_OPX_PUT, a, 2u + m);
+    bad += check("OPX_PUT track 2: rc 0, the track plays it, SLOT OWN", n == 9u && host_wire[7] == 0 &&
+                 !memcmp(opx_pk[1], pk, OPX_PK_BYTES) && trk[1].p[P_E7] == (int16_t)OPX_OWN && opx_slot[1] == OPX_OWN);
+    opx_poll();
+    a[0] = ED_OPX_TRACK; a[1] = 1;
+    n = request(ED_OPX_GET, a, 2);
+    bad += check("  .. opx_poll keeps it; OPX_GET track 2 reads it back", !memcmp(opx_pk[1], pk, OPX_PK_BYTES) &&
+                 host_wire[7] == 0 && ed_unpack7(host_wire + 8, 496, got, OPX_PK_BYTES) == OPX_PK_BYTES &&
+                 !memcmp(got, pk, OPX_PK_BYTES));
+    m = pack7(f2, OPX_PK_BYTES, a + 2);
+    request(ED_OPX_PUT, a, 2u + m);
+    bad += check("OPX_PUT of a factory patch unchanged: SLOT shows it (F3)", trk[1].p[P_E7] == 2 && opx_slot[1] == 2u);
+    memcpy(got, pk, OPX_PK_BYTES);
+    opx_put(got, OPXF_VERSION, OPX_FORMAT_VERSION + 1);
+    m = pack7(got, OPX_PK_BYTES, a + 2);
+    n = request(ED_OPX_PUT, a, 2u + m);
+    bad += check("OPX_PUT of another version: rc 1, the track's patch kept", host_wire[7] == 1u &&
+                 !memcmp(opx_pk[1], f2, OPX_PK_BYTES));
+    m = pack7(pk, 433u, a + 2);
+    request(ED_OPX_PUT, a, 2u + m);
+    bad += check("OPX_PUT of 433 bytes: rc 1", host_wire[7] == 1u);
+    a[0] = ED_OPX_TRACK; a[1] = 4;
+    request(ED_OPX_GET, a, 2);
+    bad += check("OPX_GET of track 5 / factory 8: rc 1", host_wire[7] == 1u &&
+                 (a[0] = ED_OPX_FACTORY, a[1] = OPX_NFACTORY, request(ED_OPX_GET, a, 2), host_wire[7] == 1u));
+    a[0] = ED_OPX_USER; a[1] = 3;
+    request(ED_OPX_GET, a, 2);
+    bad += check("OPX_GET of a user preset without an OPX patch: rc 2", host_wire[7] == 2u);
+    request(ED_INFO, 0, 0);
+    {
+        uint32_t i, found = 0;
+        for (i = 8; i + 7u < host_wire_n; i++)
+            if (host_wire[i] == 0x4F && host_wire[i + 1] == 1 && host_wire[i + 2] == OPX_FORMAT_VERSION &&
+                (host_wire[i + 3] | host_wire[i + 4] << 7) == OPX_PK_BYTES && host_wire[i + 5] == OPX_NFACTORY &&
+                host_wire[i + 6] == ENGI_OPX && host_wire[i + 7] == 0xF7)
+                found = 1;
+        bad += check("INFO ends with 4F 01 version size(2) factories engine", found);
+    }
+    return bad;
+}
+#endif
 static int fm6_patches(void)
 {
     int bad = 0;
@@ -1165,6 +1226,9 @@ int main(void)
     int bad = preferences() + motion_locks() + framing() + uart_recovery() + steps() + samples() + song_protocol() + malformed_saves() +
               fm6_patches() + user_preset_roundtrip() + live_sync() + usb_burst() + menu_protocol() + drum_kit_retired() +
               learn_protocol();
+#if FELUCCA_OPX
+    bad += opx_patches();
+#endif
     printf("%s\n", bad ? "EDITOR TEST FAILED" : "editor test passed");
     return bad != 0;
 }

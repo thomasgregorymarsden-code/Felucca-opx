@@ -1,0 +1,131 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// OPX fork: an OPX patch as the web editor handles it: the packed record of tools/opx_patch_spec.py (opx_fields.js,
+// 434 bytes, every opsix program field; the firmware's opx_patch.c), its fields read and written by name, checked as
+// the firmware checks one (opx_pk_ok), and the values the device shows (ui_fm6op.c xop_rowtext) as text.
+import { OPX_FIELDS, OPX_PK_BYTES, OPX_FORMAT_VERSION } from "./opx_fields.js";
+
+export { OPX_PK_BYTES, OPX_FORMAT_VERSION };
+const BY = new Map(OPX_FIELDS.map((f) => [f[0], f]));
+export const has = (name) => BY.has(name);
+export const range = (name) => { const f = BY.get(name); return [f[3], f[4]]; };
+
+export function get(pk, name) {
+  const [, off, bits, lo] = BY.get(name);
+  let v = 0;
+  for (let k = 0; k < bits; k++) v += ((pk[(off + k) >> 3] >> ((off + k) & 7)) & 1) * 2 ** k;
+  return v + lo;
+}
+export function put(pk, name, value) {           // (clamped into the field's range, as opx_put)
+  const [, off, bits, lo, hi] = BY.get(name);
+  const u = Math.max(lo, Math.min(hi, Math.round(+value || 0))) - lo;
+  for (let k = 0; k < bits; k++) {
+    const i = (off + k) >> 3, m = 1 << ((off + k) & 7);
+    pk[i] = Math.floor(u / 2 ** k) % 2 ? pk[i] | m : pk[i] & ~m;
+  }
+}
+export function defaults() {
+  const pk = new Uint8Array(OPX_PK_BYTES);
+  for (const [name, , , , , d] of OPX_FIELDS) put(pk, name, d);
+  return pk;
+}
+// a record the firmware takes: its size and version, every field inside its range (opx_patch.c opx_pk_ok)
+export function ok(pk) {
+  if (!pk || pk.length !== OPX_PK_BYTES || get(pk, "version") !== OPX_FORMAT_VERSION) return false;
+  return OPX_FIELDS.every(([name, , , , hi]) => get(pk, name) <= hi);
+}
+export function name(pk) {
+  let s = "";
+  for (let i = 0; i < 16; i++) s += String.fromCharCode(get(pk, `prog.name${i}`));
+  return s.trimEnd();
+}
+export function setName(pk, s) {
+  const t = String(s).toUpperCase().replace(/[^\x20-\x7E]/g, " ").slice(0, 16).padEnd(16, " ");
+  for (let i = 0; i < 16; i++) put(pk, `prog.name${i}`, t.charCodeAt(i));
+}
+
+// value lists (the device's names, ui_fm6op.c and eng_opx.c)
+export const MODES = ["FM", "RING MOD", "FILTER", "FILTER FM", "WAVE FOLDER", "EFFECT", "BYPASS", "MUTE"];
+export const WAVES = ["SIN", "SIN 12BIT", "SIN 8BIT", "TRI", "SAW", "SAW HD", "SQR", "SQR HD", "ADTV SAW3", "ADTV SQR3",
+  "ADTV TRI3", "ADTV 12345", "ADTV 1+2", "ADTV 1+3", "ADTV 1+4", "ADTV 1+5", "ADTV 1+6", "ADTV 1+7", "ADTV 1+8",
+  "NOISE S/H", "NOISE WHITE", "NOISE PINK", "NOISE BLUE"];
+export const NOISE0 = 19;                        // (the noises: no phase, so FB and WIDTH do nothing)
+export const FILTERS = ["LPF", "HPF", "BPF", "BRF", "MG LPF12", "MG LPF24", "MG HPF12", "MG HPF24", "MG BPF6", "MG BPF12",
+  "MS-20 LPF", "MS-20 HPF"];
+export const EFFECTS = ["PEAK EQ", "SHELV EQ", "PHASER", "SHORT DLY", "COMB", "DIST", "DRIVE", "DEC", "WAVESHAPER", "PUNCH"];
+export const COARSE = Array.from({ length: 39 }, (_, c) => (c < 7 ? `1/${128 >> c}` : String(c - 6)));
+export const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+export const noteName = (n) => NOTES[n % 12] + (Math.floor(n / 12) - 1);
+export const ALGOS = 40;                         // 1..40, then USER (algo 40)
+export const USER = 40;
+// the modes' own rows (ui_fm6op.c xop_list): [field suffix, label]
+export const MODE_ROWS = [
+  [["fm_fb", "FB"], ["fm_width", "WIDTH"]],
+  [["ring_depth", "DEPTH"], ["ring_shape", "SHAPE"]],
+  [["flt_type", "TYPE"], ["flt_oscmix", "OSC MIX"], ["flt_cutoff", "CUTOFF"], ["flt_reso", "RESO"]],
+  [["flt_type", "TYPE"], ["flt_cutoff", "CUTOFF"], ["flt_reso", "RESO"]],
+  [["fold_gain", "GAIN"], ["fold_oscmix", "OSC MIX"], ["fold_bias", "BIAS"]],
+  [["fx_type", "FX"], ["fx_oscmix", "OSC MIX"], ["fx_e", "E"], ["fx_f", "F"]],
+  [], []];
+// an effect's E and F (eng_opx.c OPX_FXV: each type's range; ui_fm6op.c: names and units). Stored as value - lo
+export const FXV = [[-500, 500, -180, 180], [-180, 180, -180, 180], [-500, 500, -100, 100], [1, 300, 0, 100],
+  [-500, 500, -100, 100], [0, 100, -180, 180], [0, 100, -180, 180], [200, 25600, 200, 2400], [0, 59, 0, 100],
+  [0, 100, -180, 180]];
+export const FX_NAMES = [["FREQ", "GAIN"], ["LOW", "HIGH"], ["FREQ", "FB"], ["TIME", "FB"], ["FREQ", "FB"], ["DIST", "LOW"],
+  ["DRIVE", "LOW"], ["FREQ", "BIT"], ["TYPE", "DAMP"], ["PUNCH", "HIGH"]];
+// units: 0 % (unsigned), 1 % signed, 2 semitones x0.1, 3 dB x0.1, 4 ms, 5 x0.01, 6 a number
+export const FX_UNITS = [[2, 3], [3, 3], [2, 1], [4, 0], [2, 1], [0, 3], [0, 3], [5, 5], [6, 0], [0, 3]];
+// a new effect type's neutral E and F (ui_fm6op.c xop_knob), as stored
+export const FX_NEUTRAL = [[500, 180], [180, 180], [500, 100], [9, 30], [500, 150], [50, 180], [50, 180], [1400, 1000],
+  [0, 0], [50, 180]];
+
+const signed = (v, d = 0) => (v > 0 ? "+" : "") + (d ? (v / 10 ** d).toFixed(d) : String(v));
+// TIME10 code c (EG times): 0 = 0 ms; 1 ms x 90000^((c - 1) / 1022)
+export function timeText(c) {
+  if (c <= 0) return "0 MS";
+  const ms = 90000 ** ((c - 1) / 1022);
+  return ms < 10 ? `${ms.toFixed(1)} MS` : ms < 1000 ? `${Math.round(ms)} MS` : ms < 10000 ? `${(ms / 1000).toFixed(2)} S`
+    : `${(ms / 1000).toFixed(1)} S`;
+}
+export const hzText = (f) => (f < 10000 ? (f / 100).toFixed(2) : f < 100000 ? (f / 100).toFixed(1) : f < 1000000
+  ? String(Math.floor(f / 100)) : `${(f / 100000).toFixed(1)}K`) + " HZ";
+// the effect's E or F (w 0 / 1) of type ty, stored value v, as text
+export function fxText(ty, w, v) {
+  const x = v + FXV[ty][w * 2];
+  switch (FX_UNITS[ty][w]) {
+    case 1: return signed(x) + " %";
+    case 2: return signed(x, 1) + " ST";
+    case 3: return signed(x, 1) + " DB";
+    case 4: return `${x} MS`;
+    case 5: return (x / 100).toFixed(2);
+    case 6: return String(x).padStart(2, "0");
+    default: return `${x} %`;
+  }
+}
+// operator k's (1..6) field `f` as the device shows it
+export function text(pk, k, f) {
+  const n = `op${k}.${f}`, v = get(pk, n);
+  switch (f) {
+    case "mode": return MODES[v];
+    case "wave": return WAVES[v];
+    case "flt_type": return FILTERS[v];
+    case "fx_type": return EFFECTS[v];
+    case "fm_width": return v ? `${v} %` : "OFF";
+    case "flt_cutoff": return signed(v, 1) + " ST";
+    case "fold_bias": case "ktrk_low": case "ktrk_high": return signed(v) + " %";
+    case "fx_e": case "fx_f": return fxText(get(pk, `op${k}.fx_type`), f === "fx_f" ? 1 : 0, v);
+    case "freq_fixed": return v ? "FIXED" : "RATIO";
+    case "coarse": return COARSE[v];
+    case "fine": return (v / 1000).toFixed(3);
+    case "fixed_freq": return hzText(v);
+    case "detune": return signed(v) + " CT";
+    case "trans": return signed(v) + " ST";
+    case "eg_atk": case "eg_dec": case "eg_rel": return timeText(v);
+    case "eg_curve": return v === 0 ? "LIN" : v === 10 ? "EXP" : String(v);
+    case "ktrk_center": return noteName(v);
+    case "ktrk_lcrv": case "ktrk_hcrv": return v ? "EXP" : "LIN";
+    default: return `${v} %`;
+  }
+}
+// the matrix (USER): what operator x (1..6) sends to y (its own: its self feedback); its direct out
+export const uaField = (x, y) => (x === y ? `ua.op${x}_self` : `ua.op${x}_to_op${y}`);
+export const outField = (x) => `ua.op${x}_out`;

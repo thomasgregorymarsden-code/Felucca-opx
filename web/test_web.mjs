@@ -36,7 +36,7 @@ const html = readFileSync(join(HERE, "editor.html"), "utf8");
 const proto = html.slice(html.indexOf("/*PROTO-BEGIN*/"), html.indexOf("/*PROTO-END*/"));
 const E = vm.runInNewContext(proto + `
 ;({ frame, unframe, parse, req, Link, parseWav, resample, normalize, takeSample, autoTrim, zoomView, rootFromName, buildSlot, makeMockDevice, CMD, SMP,
-   UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, patternFromSteps, stepsFromPattern, upName,
+   UP, OPX, bank, cleanPatch, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, patternFromSteps, stepsFromPattern, upName,
    mixer, parseNotes, parseHits, hitsText, gridFromSteps, LANE_NOTE, LANE_OF, readDevicePreferences, devicePresetRows, engineOrder, ENGINE_ORDER, aliasOf, fmtValue, FM6, enumShown, F,
    FM4, fromDigital, fromPerc, DRUM_KIT_E,
    MENU: typeof MENU === "undefined" ? null : MENU, MENU_TABS: typeof MENU_TABS === "undefined" ? null : MENU_TABS,
@@ -1507,11 +1507,36 @@ async function editorSessions() {
   ok(!sent && S.count() === 0, "editor: library storage delay cannot send a save to a new device");
 }
 
+/* OPX fork: INFO's 4F block, OPX_GET / OPX_PUT (pack7), a user preset and the current sound carrying the OPX patch */
+async function editorOpx() {
+  const fac = Array.from({ length: 7 }, (_, k) => Uint8Array.from({ length: 434 }, (_, i) => (i * 7 + k * 31) & 255));
+  const { m, rq, done } = attachMock({ opx: { engine: 15, factory: fac } });
+  const C = E.CMD;
+  const info = E.parse[C.INFO](await rq(E.req.info()));
+  ok(info.opx && info.opx.version === 1 && info.opx.bytes === 434 && info.opx.factory === 7 && info.opx.engine === 15,
+    "editor: INFO's OPX block (version, record size, factory patches, engine)");
+  let g = E.parse[C.OPX_GET](await rq(E.req.opxGet(E.OPX.TARGET.FACTORY, 3)));
+  ok(!g.rc && g.packed.length === 434 && g.packed.every((x, i) => x === fac[3][i]), "editor: OPX_GET a factory patch: 434 bytes, 8-bit, pack7");
+  const mine = Uint8Array.from({ length: 434 }, (_, i) => (255 - i) & 255);
+  const r = E.parse[C.OPX_PUT](await rq(E.req.opxPut(E.OPX.TARGET.TRACK, 2, mine)));
+  g = E.parse[C.OPX_GET](await rq(E.req.opxGet(E.OPX.TARGET.TRACK, 2)));
+  ok(!r.rc && !g.rc && g.packed.every((x, i) => x === mine[i]), "editor: OPX_PUT a track's patch, OPX_GET reads it back");
+  const pt = { name: "OPX ONE", engine: 15, p: Array(info.pcount).fill(0), pattern: null, grid: null, opx: mine };
+  const rc = await E.bank.put(rq, 4, pt, info);
+  const u = await E.bank.get(rq, info, 4);
+  ok(!rc && u.used && u.engine === 15 && u.opx && u.opx.every((x, i) => x === mine[i]),
+    "editor: a user preset of an OPX sound goes to the device and comes back with its patch");
+  const c = E.cleanPatch({ ...pt, opx: u.opx });
+  ok(c.opx.length === 434 && c.opx.every((x, i) => x === mine[i]) && !E.cleanPatch({ ...pt, opx: [1, 2] }).opx,
+    "editor: the library keeps an OPX sound's patch (434 bytes; anything else dropped)");
+  done();
+}
+
 function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
   const TABS = JSON.parse((/const TABS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 8 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b),
+  ok(tabs.length === 9 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b),
     `editor: ${tabs.length} tabs, one panel each (${tabs.join(" ")})`);
   ok(/localStorage\.setItem\(TAB_KEY/.test(html) && /try \{ localStorage/.test(html) && /history\.replaceState\([^)]*"#" \+ name\)/.test(html)
     && /addEventListener\("hashchange"/.test(html), "editor: last tab in localStorage (try/catch) and in the URL hash");
@@ -1728,6 +1753,7 @@ await editorSessions();
 await editorFm6();
 await editorFm6Bank();
 await editorMidiLearn();
+await editorOpx();
 fm6TabNoBank();
 await editorFm4();
 editorTabs();
