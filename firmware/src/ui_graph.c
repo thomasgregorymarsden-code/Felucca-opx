@@ -1656,12 +1656,14 @@ static void graph_opxenv(const track_t *t, uint16_t c)
 {
     static const uint16_t EXQ[9] = {32768, 13777, 5793, 2436, 1024, 431, 181, 76, 32};   /* 2^(-10 k / 8), Q15 */
     const uint8_t *pk = opx_pk[(uint32_t)(t - trk) % NTRK];
-    uint32_t op = fop_op % 6u, sg = xop_row(), k;      /* (sg 4, CURVE: DEC and REL, the stages it shapes) */
-    int32_t a = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_ATK)), d = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_DEC));
-    int32_t r = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_REL)), su = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_SUS));
-    int32_t cv = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_CURVE)), top = 22, bot = 104, x0 = 8, x1, x2, x3, x4 = 114, st;
-    int32_t px, py, ys = bot - su * (bot - top) / 100;
-    char b[4] = {'O', 'P', (char)('1' + op), 0};
+    uint32_t op = fop_op % 6u, sg = xop_row(), k, e1 = xop_view() == XV_EG1;   /* (sg 4, CURVE: DEC and REL; e1: M4's EG1) */
+    int32_t a = opx_get(pk, e1 ? OPXF_EG1_ATK : OPXF_OP(op, OPXF_OP1_EG_ATK));
+    int32_t d = opx_get(pk, e1 ? OPXF_EG1_DEC : OPXF_OP(op, OPXF_OP1_EG_DEC));
+    int32_t r = opx_get(pk, e1 ? OPXF_EG1_REL : OPXF_OP(op, OPXF_OP1_EG_REL));
+    int32_t su = opx_get(pk, e1 ? OPXF_EG1_SUS : OPXF_OP(op, OPXF_OP1_EG_SUS));
+    int32_t cv = opx_get(pk, e1 ? OPXF_EG1_CURVE : OPXF_OP(op, OPXF_OP1_EG_CURVE)), top = 22, bot = 104, x0 = 8, x1, x2, x3;
+    int32_t x4 = 114, st, px, py, ys = bot - su * (bot - top) / 100;
+    char b[4] = {e1 ? 'E' : 'O', e1 ? 'G' : 'P', (char)(e1 ? '1' : '1' + op), 0};
     x1 = x0 + 2 + a * 30 / 1023;
     x2 = x1 + 2 + d * 30 / 1023;
     x3 = x4 - 2 - r * 30 / 1023;
@@ -1687,12 +1689,46 @@ static void graph_opxenv(const track_t *t, uint16_t c)
     }
     cv_text(x0, 2, &AF_S, b, T_MID);
 }
+/* LFO1 (M4): two cycles of its WAVE in the left half (0 at the middle line; the random ones a fixed draw of their kind),
+ * its PHASE's start marked; "LFO1" and its speed's text top left */
+static void graph_opxlfo(const track_t *t, uint16_t c)
+{
+    const uint8_t *pk = opx_pk[(uint32_t)(t - trk) % NTRK];
+    uint32_t w = (uint32_t)clamp(opx_get(pk, OPXF_LFO1_WAVE), 0, OPX_NLFOW - 1), k;
+    int32_t ph = opx_get(pk, OPXF_LFO1_PHASE), mid = 63, amp = 38, x0 = 8, x1 = 114, px = 0, py = 0;
+    opx_rt_t r;
+    opx_lfo_t l;
+    memset(&r, 0, sizeof r);
+    memset(&l, 0, sizeof l);
+    r.lw = (uint8_t)w;
+    r.linc = 0x08000000u;                            /* (the random ones: 32 steps a segment, a segment a cycle) */
+    l.rng = 0x2545F491u, l.mul = 256, l.a = l.b = 0;
+    cv_rect(x0, mid, x1 - x0, 1, T_RAISE);
+    for (k = 0; k <= 106u; k++) {                    /* (two cycles over 106 px) */
+        uint32_t u = (uint32_t)(((uint64_t)k << 17) / 106u);   /* (0 .. 2 cycles, 16 bits a cycle) */
+        int32_t v, x = x0 + (int32_t)k, y;
+        if (OPX_L_RANDOM(w)) {
+            l.ph = 0xFFFFFFFFu;                       /* (each of 8 points a step: a new level a few) */
+            v = k % 13u == 0u ? opx_lfo_step(&l, &r) : (OPX_L_HELD(w) ? l.b : l.a + (l.b - l.a) * (int32_t)(k % 13u) / 13);
+        } else {
+            v = opx_lfo_shape(w, (u + (uint32_t)(ph < -180 ? 0 : (ph + 360) % 360) * 65536u / 360u) & 0xFFFFu);
+        }
+        y = mid - v * amp / 32767;
+        if (k)
+            cv_line_t(px, py, x, y, c, 2);
+        px = x, py = y;
+    }
+    cv_rect(x0, mid - amp - 4, 1, 2 * amp + 8, T_RAISE);
+    cv_text(x0, 2, &AF_S, "LFO1", T_MID);
+}
 static void graph_opxlist(const track_t *t, uint16_t c)
 {
     uint32_t cur = xop_row(), top, i, n = xop_n();
     int32_t row;
-    if (xop_view() == XV_ENV)
+    if (xop_view() == XV_ENV || xop_view() == XV_EG1)
         graph_opxenv(t, c);
+    else if (xop_view() == XV_LFO)
+        graph_opxlfo(t, c);
     else
         graph_opx_left(t, c, 0, xop_view() == XV_ALL && xop_sec_of(cur) >= XS_ALGO ? 6u : fop_op % 6u);
     cv_rect(OPX_HALF, 6, 1, 110, T_RAISE);               /* (the rule between the halves) */
@@ -2619,6 +2655,8 @@ static void draw_graph(void)
         case GR_OPXE:
         case GR_OPXV:
         case GR_OPXK:
+        case GR_OPXP:
+        case GR_OPXF:
             cv_oy = 0;
             if (xop_ok()) graph_opxlist(t, c);
             break;

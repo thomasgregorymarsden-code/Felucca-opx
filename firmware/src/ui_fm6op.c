@@ -29,8 +29,8 @@ static const uint8_t FO_PAGE[3][4] = {
 /* per field: its byte in an operator's 21 (RATE / LEVEL: + the stage) */
 static const uint8_t FO_OFF[10] = {0, 0, FP_FC, FP_FF, FP_OL, FP_MODE, FP_DET, FP_KVS, FP_R1, FP_L1};
 
-static int xop_page(uint32_t g) { return g >= GR_OPXL && g <= GR_OPXK; }   /* (OPX fork: OPERATORS, ENVELOPE, OP LEVELS,
-                                                                             * HOME's OP MIX) */
+static int xop_page(uint32_t g) { return g >= GR_OPXL && g <= GR_OPXF; }   /* (OPX fork: OPERATORS, ENVELOPE, OP LEVELS,
+                                                                             * HOME's OP MIX, EG1, LFO1) */
 static int fop_page(uint32_t g) { return (g >= GR_FMOP && g <= GR_FMENV) || xop_page(g); }
 static int fop_ok(void) { return TSEL->eng_req % NENGINES == ENGI_FM6; }
 static uint32_t fop_field(uint32_t slot)
@@ -217,16 +217,29 @@ static int fop_card(uint32_t slot, const char **label, char *val, const char **u
  * "..." at the bottom (top) while more are below (above); the picked row moves down to the last whole row, then the
  * list moves up under it. A detent of KNOB 4 writes one field (opx_edit: the patch becomes the track's own, SLOT OWN),
  * one undo per knob gesture (SAVE held). The user algorithm's matrix is ALGO's too (ui_fm6op.c xmat_*) */
-enum { XS_MODE, XS_PITCH, XS_EG, XS_KTRK, XS_USER, XS_ALGO, XS_VOICE, XS_N };
+enum { XS_MODE, XS_PITCH, XS_EG, XS_KTRK, XS_USER, XS_ALGO, XS_EG1, XS_LFO1, XS_PROG, XS_VOICE, XS_N };
 enum { XR_MODE, XR_WAVE, XR_FB, XR_WIDTH, XR_RDEPTH, XR_RSHAPE, XR_FTYPE, XR_FMIX, XR_CUT, XR_RESO, XR_FGAIN, XR_GMIX,
        XR_BIAS, XR_FX, XR_XMIX, XR_FXE, XR_FXF,                                            /* MODE */
        XR_FREQ, XR_RATIO, XR_FINE, XR_DTUN, XR_TRANS,                                      /* PITCH */
-       XR_LVL, XR_ATK, XR_DEC, XR_SUS, XR_REL, XR_CRV, XR_VEL,                             /* EG */
+       XR_PME, XR_PMEC, XR_PML, XR_PMLC, XR_PMV, XR_PMD,                                   /* .. P MOD (M4) */
+       XR_LVL, XR_ATK, XR_DEC, XR_SUS, XR_REL, XR_CRV, XR_VEL, XR_LML, XR_LMLC,            /* EG, LMOD (M4) */
        XR_KLOW, XR_KCTR, XR_KHIGH, XR_KLC, XR_KHC,                                         /* KTRK */
        XR_TO0, XR_TO5 = XR_TO0 + 5, XR_OUT,                                                /* USER */
        XR_ALG, XR_ALGFB,                                                                   /* ALGO */
+       XR_E1A, XR_E1D, XR_E1S, XR_E1R, XR_E1C,                                             /* EG1 (M4) */
+       XR_LW, XR_LT, XR_LS, XR_LK, XR_LP, XR_LF,                                           /* LFO1 (M4) */
+       XR_GL, XR_GLC, XR_GT, XR_GO,                                                        /* PROG PITCH (M4) */
        XR_V0, XR_V8 = XR_V0 + 8, XR_N };                                                   /* VOICE */
-static const char *const XS_NAME[XS_N] = {"MODE", "PITCH", "EG", "KTRK", "USER", "ALGO", "VOICE"};
+static const char *const XS_NAME[XS_N] = {"MODE", "PITCH", "EG", "KTRK", "USER", "ALGO", "EG1", "LFO1", "PROG", "VOICE"};
+/* M4: the patch's own rows (EG1, LFO1, PROG PITCH): their fields (XR_LS: SPEED, or SYNC with TEMPO on) */
+static const uint16_t XP_F[XR_V0 - XR_E1A] = {OPXF_EG1_ATK, OPXF_EG1_DEC, OPXF_EG1_SUS, OPXF_EG1_REL, OPXF_EG1_CURVE,
+    OPXF_LFO1_WAVE, OPXF_LFO1_TEMPO, OPXF_LFO1_SPEED, OPXF_LFO1_KSYNC, OPXF_LFO1_PHASE, OPXF_LFO1_FADE, OPXF_PROG_LFO1,
+    OPXF_PROG_LFO1_CTRL, OPXF_PROG_TRANS, OPXF_PROG_OCT};
+static const char *const N_OPX_LFOW[OPX_NLFOW] = {"TRI", "SAW DOWN", "SAW UP", "SQR", "SIN", "S/H", "GTR", "X.TRI",
+    "X.SAW DOWN", "X.SAW UP", "TRI4", "TRI6", "SAW4 DOWN", "SAW6 DOWN", "S.RND TIME", "S.RND LVT", "RND LEVEL",
+    "RND TIME", "RND LVTIME", "TRI+", "SAW DOWN+", "SAW UP+", "SQR+"};   /* (p.56; S.RND LVTIME shortened) */
+static const char *const N_OPX_CTRL[OPX_NCTRL] = {"OFF", "MOD WHL", "PITCH", "PITCH+", "PITCH-", "PEDAL", "NOTE", "VEL",
+    "EXP VEL", "REL VEL", "A.TOUCH", "EG1", "EG2", "EG3", "LFO1", "LFO2", "LFO3"};   /* (p.85, shortened for the list) */
 static const uint8_t XV_ID[9] = {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO, P_ALLOC, P_DETUNE, P_PAN, P_MUTE, P_SPRD};
 static int xop_voice(uint32_t k) { return k >= XR_V0 && k <= XR_V8; }
 static const char *const N_OPX_MODE[OPX_NMODE] = {"FM", "RING MOD", "FILTER", "FILTER FM", "WAVE FOLDER", "EFFECT",
@@ -235,16 +248,19 @@ static const char *const N_OPX_FLT[12] = {"LPF", "HPF", "BPF", "BRF", "MG LPF12"
                                           "MG BPF6", "MG BPF12", "MS-20 LPF", "MS-20 HPF"};   /* (p.34) */
 static const char *const N_OPX_FX[10] = {"PEAK EQ", "SHELV EQ", "PHASER", "SHORT DLY", "COMB", "DIST", "DRIVE", "DEC",
                                          "WAVESHAPER", "PUNCH"};                                 /* (p.34) */
-#define XL_MAX 48u
+#define XL_MAX 64u
 /* the pages over the list: OPERATORS (every row), ENVELOPE (ATK DEC SUS REL of the picked operator, its EG drawn at the
  * left: graph_opxenv), OP LEVELS (a row per operator, its LEVEL; the row is the picked operator). Each its own row */
-enum { XV_ALL, XV_ENV, XV_LVL, XV_KNB };             /* (XV_KNB: HOME > OP MIX, the six LEVELs on six knobs) */
+enum { XV_ALL, XV_ENV, XV_EG1, XV_LFO, XV_LVL, XV_KNB };   /* (XV_KNB: HOME > OP MIX, the six LEVELs on six knobs; EG1,
+                                                         * LFO1 (M4): the patch's, no operator) */
 static uint32_t xop_view(void)
 {
     uint32_t g = cur_page()->graph;
-    return g == GR_OPXE ? XV_ENV : g == GR_OPXV ? XV_LVL : g == GR_OPXK ? XV_KNB : XV_ALL;
+    return g == GR_OPXE ? XV_ENV : g == GR_OPXV ? XV_LVL : g == GR_OPXK ? XV_KNB : g == GR_OPXP ? XV_EG1 :
+           g == GR_OPXF ? XV_LFO : XV_ALL;
 }
-static uint8_t xop_lis[4], xop_tops[4];
+static int xop_noop(void) { return xop_view() == XV_EG1 || xop_view() == XV_LFO; }   /* (no operator to pick) */
+static uint8_t xop_lis[6], xop_tops[6];
 #define xop_li xop_lis[xop_view()]                   /* KNOB 3: the picked row */
 #define xop_top xop_tops[xop_view()]                 /* the first row on show */
 
@@ -263,6 +279,12 @@ static uint32_t xop_list(uint8_t *rw)
     if (xop_view() == XV_ENV) {
         rw[0] = XR_ATK, rw[1] = XR_DEC, rw[2] = XR_SUS, rw[3] = XR_REL, rw[4] = XR_CRV;
         return 5;
+    }
+    if (xop_view() == XV_EG1 || xop_view() == XV_LFO) {   /* (EG1: its five; LFO1: its six, then PROG PITCH's) */
+        uint32_t a = xop_view() == XV_EG1 ? XR_E1A : XR_LW, b = xop_view() == XV_EG1 ? XR_LW : XR_V0;
+        for (k = a; k < b; k++)
+            rw[n++] = (uint8_t)k;
+        return n;
     }
     if (xop_view() >= XV_LVL) {                      /* (row k: operator k's) */
         for (k = 0; k < 6u; k++)
@@ -299,7 +321,8 @@ static uint32_t xop_sec_of(uint32_t i)
 {
     uint32_t k = xop_kind(i);
     return k < XR_FREQ ? XS_MODE : k < XR_LVL ? XS_PITCH : k < XR_KLOW ? XS_EG : k < XR_TO0 ? XS_KTRK :
-           k <= XR_OUT ? XS_USER : k < XR_V0 ? XS_ALGO : XS_VOICE;
+           k <= XR_OUT ? XS_USER : k < XR_E1A ? XS_ALGO : k < XR_LW ? XS_EG1 : k < XR_GL ? XS_LFO1 : k < XR_V0 ? XS_PROG :
+           XS_VOICE;
 }
 /* row i's kind (XR_*) and its field (XR_TO*: the amount the picked operator sends to that one; its own: its self
  * feedback. XR_OUT: its OUT bit, though the row shows and sets xop_out) */
@@ -309,8 +332,10 @@ static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
         OPXF_OP1_RING_DEPTH, OPXF_OP1_RING_SHAPE, OPXF_OP1_FLT_TYPE, OPXF_OP1_FLT_OSCMIX, OPXF_OP1_FLT_CUTOFF,
         OPXF_OP1_FLT_RESO, OPXF_OP1_FOLD_GAIN, OPXF_OP1_FOLD_OSCMIX, OPXF_OP1_FOLD_BIAS, OPXF_OP1_FX_TYPE,
         OPXF_OP1_FX_OSCMIX, OPXF_OP1_FX_E, OPXF_OP1_FX_F, OPXF_OP1_FREQ_FIXED, OPXF_OP1_COARSE, OPXF_OP1_FINE,
-        OPXF_OP1_DETUNE, OPXF_OP1_TRANS, OPXF_OP1_LEVEL, OPXF_OP1_EG_ATK, OPXF_OP1_EG_DEC, OPXF_OP1_EG_SUS,
-        OPXF_OP1_EG_REL, OPXF_OP1_EG_CURVE, OPXF_OP1_LMOD_VEL, OPXF_OP1_KTRK_LOW, OPXF_OP1_KTRK_CENTER,
+        OPXF_OP1_DETUNE, OPXF_OP1_TRANS, OPXF_OP1_PMOD_EG1, OPXF_OP1_PMOD_EG1_CTRL, OPXF_OP1_PMOD_LFO1,
+        OPXF_OP1_PMOD_LFO1_CTRL, OPXF_OP1_PMOD_VEL, OPXF_OP1_PMOD_VEL_DEST, OPXF_OP1_LEVEL, OPXF_OP1_EG_ATK,
+        OPXF_OP1_EG_DEC, OPXF_OP1_EG_SUS, OPXF_OP1_EG_REL, OPXF_OP1_EG_CURVE, OPXF_OP1_LMOD_VEL, OPXF_OP1_LMOD_LFO1,
+        OPXF_OP1_LMOD_LFO1_CTRL, OPXF_OP1_KTRK_LOW, OPXF_OP1_KTRK_CENTER,
         OPXF_OP1_KTRK_HIGH, OPXF_OP1_KTRK_LCRV, OPXF_OP1_KTRK_HCRV};
     uint32_t k = xop_kind(i), op = xop_view() >= XV_LVL ? i % 6u : fop_op % 6u;   /* (OP LEVELS, OP MIX: row i, op i) */
     if (k < XR_TO0)
@@ -321,6 +346,8 @@ static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
         *field = OPXF_UA_OUT(op);
     else if (xop_voice(k))
         *field = 0;                                  /* (VOICE: the track's parameter XV_ID, not the patch's) */
+    else if (k >= XR_E1A)                            /* (M4: EG1, LFO1, PROG PITCH; SPEED: SYNC with TEMPO on) */
+        *field = k == XR_LS && opx_get(opx_pk[tr], OPXF_LFO1_TEMPO) ? OPXF_LFO1_SYNC : XP_F[k - XR_E1A];
     else
         *field = k == XR_ALG ? OPXF_ALGO : OPXF_PROG_ALG_FB;
     return k;
@@ -413,8 +440,40 @@ static int32_t xop_time_step(int32_t c, int32_t steps)
         steps++;                                     /* (between two places: left goes to the one below first) */
     return XOP_TLAD[clamp(i + steps, 0, n - 1)];
 }
-/* a list's values (the modes, the filter / effect types, the curves, FREQ): one a detent */
-static int xop_enum(uint32_t k) { return k == XR_MODE || k == XR_FTYPE || k == XR_FX || k == XR_KLC || k == XR_KHC || k == XR_FREQ; }
+/* a list's values (the modes, the filter / effect types, the curves, FREQ; M4: the CTRLs, DEST, the LFO's WAVE TEMPO
+ * KSYNC, its SPEED as a note value, OCT): one a detent */
+static int xop_enum(uint32_t k)
+{
+    return k == XR_MODE || k == XR_FTYPE || k == XR_FX || k == XR_KLC || k == XR_KHC || k == XR_FREQ || k == XR_PMEC ||
+           k == XR_PMLC || k == XR_PMD || k == XR_LMLC || k == XR_GLC || k == XR_LW || k == XR_LT || k == XR_LK ||
+           k == XR_GO || (k == XR_LS && opx_get(opx_pk[song.sel % NTRK], OPXF_LFO1_TEMPO));
+}
+/* M4: a value through a ladder of step sizes by its size, either side of 0 (lim[i]: below it, a detent is stp[i]); from
+ * a value between two places, a detent goes to the next place. P MOD INT (x0.01 semitone): 0.05 to 1, 0.50 to 12, 1.00
+ * to 48, 12.00 to 144; FADE (ms): 10 to 100, 50 to 1 s, 100 on */
+static int32_t xop_ladder(int32_t v, int32_t steps, const int32_t *lim, const int32_t *stp, uint32_t n, int32_t hi)
+{
+    for (; steps; steps += steps > 0 ? -1 : 1) {
+        int32_t up = steps > 0, neg = v < 0 || (v == 0 && !up), a = v < 0 ? -v : v, away = (up && !neg) || (!up && neg), st;
+        uint32_t i;
+        if (away) {
+            for (i = 0; i + 1u < n && a >= lim[i]; i++)
+                ;
+            st = stp[i];
+            a = (a / st + 1) * st;
+        } else {
+            for (i = 0; i + 1u < n && a - 1 >= lim[i]; i++)
+                ;
+            st = stp[i];
+            a = (a - 1) / st * st;
+        }
+        a = a > hi ? hi : a;
+        v = neg ? -a : a;
+    }
+    return v;
+}
+static const int32_t XPM_LIM[4] = {100, 1200, 4800, 14400}, XPM_STP[4] = {5, 50, 100, 1200};
+static const int32_t XFD_LIM[3] = {100, 1000, 9900}, XFD_STP[3] = {10, 50, 100};
 /* OP MIX (HOME): operator op's LEVEL turned by the knob of role `role` (PRESETS OP 1, ALGORITHM OP 2, KNOB 1..4 OP 3..6);
  * the operator becomes the picked one (its row lit); one undo per gesture, as the list's */
 static void xop_level_turn(uint32_t op, int32_t steps, uint32_t role)
@@ -437,6 +496,8 @@ static void xop_knob(uint32_t slot, int32_t steps)
         return;
     }
     if (slot == 0u) {
+        if (xop_noop())                              /* (EG1, LFO1: the patch's; no operator) */
+            return;
         fop_op = (uint8_t)clamp((int32_t)fop_op + steps, 0, 5);
         xop_li = (uint8_t)xop_row();                 /* (another operator, another MODE section: the row kept in range) */
         xop_scroll();
@@ -494,12 +555,20 @@ static void xop_knob(uint32_t slot, int32_t steps)
             v = k == XR_RATIO ? xop_pow(v, steps, 1059463u, 1000000u) : xop_pow(v, steps, 1000578u, 1000000u);
         else if (k == XR_FINE)                       /* (RATIO's FINE: 0.01 a detent, as shown; from a value between: to it) */
             v = (steps > 0 ? v / 10 : (v + 9) / 10) * 10 + 10 * accel(EN_K4, steps, (hi - lo) / 10);
-        else if (k == XR_ATK || k == XR_DEC || k == XR_REL)
+        else if (k == XR_ATK || k == XR_DEC || k == XR_REL || k == XR_E1A || k == XR_E1D || k == XR_E1R)
             v = xop_time_step(v, accel(EN_K4, steps, (int32_t)NELEM(XOP_TLAD)));
+        else if (k == XR_PME || k == XR_PML || k == XR_GL)
+            v = xop_ladder(v, accel(EN_K4, steps, 100), XPM_LIM, XPM_STP, 4u, hi);
+        else if (k == XR_LF)
+            v = xop_ladder(v, accel(EN_K4, steps, 100), XFD_LIM, XFD_STP, 3u, hi);
+        else if (k == XR_LS && !xop_enum(k))         /* (SPEED: 4 codes a detent, 0.01 .. 100 Hz in 256) */
+            v += 4 * accel(EN_K4, steps, 256);
         else if (xop_enum(k))
             v += steps;
         else
             v += accel(EN_K4, steps, hi - lo);
+        if (f == OPXF_LFO1_SYNC)                     /* (the note values there are: OPX_SYNC) */
+            hi = (int32_t)NELEM(OPX_SYNC) - 1;
         v = clamp(v, lo, hi);
     }
     if (v == opx_get(opx_pk[tr], f))
@@ -583,8 +652,11 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
 {
     static const char *const LBL[XR_N] = {"MODE", "WAVE", "FB", "WIDTH", "DEPTH", "SHAPE", "TYPE", "OSC MIX",
         "CUTOFF", "RESO", "GAIN", "OSC MIX", "BIAS", "FX", "OSC MIX", "E", "F", "FREQ", "RATIO", "FINE", "DTUN", "TRANS",
-        "LEVEL", "ATK", "DEC", "SUS", "REL", "CURVE", "VEL", "LOW", "CENTER", "HIGH", "L CRV", "H CRV",
+        "EG1", "EG CTRL", "LFO1", "LFO CTRL", "VEL", "VEL DEST",
+        "LEVEL", "ATK", "DEC", "SUS", "REL", "CURVE", "VEL", "LFO1", "LFO CTRL", "LOW", "CENTER", "HIGH", "L CRV", "H CRV",
         "TO OP", "TO OP", "TO OP", "TO OP", "TO OP", "TO OP", "OUT", "ALG", "ALG FB",
+        "ATK", "DEC", "SUS", "REL", "CURVE", "WAVE", "TEMPO", "SPEED", "KSYNC", "PHASE", "FADE",
+        "LFO1", "LFO CTRL", "TRANS", "OCT",
         "VOICE", "GLIDE", "GLIDE MODE", "PRIORITY", "ALLOC", "DETUNE", "PAN", "MUTE", "SPREAD"};
     static const char NOTE[12][3] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
     uint32_t tr = song.sel % NTRK, f, k = xop_rowf(r, tr, &f);
@@ -645,12 +717,98 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
     case XR_KLC:
     case XR_KHC:
     case XR_CRV:
-        if (k != XR_CRV || !v)
-            str_cpy(val, v && k != XR_CRV ? "EXP" : "LIN", 12);
+    case XR_E1C: {
+        int cr = k == XR_CRV || k == XR_E1C;
+        if (!cr || !v)
+            str_cpy(val, v && !cr ? "EXP" : "LIN", 12);
         else if (v == 10)
             str_cpy(val, "EXP", 12);
-        if (k != XR_CRV)
+        if (!cr)
             *ratio = -1;
+        break;
+    }
+    /* M4: P MOD, LMOD, EG1, LFO1, PROG PITCH */
+    case XR_PME:
+    case XR_PML:
+    case XR_GL:                                      /* x0.01 semitone */
+        val[0] = v > 0 ? '+' : v < 0 ? '-' : 0;
+        fop_dec(val + (val[0] != 0), (uint32_t)(v < 0 ? -v : v) / 100u, (uint32_t)(v < 0 ? -v : v) % 100u, 2u);
+        *unit = "ST";
+        break;
+    case XR_PMEC:
+    case XR_PMLC:
+    case XR_LMLC:
+    case XR_GLC:
+        str_cpy(val, N_OPX_CTRL[clamp(v, 0, OPX_NCTRL - 1)], 12);
+        *ratio = -1;
+        break;
+    case XR_PMV:
+    case XR_PMD:                                     /* (RATIO only, p.51) */
+        if (k == XR_PMD) {
+            str_cpy(val, v ? "COARSE" : "FINE", 12);
+            *ratio = -1;
+        } else {
+            *unit = "%";
+        }
+        on = !xop_fixed(tr);
+        break;
+    case XR_LML:
+        xop_signed(val, v, 0);
+        *unit = "%";
+        break;
+    case XR_E1A:
+    case XR_E1D:
+    case XR_E1R:
+        xop_time(v, val, unit);
+        break;
+    case XR_LW:
+        str_cpy(val, N_OPX_LFOW[clamp(v, 0, OPX_NLFOW - 1)], 12);
+        *ratio = -1;
+        break;
+    case XR_LT:
+        str_cpy(val, v ? "ON" : "OFF", 12);
+        *ratio = -1;
+        break;
+    case XR_LS:
+        if (f == OPXF_LFO1_SYNC) {                   /* a note value: "1/16", "3/8", "4/1" */
+            const uint8_t *nv = OPX_SYNC[clamp(v, 0, (int32_t)NELEM(OPX_SYNC) - 1)];
+            fmt_int(val, nv[0]);
+            str_cpy(val + str_len(val), "/", 2);
+            fmt_int(val + str_len(val), nv[1]);
+            *ratio = v * 1000 / ((int32_t)NELEM(OPX_SYNC) - 1);
+        } else {                                     /* HZ10: 0.01 Hz x 10000^(c / 1023), shown to 0.01 Hz */
+            uint32_t h = (uint32_t)(fm6_exp2(clamp(v, 0, 1023) * 217926 - (16 << 24)) + 128) >> 8;
+            fop_dec(val, h / 100u, h % 100u, 2u);
+            *unit = "HZ";
+        }
+        break;
+    case XR_LK: {
+        static const char *const KS[3] = {"OFF", "COMMON", "VOICE"};
+        str_cpy(val, KS[clamp(v, 0, 2)], 12);
+        *ratio = -1;
+        break;
+    }
+    case XR_LP:
+        if (v < -180)
+            str_cpy(val, "RND", 12);
+        else
+            xop_signed(val, v, 0), *unit = "DEG";
+        break;
+    case XR_LF:                                      /* ms; no effect with KSYNC OFF (p.57) */
+        if (v < 1000)
+            fmt_int(val, v), *unit = "MS";
+        else
+            fop_dec(val, (uint32_t)v / 1000u, (uint32_t)v % 1000u / 10u, 2u), *unit = "S";
+        on = opx_get(opx_pk[tr], OPXF_LFO1_KSYNC) != 0;
+        break;
+    case XR_GT:
+        xop_signed(val, v, 0);
+        *unit = "ST";
+        break;
+    case XR_GO:
+        xop_signed(val, v, 0);
+        *unit = "OCT";
+        *ratio = -1;
         break;
     case XR_FXE:
     case XR_FXF: {                                   /* the effect type's own name and units (OPX_FXV) */
@@ -754,10 +912,14 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
 {
     static const uint8_t ICN[XR_N] = {ICON_ALGORITHM, ICON_WAVE, ICON_FEEDBACK, ICON_PULSE, ICON_MIX, ICON_SHAPE,
         ICON_CUTOFF, ICON_MIX, ICON_CUTOFF, ICON_RESO, ICON_FOLD, ICON_MIX, ICON_SHAPE, ICON_DIST, ICON_MIX,
-        ICON_GENERIC, ICON_GENERIC, ICON_RATIO, ICON_RATIO, ICON_TUNE, ICON_DETUNE, ICON_TRANSPOSE, ICON_LEVEL,
-        ICON_ATTACK, ICON_DECAY, ICON_SUSTAIN, ICON_RELEASE, ICON_ENV, ICON_ACCENT, ICON_KEYTRACK, ICON_KEYTRACK,
-        ICON_KEYTRACK, ICON_KEYTRACK, ICON_KEYTRACK, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD,
-        ICON_MIX, ICON_ALGORITHM, ICON_FEEDBACK, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE,
+        ICON_GENERIC, ICON_GENERIC, ICON_RATIO, ICON_RATIO, ICON_TUNE, ICON_DETUNE, ICON_TRANSPOSE,
+        ICON_PITCH, ICON_MOD, ICON_VIBRATO, ICON_MOD, ICON_ACCENT, ICON_RATIO, ICON_LEVEL,
+        ICON_ATTACK, ICON_DECAY, ICON_SUSTAIN, ICON_RELEASE, ICON_ENV, ICON_ACCENT, ICON_LFO_WAVE, ICON_MOD, ICON_KEYTRACK,
+        ICON_KEYTRACK, ICON_KEYTRACK, ICON_KEYTRACK, ICON_KEYTRACK, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD,
+        ICON_MOD, ICON_MIX, ICON_ALGORITHM, ICON_FEEDBACK,
+        ICON_ATTACK, ICON_DECAY, ICON_SUSTAIN, ICON_RELEASE, ICON_ENV, ICON_LFO_WAVE, ICON_TEMPO, ICON_RATE, ICON_PHASE,
+        ICON_PHASE, ICON_FADE, ICON_VIBRATO, ICON_MOD, ICON_TRANSPOSE, ICON_OCTAVE,
+        ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE,
         ICON_NONE, ICON_NONE, ICON_NONE};                /* (VOICE: the parameter's own, param_icon) */
     uint32_t tr = song.sel % NTRK, f;
     *unit = "";
@@ -778,7 +940,9 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         *unit = "/6";
         *ratio = (int32_t)fop_op * 200;
         *icon = ICON_ALGORITHM;
-        return xop_view() != XV_ALL || xop_sec_of(xop_row()) < XS_ALGO;   /* (ALGO's rows: the patch's, VOICE's the
+        if (xop_noop())                              /* (EG1, LFO1: the patch's) */
+            return 0;
+        return xop_view() != XV_ALL || xop_sec_of(xop_row()) < XS_ALGO;   /* (ALGO's rows on: the patch's, VOICE's the
                                                                            * track's: no operator) */
     }
     if (slot == 1u) {
@@ -788,7 +952,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         *ratio = (int32_t)sc * 1000 / (XS_N - 1);
         *icon = ICON_ENV;
         if (xop_view() != XV_ALL) {                  /* (ENVELOPE, OP LEVELS: no sections; KNOB 2 does nothing) */
-            str_cpy(val, xop_view() == XV_ENV ? "EG" : "LEVEL", 12);
+            str_cpy(val, xop_view() == XV_ENV ? "EG" : xop_view() == XV_EG1 ? "EG1" : xop_view() == XV_LFO ? "LFO1" : "LEVEL", 12);
             *ratio = -1;
             return 0;
         }
@@ -814,6 +978,10 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
                                               : ICN[k];
         if (self)
             *label = "SELF";                         /* (the card's title is short: "TO OP3 (SELF)" in the list) */
+        else if (k == XR_PMEC || k == XR_PMLC || k == XR_LMLC || k == XR_GLC)
+            *label = "CTRL";                         /* (M4: the opsix's own knob name; the list says whose) */
+        else if (k == XR_PMD)
+            *label = "DEST";
         if (k == XR_WAVE) {                          /* (the card is narrow: the list has the manual's full names) */
             static const char *const SHORT[OPX_NWAVE] = {"SIN", "SIN12", "SIN8", "TRI", "SAW", "SAWHD", "SQR", "SQRHD",
                 "SAW3", "SQR3", "TRI3", "12345", "1+2", "1+3", "1+4", "1+5", "1+6", "1+7", "1+8", "S/H", "WHITE", "PINK",
@@ -828,7 +996,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         return on;
     }
 }
-_Static_assert(XR_N == 52, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
+_Static_assert(XR_N == 75, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
 #endif
 
 /* the dispatch: FM6's pages, or OPX's OPERATORS (OPX fork) */

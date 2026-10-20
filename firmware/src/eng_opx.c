@@ -38,7 +38,7 @@
 #ifndef OPX_FELUCCA_MACROS
 #define OPX_FELUCCA_MACROS 0     /* MLVL FB MRAT DTUN (E3..E6): Felucca's, not the opsix's; off */
 #endif
-#define OPX_DLY 784u             /* M2b: a voice's delay line (int16, SHORT DELAY / COMB), after the six notes in its part */
+#define OPX_DLY 768u             /* M2b (768 since M4: EG1 and LFO1 took 192 bytes a note): a voice's delay line (int16, SHORT DELAY / COMB), after the six notes in its part */
 #define OPX_POLY 6               /* engine_t.poly: as FM6, until the target's cost is measured */
 #define OPX_NOP 6
 #define OPX_NALG 40              /* preset algorithms; 40 = USER */
@@ -48,6 +48,20 @@ enum { OPX_W_SIN, OPX_W_SIN12, OPX_W_SIN8, OPX_W_TRI, OPX_W_SAW, OPX_W_SAWHD, OP
        OPX_W_ASQR3, OPX_W_ATRI3, OPX_W_A12345, OPX_W_A12, OPX_W_A13, OPX_W_A14, OPX_W_A15, OPX_W_A16, OPX_W_A17,
        OPX_W_A18, OPX_W_NOISE_SH, OPX_W_WHITE, OPX_W_PINK, OPX_W_BLUE, OPX_NWAVE };
 #define OPX_W_NARROW 0x80u
+/* M4: the LFO Wave List (p.56), its columns read down in turn (the manual gives no numbers: the order the opsix's knob
+ * goes through, to be checked); GTR and the "+" ones 0 .. +1, the others -1 .. +1 */
+enum { OPX_L_TRI, OPX_L_SAWD, OPX_L_SAWU, OPX_L_SQR, OPX_L_SIN, OPX_L_SH, OPX_L_GTR, OPX_L_XTRI, OPX_L_XSAWD,
+       OPX_L_XSAWU, OPX_L_TRI4, OPX_L_TRI6, OPX_L_SAW4D, OPX_L_SAW6D, OPX_L_SRT, OPX_L_SRLT, OPX_L_RL, OPX_L_RT,
+       OPX_L_RLT, OPX_L_TRIP, OPX_L_SAWDP, OPX_L_SAWUP, OPX_L_SQRP, OPX_NLFOW };
+#define OPX_L_RANDOM(w) ((w) == OPX_L_SH || ((w) >= OPX_L_SRT && (w) <= OPX_L_RLT))   /* S/H, S.RND, RND */
+#define OPX_L_HELD(w) ((w) == OPX_L_SH || (w) == OPX_L_SRT || (w) == OPX_L_SRLT)     /* .. held a segment */
+#define OPX_L_UNI(w) ((w) == OPX_L_GTR || (w) >= OPX_L_TRIP)                          /* 0 .. +1 */
+/* M4: CTRL, the Control Source List (p.85) after OFF: the source's value multiplies the INT it controls ("The value
+ * selected here is multiplied with ... Int", p.51). OFF (index 0, not in the manual's list) leaves the INT as it is */
+enum { OPX_C_OFF, OPX_C_MW, OPX_C_PW, OPX_C_PWP, OPX_C_PWM, OPX_C_PEDAL, OPX_C_NOTE, OPX_C_VEL, OPX_C_XVEL, OPX_C_RVEL,
+       OPX_C_AT, OPX_C_EG1, OPX_C_EG2, OPX_C_EG3, OPX_C_LFO1, OPX_C_LFO2, OPX_C_LFO3, OPX_NCTRL };
+static int16_t opx_ctl_bend[NTRK];   /* M4: each part's pitch wheel (MIDI, -8192..8191) and damper pedal (midi_control.c) */
+static uint8_t opx_ctl_pedal[NTRK];
 /* M2b: the effects' E and F values (p.34): lo, hi of each, in the units the patch stores them (fx_e / fx_f = value -
  * lo): PEAK EQ FREQ (0.1 semitone) GAIN (0.1 dB); SHELV EQ LOW HIGH (0.1 dB); PHASER FREQ, FB (%); SHORT DELAY TIME
  * (ms) FB (%); COMB FREQ, FB (%); DIST DIST (%) LOW (0.1 dB); DRIVE DRIVE (%) LOW; DEC FREQ BIT (0.01); WAVESHAPER TYPE
@@ -85,7 +99,22 @@ typedef struct {                 /* one operator: the patch format's fields (too
     uint8_t fx_type, fx_oscmix; uint16_t fx_e, fx_f;   /* EFFECT: FX, OSC MIX %, E F (OPX_FXV's, less lo) */
     int8_t ktrk_low, ktrk_high;  /* KTRK (p.53): the slopes below / above CENTER, -100..100 % */
     uint8_t ktrk_center, ktrk_lcrv, ktrk_hcrv;   /* CENTER (MIDI note 21..108), the curves (0 LIN, 1 EXP) */
+    int16_t pm_eg1, pm_lfo1;     /* M4: P MOD (p.51) EG1 / LFO1 INT, x0.01 semitone (-14400..14400) */
+    uint8_t pm_vel, pm_dest;     /* M4: P MOD VEL 0..100 %, its DEST (0 FINE, 1 COARSE; RATIO only) */
+    int8_t lm_lfo1;              /* M4: LMOD (p.54) LFO1 INT, -100..100 % */
+    uint8_t pm_eg1_ctrl, pm_lfo1_ctrl, lm_lfo1_ctrl;   /* M4: their CTRL (OPX_C_*: the Control Source List, p.85) */
 } opx_op_t;
+typedef struct {                 /* M4: an EG (MOD p.55): EG1 the operators' pitch */
+    uint16_t atk, dec, rel;      /* TIME10 */
+    uint8_t sus, curve;
+} opx_egp_t;
+typedef struct {                 /* M4: an LFO (p.55-57): LFO1 the operators' pitch and level, PROG PITCH */
+    uint8_t wave;                /* OPX_L_* (the LFO Wave List) */
+    uint16_t speed;              /* HZ10: 0.01 Hz x 10000^(c / 1023) (TEMPO off) */
+    uint8_t sync, tempo, ksync;  /* TEMPO on: a note value (OPX_SYNC); KSYNC 0 OFF, 1 COMMON, 2 VOICE */
+    int16_t phase;               /* -180..180 degrees, -181 RANDOM */
+    uint16_t fade;               /* ms, 0..9900 (no effect with KSYNC OFF) */
+} opx_lfop_t;
 
 typedef struct {
     const char *name;
@@ -94,6 +123,11 @@ typedef struct {
     uint8_t ua[OPX_NOP][OPX_NOP];   /* USER: ua[x][y] op x+1 -> op y+1 (%), ua[x][x] op x+1's self feedback */
     uint8_t ua_out;              /* USER: bit k: op k+1 is heard (DIRECT OUT) */
     opx_op_t op[OPX_NOP];        /* op[0] = OP1 */
+    opx_egp_t eg1;               /* M4 */
+    opx_lfop_t lfo1;
+    int16_t prog_lfo1;           /* M4: PROG PITCH (p.72) LFO1 INT, x0.01 semitone; TRANS (semitones), OCT */
+    int8_t prog_trans, prog_oct;
+    uint8_t prog_lfo1_ctrl;      /* M4: its CTRL */
 } opx_patch_t;
 
 /* ---------------------------------------------------------- algorithms --- */
@@ -234,9 +268,9 @@ typedef struct {
     uint32_t finc[OPX_NOP];      /* fixed: the phase increment (Q32 cycles a sample), 0 = ratio */
     int32_t amp[OPX_NOP];        /* LEVEL (and MLVL), Q15 */
     int32_t fbq[OPX_NOP];        /* self feedback: phase per unit of output (Q32 cycles per Q15) */
-    int32_t ainc[OPX_NOP], dinc[OPX_NOP], rinc[OPX_NOP];   /* stage progress per block, Q24 */
-    int32_t sus[OPX_NOP];        /* Q24 */
-    uint8_t curve[OPX_NOP], vel[OPX_NOP];
+    int32_t ainc[OPX_NOP + 1], dinc[OPX_NOP + 1], rinc[OPX_NOP + 1];   /* stage progress per block, Q24 (6: EG1) */
+    int32_t sus[OPX_NOP + 1];    /* Q24 */
+    uint8_t curve[OPX_NOP + 1], vel[OPX_NOP];
     uint8_t wv[OPX_NOP];         /* M2: the waveform (OPX_W_*), | OPX_W_NARROW with a WIDTH; 0 = a plain sine */
     uint32_t wr[OPX_NOP];        /* WIDTH: the phase's speed-up, Q16 (100 / WIDTH) */
     uint32_t wlim[OPX_NOP];      /* WIDTH: the phase where the wave ends (WIDTH % of a cycle), silent after */
@@ -248,6 +282,15 @@ typedef struct {
     uint8_t src[OPX_NOP][OPX_NOP];
     int16_t amt[OPX_NOP][OPX_NOP];
     uint8_t out;                 /* bit k: op k+1 is heard */
+    /* M4: the modulation (opx_render): P MOD EG1 / LFO1 INT at a full source (Q24 octaves), LMOD LFO1 INT (Q15),
+     * P MOD VEL (%: FINE's addition at full velocity, Q16 of 1.000; COARSE steps), PROG PITCH */
+    int32_t pme[OPX_NOP], pml[OPX_NOP], lml[OPX_NOP];
+    uint8_t pmv[OPX_NOP], pmd[OPX_NOP], cidx[OPX_NOP];
+    uint8_t cpe[OPX_NOP], cpl[OPX_NOP], clm[OPX_NOP], cpg;   /* their CTRL (OPX_C_*; OFF: the INT as it is) */
+    int32_t plfo, poff;          /* PROG LFO1 INT (Q24 octaves), TRANS + OCT (Q24 octaves, on the note) */
+    uint8_t lw, lks, lrnd, lon;  /* LFO1: wave, KSYNC, PHASE RANDOM; lon: LFO1 reaches something */
+    uint32_t linc, lph0;         /* LFO1: phase per block (Q32), the phase a reset starts it at */
+    int32_t lfi;                 /* LFO1 FADE: per block (Q24 of the whole) */
 } opx_rt_t;
 static opx_rt_t opx_rt[NTRK];
 /* the track's own patch (M3: loaded with the project, edited in the editor); 0 = the factory patch SLOT names. A
@@ -288,6 +331,39 @@ static void opx_mode_build(const opx_op_t *o, opx_rt_t *r, uint32_t k)
     default:
         break;
     }
+}
+/* M4: EG1 (index OPX_NOP of the stage tables), LFO1, PROG PITCH. LFO1's SPEED: HZ10 (0.01 Hz x 10000^(c/1023)), or
+ * TEMPO on a note value at the song's tempo. The tempo values (1/48 .. 4/1) are not listed in the manual: OPX_SYNC is
+ * a reading of them, to be checked on an opsix */
+static const uint8_t OPX_SYNC[20][2] = {{1, 48}, {1, 32}, {1, 24}, {1, 16}, {1, 12}, {3, 32}, {1, 8}, {1, 6}, {3, 16},
+    {1, 4}, {1, 3}, {3, 8}, {1, 2}, {2, 3}, {3, 4}, {1, 1}, {3, 2}, {2, 1}, {3, 1}, {4, 1}};   /* {num, den} of a whole */
+static void opx_build_mod(const opx_patch_t *pt, opx_rt_t *r)
+{
+    const opx_egp_t *e = &pt->eg1;
+    const opx_lfop_t *l = &pt->lfo1;
+    uint32_t k, any = pt->prog_lfo1 != 0;
+    r->ainc[OPX_NOP] = opx_stage_inc(e->atk);
+    r->dinc[OPX_NOP] = opx_stage_inc(e->dec);
+    r->rinc[OPX_NOP] = opx_stage_inc(e->rel);
+    r->sus[OPX_NOP] = clamp(e->sus, 0, 100) * ((1 << 24) / 100);
+    r->curve[OPX_NOP] = (uint8_t)clamp(e->curve, 0, 10);
+    r->cpg = (uint8_t)(pt->prog_lfo1_ctrl < OPX_NCTRL ? pt->prog_lfo1_ctrl : 0u);
+    for (k = 0; k < OPX_NOP; k++)                    /* (LFO1 as an EG1 INT's CTRL: LFO1 runs too) */
+        any |= r->pml[k] != 0 || r->lml[k] != 0 || (r->pme[k] != 0 && r->cpe[k] == OPX_C_LFO1);
+    r->lon = (uint8_t)any;
+    r->plfo = clamp(pt->prog_lfo1, -14400, 14400) * 13981;
+    r->poff = clamp(pt->prog_trans, -12, 12) * ((1 << 24) / 12) + clamp(pt->prog_oct, -2, 2) * (1 << 24);
+    r->lw = (uint8_t)(l->wave < OPX_NLFOW ? l->wave : 0u);
+    r->lks = (uint8_t)(l->ksync < 3u ? l->ksync : 0u);
+    r->lrnd = l->phase < -180;
+    r->lph0 = (uint32_t)(l->phase < -180 ? 0 : clamp(l->phase, -180, 180)) * 11930465u;   /* (2^32 / 360) */
+    if (l->tempo) {                                  /* 2^32 x 32 / 44100 x BPM / 60 / (4 x num / den): 12985.6 x BPM x den / num */
+        const uint8_t *nv = OPX_SYNC[l->sync < 20u ? l->sync : 9u];
+        r->linc = (uint32_t)(12986 * clamp(song.g[G_BPM], 20, 300)) * nv[1] / nv[0];
+    } else {                                         /* 0.01 Hz x 2^32 x 32 / 44100 = 31165.5, x 2^(13.2877 c / 1023) */
+        r->linc = (uint32_t)(((uint64_t)(uint32_t)fm6_exp2(clamp(l->speed, 0, 1023) * 217926 - (9 << 24)) * 1021231104u) >> 30);
+    }
+    r->lfi = l->fade && r->lks ? (int32_t)(12174240u / l->fade) : 1 << 24;   /* (2^24 x 32 / 44.1 / ms) */
 }
 static void opx_build(const track_t *t, opx_rt_t *r)
 {
@@ -375,7 +451,18 @@ static void opx_build(const track_t *t, opx_rt_t *r)
             r->wr[k] = (100u << 16) / o->width;
             r->wlim[k] = (uint32_t)(((uint64_t)o->width << 32) / 100u);
         }
+        /* M4: P MOD, LMOD (x0.01 semitone -> Q24 octaves: x 2^24 / 1200) */
+        r->pme[k] = clamp(o->pm_eg1, -14400, 14400) * 13981;
+        r->pml[k] = clamp(o->pm_lfo1, -14400, 14400) * 13981;
+        r->lml[k] = clamp(o->lm_lfo1, -100, 100) * 32767 / 100;
+        r->cpe[k] = (uint8_t)(o->pm_eg1_ctrl < OPX_NCTRL ? o->pm_eg1_ctrl : 0u);
+        r->cpl[k] = (uint8_t)(o->pm_lfo1_ctrl < OPX_NCTRL ? o->pm_lfo1_ctrl : 0u);
+        r->clm[k] = (uint8_t)(o->lm_lfo1_ctrl < OPX_NCTRL ? o->lm_lfo1_ctrl : 0u);
+        r->pmv[k] = (uint8_t)(o->fixed ? 0 : clamp(o->pm_vel, 0, 100));   /* (RATIO only, p.51) */
+        r->pmd[k] = (uint8_t)(o->pm_dest & 1u);
+        r->cidx[k] = (uint8_t)clamp(c, 0, 38);
     }
+    opx_build_mod(pt, r);
 }
 
 /* --------------------------------------------------------- the waveforms --- */
@@ -585,6 +672,86 @@ typedef struct {
     int32_t x, from, lvl;        /* the stage's progress, where it started, the level now (Q24) */
     uint8_t stage;
 } opx_eg_t;
+/* M4: an LFO's state: its phase (Q32), a random generator, the random waves' last and next levels (Q15), their
+ * segment's speed (Q8: the phase steps x mul / 256) */
+typedef struct {
+    uint32_t ph, rng;
+    int16_t a, b;
+    uint16_t mul, rsv;
+} opx_lfo_t;
+_Static_assert(sizeof(opx_lfo_t) == 16u, "opx_lfo_t");
+static opx_lfo_t opx_lfoc[NTRK];               /* M4: each part's LFO1 (KSYNC OFF, COMMON), stepped in opx_block */
+static int32_t opx_lfov[NTRK];                 /* .. its value this block (Q15) */
+static uint32_t opx_lfo_rnd(opx_lfo_t *l) { return l->rng = l->rng * 1664525u + 1013904223u; }
+static void opx_lfo_reset(opx_lfo_t *l, const opx_rt_t *r, uint32_t seed)
+{
+    if (!l->rng)
+        l->rng = 0x2545F491u ^ seed;
+    l->ph = r->lrnd ? opx_lfo_rnd(l) : r->lph0;
+    l->a = l->b = (int16_t)((int32_t)opx_lfo_rnd(l) >> 17);
+    l->mul = 256;
+}
+/* the LFO Wave List's shapes (p.56; the manual draws them, gives no formula: each here a reading of its name) at
+ * phase u (0..65535 a cycle), Q15. TRI starts at 0 rising, as SIN; TRI4 TRI6 SAW4 SAW6 the shape held over 4 / 6
+ * steps a cycle; the X. ones on CURVE 10's exponential approach (OPX_EXPC); GTR (1 - cos) / 2, 0 .. +1 (a guitar's
+ * vibrato bends up only); the "+" ones the shape lifted to 0 .. +1 */
+static int32_t opx_lfo_shape(uint32_t w, uint32_t u)
+{
+    int32_t v;
+    switch (w) {
+    case OPX_L_SQR: case OPX_L_SQRP: v = u < 32768u ? 32767 : -32767; break;
+    case OPX_L_SIN: v = sine_i(u << 16); break;
+    case OPX_L_SAWD: case OPX_L_SAWDP: v = 32767 - (int32_t)u; break;
+    case OPX_L_SAWU: case OPX_L_SAWUP: v = (int32_t)u - 32768; break;
+    case OPX_L_SAW4D: case OPX_L_SAW6D: {
+        uint32_t n = w == OPX_L_SAW4D ? 4u : 6u, st = u * n >> 16;
+        v = 32767 - (int32_t)(st * 65535u / (n - 1u));
+        break;
+    }
+    case OPX_L_TRI4: case OPX_L_TRI6: {               /* (TRI4 at the step's start: 0 +1 0 -1; TRI6 at its middle, so it
+                                                       * reaches +-1 too) */
+        uint32_t n = w == OPX_L_TRI4 ? 4u : 6u;
+        u = (u * n >> 16) * 65536u / n + (n == 6u ? 65536u / 12u : 0u);
+    }   /* fall through */
+    case OPX_L_TRI: case OPX_L_TRIP:
+        v = u < 16384u ? (int32_t)u * 2 : u < 49152u ? 65536 - (int32_t)u * 2 : (int32_t)u * 2 - 131072;
+        break;
+    case OPX_L_XSAWD: case OPX_L_XSAWU: {
+        uint32_t x = w == OPX_L_XSAWD ? u : 65535u - u;
+        v = 32767 - (opx_shape((int32_t)x << 8, 10) >> 8);
+        break;
+    }
+    case OPX_L_XTRI:
+        v = u < 32768u ? -32767 + (opx_shape((int32_t)u << 9, 10) >> 8) : 32767 - (opx_shape((int32_t)(u - 32768u) << 9, 10) >> 8);
+        break;
+    default:                                          /* GTR */
+        return (32767 - sine_i((u << 16) + 0x40000000u)) >> 1;
+    }
+    v = clamp(v, -32767, 32767);
+    return w >= OPX_L_TRIP ? (v + 32767) >> 1 : v;   /* (GTR returned above) */
+}
+/* one block of LFO l: its value (Q15) after the step */
+static int32_t opx_lfo_step(opx_lfo_t *l, const opx_rt_t *r)
+{
+    uint32_t w = r->lw, p0 = l->ph;
+    if (OPX_L_RANDOM(w)) {             /* the random ones: a segment a cycle (LVTIME, TIME: of random length) */
+        l->ph += (uint32_t)(((uint64_t)r->linc * l->mul) >> 8);
+        if (l->ph < p0) {                             /* (a new segment) */
+            uint32_t x = opx_lfo_rnd(l);
+            l->a = l->b;
+            if (w == OPX_L_SRT || w == OPX_L_RT)      /* TIME: a pulse, its level flips at random times */
+                l->b = (int16_t)(l->b >= 0 ? -32767 : 32767);
+            else
+                l->b = (int16_t)((int32_t)x >> 17);
+            l->mul = w == OPX_L_SH || w == OPX_L_RL ? 256u : (uint16_t)(128u + (opx_lfo_rnd(l) >> 24) * 3u / 2u);   /* x0.5 .. x2 */
+        }
+        if (OPX_L_HELD(w))                            /* S/H, S.RND: held; RND: from the last level to the next */
+            return l->b;
+        return l->a + (int32_t)(((int64_t)(l->b - l->a) * (int32_t)(l->ph >> 16)) >> 16);
+    }
+    l->ph += r->linc;
+    return opx_lfo_shape(w, l->ph >> 16);
+}
 typedef struct {                 /* a sounding note: 540 bytes */
     uint32_t ph[OPX_NOP];
     int32_t y[OPX_NOP], yp[OPX_NOP];   /* the last two outputs (Q15) */
@@ -597,6 +764,11 @@ typedef struct {                 /* a sounding note: 540 bytes */
     opx_noise_t nz[OPX_NOP];     /* M2: the noise waveforms' state */
     int32_t dc;
     uint8_t live, down, rsv[2];
+    opx_eg_t eg1;                /* M4: EG1 */
+    opx_lfo_t lfo;               /* M4: LFO1, KSYNC VOICE (else the part's: opx_lfoc) */
+    int32_t lfade;               /* M4: LFO1 FADE's level, Q24 */
+    uint16_t vfa[OPX_NOP];       /* M4: P MOD VEL to FINE: what this note adds (Q12 of 1.000) */
+    int8_t vci[OPX_NOP];         /* M4: P MOD VEL to COARSE: the steps it adds */
 } opx_note_t;
 ENG_MEM_FITS("OPX", (sizeof(opx_note_t) + OPX_DLY * sizeof(int16_t)) * OPX_POLY);
 
@@ -673,9 +845,13 @@ static void opx_note_on(track_t *t, voice_t *v)
 {
     opx_note_t *n = opx_note_of(t, v);
     const opx_rt_t *r = &opx_rt[(uint32_t)(t - trk) % NTRK];
-    int32_t vel = v->mvel ? v->mvel : v->vel, fresh, k;
+    int32_t vel = v->mvel ? v->mvel : v->vel, fresh, k, others = 0;
     if (!n)
         return;
+    for (k = 0; k < OPX_POLY; k++) {                    /* (M4: KSYNC COMMON resets LFO1 when no other key is down) */
+        const opx_note_t *o = (const opx_note_t *)ENG_MEM(t - trk) + k;
+        others |= o != n && o->live && o->down;
+    }
     fresh = (!v->env && !v->env_out) || !n->live;       /* from silence: phases, outputs, gains from 0 */
     for (k = 0; k < OPX_NOP; k++) {
         opx_eg_t *e = &n->eg[k];
@@ -693,7 +869,21 @@ static void opx_note_on(track_t *t, voice_t *v)
         /* LMOD VEL: at 100 % velocity 1 is silent, 127 full; linear in between */
         n->vg[k] = 32767 - (r->vel[k] * (127 - clamp(vel, 1, 127)) * 258 / 100);
         n->kt[k] = opx_ktrk(r, (uint32_t)k, v->note);
+        /* M4: P MOD VEL (RATIO only): the manual gives no scale: here 100 % at velocity 127 adds 1.000 to FINE (DEST
+         * FINE: up to an octave, FINE at most 2.000) or 8 COARSE steps (DEST COARSE); linear in velocity */
+        n->vfa[k] = (uint16_t)(r->pmd[k] ? 0 : r->pmv[k] * clamp(vel, 0, 127) * 4096 / 12700);
+        n->vci[k] = (int8_t)(r->pmd[k] ? (r->pmv[k] * clamp(vel, 0, 127) * 8 + 6350) / 12700 : 0);
     }
+    /* M4: EG1 as the operators' envelopes; LFO1 from its PHASE (KSYNC VOICE: this note's; COMMON: the part's, when
+     * no other key is down; OFF: free), its FADE from 0 (not with KSYNC OFF) */
+    if (fresh)
+        n->eg1.lvl = 0;
+    n->eg1.from = n->eg1.lvl, n->eg1.x = 0, n->eg1.stage = OPX_ATK;
+    if (r->lks == 2u)
+        opx_lfo_reset(&n->lfo, r, (uint32_t)v->note * 2654435761u);
+    else if (r->lks == 1u && !others)
+        opx_lfo_reset(&opx_lfoc[(uint32_t)(t - trk) % NTRK], r, (uint32_t)v->note * 2654435761u);
+    n->lfade = r->lks ? 0 : 1 << 24;
     if (fresh) {
         n->dc = 0;
         n->dw = 0;
@@ -705,8 +895,11 @@ static void opx_note_on(track_t *t, voice_t *v)
 static void opx_block(track_t *t)
 {
     uint32_t tr = (uint32_t)(t - trk);
-    if (tr < NTRK)
+    if (tr < NTRK) {
         opx_build(t, &opx_rt[tr]);
+        if (opx_rt[tr].lon)                            /* M4: the part's LFO1 (KSYNC OFF, COMMON) a block on */
+            opx_lfov[tr] = opx_lfo_step(&opx_lfoc[tr], &opx_rt[tr]);
+    }
 }
 
 /* every heard operator's envelope has ended (or holds at 0 with nothing left to rise): the voice ends */
@@ -1089,8 +1282,8 @@ static inline int32_t opx_fx(opx_ec_t *e, int32_t *st, int32_t x)
     case 2: {                                          /* PHASER: st the four all-passes, the last output */
         int32_t u = clamp(x + (int32_t)(((int64_t)c[1] * st[4]) >> 15), -131071, 131071), k;
         for (k = 0; k < 4; k++) {
-            int32_t v = ((c[0] * u) >> 14) + st[k];
-            st[k] = clamp(u - ((c[0] * v) >> 14), -262143, 262143);
+            int32_t v = (int32_t)(((int64_t)c[0] * u) >> 14) + st[k];   /* (64-bit: st up to 2^18) */
+            st[k] = clamp(u - (int32_t)(((int64_t)c[0] * v) >> 14), -262143, 262143);
             u = clamp(v, -131071, 131071);
         }
         st[4] = u;
@@ -1332,21 +1525,60 @@ static int32_t __attribute__((noinline)) opx_mix(int32_t *restrict out, const in
     return dc;
 }
 
+/* M4: CTRL source c's value now (Q15: OFF 32768, the INT whole). The wheels, pedal, aftertouch: the part's MIDI ones;
+ * PITCH WHEEL -1 .. +1, PITCH WHL+ / WHL- 0 .. +1 as the wheel goes up / down; NOTE -1 .. +1 over C4 +- 64 notes (the
+ * manual: "the center note is 60"; the span an assumption); EXP VEL velocity squared; REL VEL 64 (Felucca's notes
+ * carry no release velocity: the MIDI default); EG1 0 .. +1; LFO1 its value; EG2 EG3 LFO2 LFO3 0 until they exist (M5) */
+static int32_t opx_ctl(const track_t *t, const voice_t *v, uint32_t c, int32_t e1, int32_t lv)
+{
+    uint32_t tr = (uint32_t)(t - trk) % NTRK;
+    int32_t b = opx_ctl_bend[tr], x;
+    switch (c) {
+    case OPX_C_OFF: return 32768;
+    case OPX_C_MW: return t->mw * 258;
+    case OPX_C_PW: return b * 4;
+    case OPX_C_PWP: return b > 0 ? b * 4 : 0;
+    case OPX_C_PWM: return b < 0 ? -b * 4 : 0;
+    case OPX_C_PEDAL: return opx_ctl_pedal[tr] ? 32767 : 0;
+    case OPX_C_NOTE: return clamp(((int32_t)v->note - 60) * 512, -32767, 32767);
+    case OPX_C_VEL: return clamp(v->vel, 0, 127) * 258;
+    case OPX_C_XVEL: x = clamp(v->vel, 0, 127); return x * x * 2;
+    case OPX_C_RVEL: return 64 * 258;
+    case OPX_C_AT: return t->at * 258;
+    case OPX_C_EG1: return e1 >> 9;
+    case OPX_C_LFO1: return lv;
+    default: return 0;
+    }
+}
+#define OPX_CQ(a, cv) ((cv) == 32768 ? (a) : (int32_t)(((int64_t)(a) * (cv)) >> 15))   /* an INT x its CTRL */
+
 static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const vmod_t *m)
 {
     opx_note_t *n = opx_note_of(t, v);
     const opx_rt_t *r = &opx_rt[(uint32_t)(t - trk) % NTRK];
     uint32_t inc[OPX_NOP], ph[OPX_NOP], q, nact = 0, ord[OPX_NOP], heard = r->out;
-    int32_t g[OPX_NOP], dg[OPX_NOP], y[OPX_NOP], yp[OPX_NOP], fbq[OPX_NOP], lf, k, a, da, dc, vf, mf = 32768;
+    int32_t g[OPX_NOP], dg[OPX_NOP], y[OPX_NOP], yp[OPX_NOP], fbq[OPX_NOP], lf, k, a, da, dc, vf, mf = 32768, e1, lv = 0, pg;
+    const int lup = OPX_L_UNI(r->lw);   /* (M4: LFO1 0 .. +1) */
     if (!n || !n->live || len != CTL)
         return;
     if (!v->gate && n->down) {                      /* note-off: every envelope to its release */
         for (k = 0; k < OPX_NOP; k++)
             if (n->eg[k].stage < OPX_REL)
                 n->eg[k].stage = OPX_REL, n->eg[k].from = n->eg[k].lvl, n->eg[k].x = 0;
+        if (n->eg1.stage < OPX_REL)
+            n->eg1.stage = OPX_REL, n->eg1.from = n->eg1.lvl, n->eg1.x = 0;
         n->down = 0;
     }
-    lf = fm6_note_logfreq(m->pitch16, m->fine);
+    lf = fm6_note_logfreq(m->pitch16, m->fine) + r->poff;   /* (M4: PROG TRANS, OCT on the note: not the FIXED ones) */
+    e1 = opx_eg_step(&n->eg1, r, OPX_NOP);            /* M4: EG1 (Q24), LFO1 (Q15, its FADE in) */
+    if (r->lon) {
+        lv = r->lks == 2u ? opx_lfo_step(&n->lfo, r) : opx_lfov[(uint32_t)(t - trk) % NTRK];
+        if (n->lfade < 1 << 24) {
+            n->lfade = n->lfade + r->lfi > 1 << 24 ? 1 << 24 : n->lfade + r->lfi;
+            lv = (int32_t)(((int64_t)lv * n->lfade) >> 24);
+        }
+    }
+    pg = r->cpg && r->plfo ? OPX_CQ(r->plfo, opx_ctl(t, v, r->cpg, e1, lv)) : r->plfo;   /* PROG LFO1 INT x its CTRL */
 #if OPX_FELUCCA_MACROS
     vf = clamp((m->shape - (64 << 8)) >> 2, -4096, 4096);   /* SHP: the feedback, x0.5 .. x1.5 at the ends */
     if (m->cutoff)                                  /* FLT (ENV / LFO -> FLT, the matrix's CUT): MLVL, per voice */
@@ -1356,11 +1588,34 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
 #endif
     for (k = 0; k < OPX_NOP; k++) {
         int32_t lvl = opx_eg_step(&n->eg[k], r, (uint32_t)k), g2;
+        /* M4: P MOD (EG1, LFO1 and PROG LFO1 INT: Q24 octaves), VEL's FINE / COARSE (this note's) */
+        int32_t pe = r->pme[k], pl = r->pml[k], lm = r->lml[k], d;
+        if (r->cpe[k] && pe)                         /* (CTRL: the source x the INT) */
+            pe = OPX_CQ(pe, opx_ctl(t, v, r->cpe[k], e1, lv));
+        if (r->cpl[k] && pl)
+            pl = OPX_CQ(pl, opx_ctl(t, v, r->cpl[k], e1, lv));
+        if (r->clm[k] && lm)
+            lm = OPX_CQ(lm, opx_ctl(t, v, r->clm[k], e1, lv));
+        d = (int32_t)(((int64_t)pe * e1) >> 24) + (int32_t)(((int64_t)(pl + pg) * lv) >> 15);
         uint32_t f = r->finc[k];
-        if (!f)
-            f = (uint32_t)(((uint64_t)((uint32_t)fm6_freq(lf + r->lg[k]) << 8) * r->fine[k]) >> 16);
+        if (!f) {
+            int32_t x = lf + r->lg[k] + d;
+            uint32_t fq = r->fine[k] + ((uint32_t)n->vfa[k] << 4);
+            if (n->vci[k])
+                x += OPX_COARSE[clamp(r->cidx[k] + n->vci[k], 0, 38)] - OPX_COARSE[r->cidx[k]];
+            f = (uint32_t)(((uint64_t)((uint32_t)fm6_freq(x) << 8) * (fq > 131072u ? 131072u : fq)) >> 16);
+        } else if (d) {                              /* (FIXED: its frequency moved; below 0.45 of the sample rate) */
+            uint64_t q = ((uint64_t)f * (uint32_t)fm6_exp2(clamp(d, -20 << 24, 5 << 24) - (9 << 24))) >> 15;
+            f = q > OPX_FCMAX ? OPX_FCMAX : (uint32_t)q;
+        }
         inc[k] = f;
         g2 = mulq15(r->amp[k], n->vg[k]);
+        if (lm && lv) {                       /* M4: LMOD LFO1: the level dips by INT at the LFO's far end, never
+                                                      * above the operator's own (- INT: the LFO turned over) */
+            int32_t al = lm < 0 ? -lm : lm, u = lm < 0 ? -lv : lv;
+            int32_t dip = lup ? (lm < 0 ? lv : 32767 - lv) : (32767 - u) >> 1;
+            g2 = (int32_t)(((int64_t)g2 * (32767 - ((al * clamp(dip, 0, 32767)) >> 15))) >> 15);
+        }
         if (n->kt[k] != 32768)                       /* KTRK: never past full scale */
             g2 = (int32_t)clamp((int32_t)(((int64_t)g2 * n->kt[k]) >> 15), 0, 32767);
         g2 = (int32_t)(((int64_t)g2 * lvl) >> 24);

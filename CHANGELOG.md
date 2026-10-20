@@ -5,6 +5,18 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPX M4: EG1, LFO1 and the pitch modulation.** Each operator's P MOD (EG1 INT, LFO1 INT, ±144.00 semitones; VEL
+  with DEST FINE or COARSE) and LMOD LFO1 INT (±100 %), PROG PITCH (LFO1 INT, TRANS, OCT), each INT with its CTRL
+  source (MOD WHEEL, PITCH WHEEL ±, PEDAL, NOTE, VEL, EXP VEL, AFTER TOUCH, EG1, LFO1; REL VEL fixed; EG2/3 and
+  LFO2/3 come with M5). LFO1: the opsix's 23 waves, SPEED 0.01–100 Hz or a note value with TEMPO, KSYNC OFF /
+  COMMON / VOICE, PHASE (or RND), FADE.
+- **OPX pages EG1 and LFO1** (EDIT, after OP LEVELS): EG1 drawn beside its ATK DEC SUS REL CURVE; LFO1's wave drawn
+  beside its rows and PROG PITCH's. OPERATORS gains the rows (PITCH: P MOD; EG: LMOD LFO1; sections EG1, LFO1,
+  PROG). P MOD INT moves 0.05 a click up to 1, 0.50 up to 12, then 1 and 12 semitones.
+- **The web editor's OPX tab** edits the same (Modulation, EG1, LFO1, Program pitch).
+- Fixes: an OPX phaser product could overflow 32 bits at high resonance (found by the host sanitizer); a host test
+  read past its buffer.
+
 - **OPX user presets keep their patch** (up to 16 OPX user presets; a 17th is refused with "OPX PRESETS FULL", nothing
   written). A rename keeps it; erasing the preset or saving another sound over it frees its place. Presets saved by
   0.1.0 load their SLOT's factory patch, as before.

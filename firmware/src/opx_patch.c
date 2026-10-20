@@ -110,11 +110,35 @@ static void opx_decode(const uint8_t *pk, opx_patch_t *p)
         o->ktrk_center = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_KTRK_CENTER));
         o->ktrk_lcrv = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_KTRK_LCRV));
         o->ktrk_hcrv = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_KTRK_HCRV));
+        o->pm_eg1 = (int16_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_PMOD_EG1));   /* (M4) */
+        o->pm_lfo1 = (int16_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_PMOD_LFO1));
+        o->pm_vel = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_PMOD_VEL));
+        o->pm_dest = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_PMOD_VEL_DEST));
+        o->lm_lfo1 = (int8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_LMOD_LFO1));
+        o->pm_eg1_ctrl = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_PMOD_EG1_CTRL));
+        o->pm_lfo1_ctrl = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_PMOD_LFO1_CTRL));
+        o->lm_lfo1_ctrl = (uint8_t)opx_get(pk, OPXF_OP(k, OPXF_OP1_LMOD_LFO1_CTRL));
         for (j = 0; j < OPX_NOP; j++)
             p->ua[k][j] = (uint8_t)opx_get(pk, opxf_ua(k, j));
         out |= (uint32_t)opx_get(pk, OPXF_UA_OUT(k)) << k;
     }
     p->ua_out = (uint8_t)out;
+    p->eg1.atk = (uint16_t)opx_get(pk, OPXF_EG1_ATK);    /* (M4) */
+    p->eg1.dec = (uint16_t)opx_get(pk, OPXF_EG1_DEC);
+    p->eg1.rel = (uint16_t)opx_get(pk, OPXF_EG1_REL);
+    p->eg1.sus = (uint8_t)opx_get(pk, OPXF_EG1_SUS);
+    p->eg1.curve = (uint8_t)opx_get(pk, OPXF_EG1_CURVE);
+    p->lfo1.wave = (uint8_t)opx_get(pk, OPXF_LFO1_WAVE);
+    p->lfo1.speed = (uint16_t)opx_get(pk, OPXF_LFO1_SPEED);
+    p->lfo1.sync = (uint8_t)opx_get(pk, OPXF_LFO1_SYNC);
+    p->lfo1.ksync = (uint8_t)opx_get(pk, OPXF_LFO1_KSYNC);
+    p->lfo1.phase = (int16_t)opx_get(pk, OPXF_LFO1_PHASE);
+    p->lfo1.tempo = (uint8_t)opx_get(pk, OPXF_LFO1_TEMPO);
+    p->lfo1.fade = (uint16_t)opx_get(pk, OPXF_LFO1_FADE);
+    p->prog_lfo1 = (int16_t)opx_get(pk, OPXF_PROG_LFO1);
+    p->prog_trans = (int8_t)opx_get(pk, OPXF_PROG_TRANS);
+    p->prog_oct = (int8_t)opx_get(pk, OPXF_PROG_OCT);
+    p->prog_lfo1_ctrl = (uint8_t)opx_get(pk, OPXF_PROG_LFO1_CTRL);
 }
 /* a patch (a factory one) as a record: the defaults, then what the patch sets */
 static void opx_encode(const opx_patch_t *p, uint8_t *pk)

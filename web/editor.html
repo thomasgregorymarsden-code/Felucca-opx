@@ -2615,6 +2615,8 @@ const TEXT = {
     opxFactories: "ファクトリー音色", opxInit: "初期音色", opxImport: "ファイルを読み込む", opxExport: "ファイルに書き出し",
     opxKeep: "残すには、トラックへ送ってから本体でユーザープリセット（SAVE、OPX は 16 個まで）かプロジェクトに保存してください。",
     opxPatch: "音色", opxOps: "オペレーター", opxMode: "モード", opxPitch: "ピッチ", opxEg: "EG", opxKtrk: "キートラック",
+    opxEg1: "EG1（ピッチ）", opxLfo1: "LFO1（オペレーター）", opxProg: "プログラム ピッチ", opxMod: "モジュレーション（P MOD・L MOD、INT は 0.01 半音単位）",
+    opxLfoHelp: "FADE は KSYNC が OFF のときは効きません。CTRL は選んだソースの値を INT に掛けます（OFF: INT のまま）。",
     opxUser: "USER アルゴリズム", opxUserHelp: "行が送り先、列が送り元のオペレーター（対角はセルフフィードバック）。OUT: 直接出力。",
     opxAlg: "アルゴリズム", opxAlgFb: "ALG FB", opxNoise: "ノイズ波形では FB と WIDTH は効きません",
     opxSent: "トラックへ送りました:", opxRead: "トラックから読みました", opxLoaded: "読み込みました",
@@ -2729,6 +2731,8 @@ const TEXT = {
     opxFactories: "Factory patch", opxInit: "Init patch", opxImport: "Import file", opxExport: "Export file",
     opxKeep: "To keep a patch, send it to a track, then save a user preset (SAVE; up to 16 OPX ones) or a project on the device.",
     opxPatch: "Patch", opxOps: "Operators", opxMode: "Mode", opxPitch: "Pitch", opxEg: "EG", opxKtrk: "Key track",
+    opxEg1: "EG1 (pitch)", opxLfo1: "LFO1 (operators)", opxProg: "Program pitch", opxMod: "Modulation (P MOD, L MOD; INT in 0.01 semitones)",
+    opxLfoHelp: "FADE has no effect with KSYNC OFF. CTRL multiplies the INT by the chosen source (OFF: the INT as it is).",
     opxUser: "USER algorithm", opxUserHelp: "Rows: the operator receiving; columns: the operator sending (the diagonal: self feedback). OUT: heard directly.",
     opxAlg: "Algorithm", opxAlgFb: "ALG FB", opxNoise: "FB and WIDTH do nothing on the noise waves",
     opxSent: "Sent to track", opxRead: "Read from track", opxLoaded: "Loaded",
@@ -5216,8 +5220,24 @@ function renderOpxPatch() {
     onchange: (e) => { OX.setName(opxPk, e.target.value); e.target.value = OX.name(opxPk); opxChanged(false); } });
   const algs = [...Array.from({ length: OX.ALGOS }, (_, k) => String(k + 1)), "USER"];
   const row = (label, ...kids) => el("tr", {}, el("th", { text: label }), el("td", {}, ...kids));
+  const tm = (n) => opxNum(n, { wide: true, text: () => OX.timeText(OX.get(opxPk, n)) });
+  const tempo = OX.get(opxPk, "lfo1.tempo");
+  const eg1 = opxTable(["ATK", "DEC", "SUS", "REL", "CURVE"], [el("tr", {}, el("td", {}, tm("eg1.atk")), el("td", {}, tm("eg1.dec")),
+    el("td", {}, opxNum("eg1.sus", { text: () => "%" })), el("td", {}, tm("eg1.rel")),
+    el("td", {}, opxNum("eg1.curve", { text: () => { const v = OX.get(opxPk, "eg1.curve"); return v === 0 ? "LIN" : v === 10 ? "EXP" : ""; } })))]);
+  const lfo1 = opxTable(["WAVE", "TEMPO", "SPEED", "KSYNC", "PHASE", "FADE"], [el("tr", {},
+    el("td", {}, opxSel("lfo1.wave", OX.LFO_WAVES)), el("td", {}, opxSel("lfo1.tempo", ["OFF", "ON"])),
+    el("td", {}, tempo ? opxSel("lfo1.sync", OX.SYNC) : opxNum("lfo1.speed", { wide: true, text: () => OX.speedText(OX.get(opxPk, "lfo1.speed")) })),
+    el("td", {}, opxSel("lfo1.ksync", OX.KSYNC)),
+    el("td", {}, opxNum("lfo1.phase", { text: () => (OX.get(opxPk, "lfo1.phase") < -180 ? "RND" : "°") })),
+    el("td", {}, opxNum("lfo1.fade", { wide: true, text: () => "MS" })))]);
+  const prog = opxTable(["LFO1", "CTRL", "TRANS", "OCT"], [el("tr", {},
+    el("td", {}, opxNum("prog.lfo1", { scale: 100, wide: true, text: () => "ST" })), el("td", {}, opxSel("prog.lfo1_ctrl", OX.CTRLS)),
+    el("td", {}, opxNum("prog.trans", { text: () => "ST" })), el("td", {}, opxNum("prog.oct", { text: () => "OCT" })))]);
   $("opxpatch").replaceChildren(el("table", {}, row(t("name"), nm), row(t("opxAlg"), opxSel("algo", algs)),
-    row(t("opxAlgFb"), opxNum("prog.alg_fb", { text: () => "%" }))));
+    row(t("opxAlgFb"), opxNum("prog.alg_fb", { text: () => "%" }))),
+    el("h3", { text: t("opxEg1") }), eg1, el("h3", { text: t("opxLfo1") }), lfo1, el("p", { class: "dim", text: t("opxLfoHelp") }),
+    el("h3", { text: t("opxProg") }), prog);
 }
 function renderOpxOps() {
   const P = (k, f) => `op${k}.${f}`;
@@ -5253,6 +5273,14 @@ function renderOpxOps() {
     ...["eg_atk", "eg_dec"].map((f) => el("td", {}, opxNum(P(k, f), { wide: true, text: () => OX.text(opxPk, k, f) }))),
     el("td", {}, opxNum(P(k, "eg_sus"))), el("td", {}, opxNum(P(k, "eg_rel"), { wide: true, text: () => OX.text(opxPk, k, "eg_rel") })),
     el("td", {}, opxNum(P(k, "eg_curve"), { text: () => OX.text(opxPk, k, "eg_curve") })), el("td", {}, opxNum(P(k, "lmod_vel")))));
+  const modRows = OPS.map((k) => {                    /* M4: P MOD (EG1 / LFO1 INT x0.01 st, VEL, DEST: RATIO only), LMOD LFO1 */
+    const fixed = OX.get(opxPk, P(k, "freq_fixed"));
+    return el("tr", {}, el("th", { text: String(k) }),
+      el("td", {}, opxNum(P(k, "pmod_eg1"), { scale: 100, wide: true })), el("td", {}, opxSel(P(k, "pmod_eg1_ctrl"), OX.CTRLS)),
+      el("td", {}, opxNum(P(k, "pmod_lfo1"), { scale: 100, wide: true })), el("td", {}, opxSel(P(k, "pmod_lfo1_ctrl"), OX.CTRLS)),
+      el("td", {}, fixed ? "" : opxNum(P(k, "pmod_vel"))), el("td", {}, fixed ? "" : opxSel(P(k, "pmod_vel_dest"), ["FINE", "COARSE"])),
+      el("td", {}, opxNum(P(k, "lmod_lfo1"))), el("td", {}, opxSel(P(k, "lmod_lfo1_ctrl"), OX.CTRLS)));
+  });
   const notes = Array.from({ length: 88 }, (_, i) => OX.noteName(21 + i));
   const ktRows = OPS.map((k) => el("tr", {}, el("th", { text: String(k) }),
     el("td", {}, opxNum(P(k, "ktrk_low"), { text: () => "%" })), el("td", {}, opxSel(P(k, "ktrk_center"), notes, { add: 21 })),
@@ -5261,6 +5289,7 @@ function renderOpxOps() {
   const parts = [
     el("h3", { text: t("opxMode") }), opxTable(["OP", "MODE", "WAVE", ""], modeRows),
     el("h3", { text: t("opxPitch") }), opxTable(["OP", "FREQ", "RATIO", "FINE", "DTUN", "TRANS"], pitchRows),
+    el("h3", { text: t("opxMod") }), opxTable(["OP", "P EG1", "CTRL", "P LFO1", "CTRL", "P VEL", "DEST", "L LFO1", "CTRL"], modRows),
     el("h3", { text: t("opxEg") }), opxTable(["OP", "LEVEL", "ATK", "DEC", "SUS", "REL", "CURVE", "VEL"], egRows),
     el("h3", { text: t("opxKtrk") }), opxTable(["OP", "LOW", "CENTER", "HIGH", "L CRV", "H CRV"], ktRows)];
   if (OX.get(opxPk, "algo") === OX.USER) {             /* the matrix: rows receive, columns send (EDIT 1's on the device) */

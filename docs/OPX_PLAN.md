@@ -17,8 +17,8 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | done (device cost: see [Cost](#cost); SHORT DELAY limited to 17 ms, see below; sound not yet compared with an opsix) |
 | | **Second release, `0.1.0`: M2a and M2b; the VOICE pages in OPERATORS; SELECT turns pages with BPM LOCK ON** | |
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | done: user presets (16), the backup, the storage repacked ([OPX_STORAGE.md](OPX_STORAGE.md)), the web editor's OPX tab |
-| M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |
-| M5 | Main filter, effects 1–3, virtual patch, as far as the processor time allows | |
+| M4 | EG1 (pitch), LFO1 and their default routes: each operator's P MOD (EG1, LFO1, VEL), LMOD LFO1, PROG PITCH (LFO1, TRANS, OCT); the CTRL sources | done (pages EG1 and LFO1, the rows in OPERATORS, the web editor; not yet compared with an opsix) |
+| M5 | EG2 (filter), EG3, LFO2–3, main filter, effects 1–3, virtual patch, as far as the processor time allows | |
 
 Confirmed on a device so far: it installs and runs, and six OPX voices at once do not overload the processor. Not
 yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-by-ear)).
@@ -60,13 +60,32 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
     all-passes with feedback), SHORT DELAY and COMB (the voice's own delay line), DIST (hard clip, ×1–50), DRIVE
     (cubic soft clip, ×1–10), DEC (sample-and-hold at FREQ × the pitch, whole bits), WAVESHAPER (60 sine shapers of
     rising strength: the 01/W's tables are not published), PUNCH (a fast against a slow envelope lifts the attack).
-    Memory: each voice has one delay line of 784 samples after its part's six notes (`OPX_DLY`), so SHORT DELAY's
-    TIME stops at 17 ms (the manual's 300 ms do not fit the FM-1's RAM), COMB reaches down to 57 Hz, and only one
+    Memory: each voice has one delay line of 768 samples (784 before M4) after its part's six notes (`OPX_DLY`), so SHORT DELAY's
+    TIME stops at 17 ms (the manual's 300 ms do not fit the FM-1's RAM), COMB reaches down to 58 Hz, and only one
     operator per voice gets the line (the first to run in SHORT DELAY or COMB; another plays dry).
 - **KTRK (M2b)**: the level rises (+) or falls (−) with the distance from CENTER, LOW below it and HIGH above;
   LIN is 1 dB a semitone at 100 %, EXP the square of the distance over 48 semitones; −96 to +24 dB, and never past
   the operator's full scale. Worked out at note-on.
 - **Self-feedback** uses the mean of the operator's last two outputs (as the DX7 does), and is linear in FB: 100 % gives 2 rad. At 75 % the harmonics come out within 3 dB of a sawtooth's, which matches the manual's description.
+
+## How M4 works
+
+- **EG1** is an envelope like the operators' (ATK DEC SUS REL CURVE), one a note, from 0 to 1. **P MOD EG1 INT** moves
+  the operator's pitch by INT semitones at EG1's peak (±144.00).
+- **LFO1** runs per part (KSYNC OFF and COMMON: one for the part, COMMON reset by the first note from no keys held) or
+  per note (KSYNC VOICE), stepped once a 32-sample block. SPEED is 0.01–100 Hz (0.01 × 10000^(c/1023)), or with
+  TEMPO on a note value at the song's tempo (MIDI clock's when it follows one). PHASE is where a reset starts it (RND:
+  anywhere); FADE fades it in after the note-on (only with KSYNC on, as the manual says). The 23 waves are the manual's
+  list (p.56): the bipolar ones −1 to +1, GTR and the "+" ones 0 to +1.
+- **P MOD LFO1 INT** and **PROG PITCH LFO1 INT** move the pitch by INT semitones at the LFO's +1; **LMOD LFO1 INT**
+  dips the operator's level, never above its own: at +100 % a bipolar LFO goes from full (its −1) to silent (its +1),
+  a unipolar one from full (0) to silent (+1); −100 % turns the LFO over.
+- **P MOD VEL** (RATIO only) adds to FINE (DEST FINE) or COARSE steps (DEST COARSE) by velocity.
+- **PROG PITCH TRANS** and **OCT** move the note (not the FIXED operators).
+- **CTRL** (each INT's): the source's value multiplies the INT (p.51). OFF keeps the INT as it is. MOD WHEEL,
+  AFTER TOUCH and the PITCH WHEEL are the part's MIDI ones, PEDAL its channel's damper; NOTE, VEL, EXP VEL the note's;
+  EG1 and LFO1 their values now; EG2, EG3, LFO2, LFO3 give 0 until M5 adds them.
+- Not yet: KSYNC OFF should also reset the LFO when a program is chosen or the sequencer starts (p.57).
 
 ## The device pages (M1.5): where the code is
 
@@ -120,6 +139,15 @@ The manual gives no curve for these, so each is a reasonable guess:
 - **The modes' depths:** WAVE FOLDER's GAIN ×1–8; FILTER FM ±4 octaves at a full-scale input; RING SHAPE as a blend
   towards the rectified input; BYPASS without the operator's level.
 - **KTRK scale:** 100 % LIN = 1 dB a semitone; EXP the square of the distance over 48 semitones.
+- **M4, LFO1 tempo values:** the manual gives 1/48 to 4/1 but not the steps between; `OPX_SYNC` has 20 (1/48 1/32
+  1/24 1/16 1/12 3/32 1/8 1/6 3/16 1/4 1/3 3/8 1/2 2/3 3/4 1/1 3/2 2/1 3/1 4/1).
+- **M4, LFO wave order:** the manual's list read down its columns; the opsix's knob order is not given.
+- **M4, the LFO shapes:** the manual draws them without a formula: X. waves on CURVE 10's exponential, TRI4/TRI6/SAW4/
+  SAW6 the shape held over 4 or 6 steps, the random ones a new level (or, TIME, a flip) a cycle of random length (×0.5–2).
+- **M4, P MOD VEL:** at 100 % and velocity 127, FINE +1.000 (an octave on a ratio of 1) or 8 COARSE steps.
+- **M4, CTRL:** an OFF entry (the manual's list has none; without it every INT would need a source); NOTE −1 to +1
+  over C4 ± 64 notes (the manual: "the center note is 60"); EXP VEL velocity squared; REL VEL fixed at 64 (Felucca
+  keeps no release velocity); PITCH WHL+ / WHL− 0 to +1 as the wheel goes up / down.
 - **Filters and effects:** how the opsix builds them is not published: the types are standard designs with the
   manual's names and ranges (state-variable, ladder, biquad, shelves, all-passes); the WAVESHAPER's 60 tables are
   sine shapers, not the 01/W's; SHELV EQ's corners (250 Hz, 4 kHz) and PEAK EQ's Q (1) are chosen.

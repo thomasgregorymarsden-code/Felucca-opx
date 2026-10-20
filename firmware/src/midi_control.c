@@ -38,6 +38,10 @@ static uint32_t midi_targets(uint32_t ch)
 static void midi_expression(track_t *t, const midi_channel_t *c)
 {
     int32_t range = ((int32_t)c->semis * 100 + c->cents) * 256 / 100;
+#if FELUCCA_OPX
+    opx_ctl_bend[trk_index(t) % NTRK] = c->bend;       /* (OPX fork: CTRL's PITCH WHEEL and PEDAL, eng_opx.c) */
+    opx_ctl_pedal[trk_index(t) % NTRK] = c->pedal;
+#endif
     if (drum_track(t))
         return;
     midi_bend_target[trk_index(t)] = (int32_t)c->bend * range / (c->bend < 0 ? 8192 : 8191);
@@ -177,6 +181,9 @@ static void __attribute__((noinline)) midi_forget_track(uint32_t track)
     midi_owners[track] = 0;
     mchord_forget(track);
     midi_bend_q8[track] = midi_bend_target[track] = 0;
+#if FELUCCA_OPX
+    opx_ctl_bend[track % NTRK] = 0, opx_ctl_pedal[track % NTRK] = 0;
+#endif
 }
 
 static void midi_silence_track(uint32_t track)
@@ -336,12 +343,18 @@ static void midi_control(uint32_t ch, uint32_t cc, uint32_t value)
         c->rpn_msb = c->rpn_lsb = 127;
         midi_expression_channel(ch);
         midi_pedal_up(ch);
+#if FELUCCA_OPX
+        midi_expression_channel(ch);               /* (OPX fork: PEDAL off for CTRL too) */
+#endif
         break;
     case 64:
         if (value >= 64u)
             c->pedal = 1;
         else
             midi_pedal_up(ch);
+#if FELUCCA_OPX
+        midi_expression_channel(ch);               /* (OPX fork: the parts' PEDAL for CTRL) */
+#endif
         break;
     case 101: c->rpn_msb = (uint8_t)value; break;
     case 100: c->rpn_lsb = (uint8_t)value; break;

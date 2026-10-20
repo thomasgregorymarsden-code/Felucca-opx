@@ -46,8 +46,9 @@ Installing custom firmware is at your own risk.
 ## The OPX engine
 
 OPX is modelled on the opsix's operator section: six operators per voice, routed by an algorithm, each with its own
-mode, waveform, pitch, level, envelope and key tracking. It plays up to six voices. The opsix's extra envelopes,
-LFOs, main filter and effects are not implemented yet ([plan](docs/OPX_PLAN.md)).
+mode, waveform, pitch, level, envelope and key tracking, and the pitch envelope EG1 and LFO1 with their routes to
+the operators' pitch and level. It plays up to six voices. The opsix's EG2, EG3, LFO2, LFO3, main filter, effects and
+virtual patch are not implemented yet ([plan](docs/OPX_PLAN.md)).
 
 To use it, hold **EDIT** and press **A3**, the third white key from F3 (ANALOG, FM6, OPX, …; the layer's map shows
 them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD and X-MOD.
@@ -81,7 +82,7 @@ them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SA
 
 ### The pages
 
-On an OPX track, EDIT goes **ALGO, OPERATORS, ENVELOPE, OP LEVELS** and back: VOICE, VOICE 2 and VOICE 3 are OPERATORS' VOICE section on an
+On an OPX track, EDIT goes **ALGO, OPERATORS, ENVELOPE, OP LEVELS, EG1, LFO1** and back: VOICE, VOICE 2 and VOICE 3 are OPERATORS' VOICE section on an
 OPX track (the same parameters). Both OPX pages
 show the algorithm in the left half: a chart of square operator boxes for a preset algorithm, the matrix for USER.
 
@@ -108,18 +109,21 @@ rows hidden above or below.
 | Knob | Selects |
 |---|---|
 | 1 | the operator, 1–6 |
-| 2 | a section per click: MODE, PITCH, EG, KTRK, USER, ALGO, VOICE |
+| 2 | a section per click: MODE, PITCH, EG, KTRK, USER, ALGO, EG1, LFO1, PROG, VOICE |
 | 3 | the row |
 | 4 | the row's value (a list such as MODE, TYPE or FX: one step per click) |
 
 | Section | Rows |
 |---|---|
 | MODE | MODE, WAVE (not on BYPASS or MUTE), then the mode's own: FB WIDTH (FM); DEPTH SHAPE (RING MOD); TYPE OSC MIX CUTOFF RESO (FILTER); TYPE CUTOFF RESO (FILTER FM); GAIN OSC MIX BIAS (WAVE FOLDER); FX OSC MIX and the effect's two values, named for it (EFFECT) |
-| PITCH | FREQ (RATIO / FIXED), RATIO (in FIXED: the frequency, a semitone per click), FINE (in FIXED a cent per click), DTUN, TRANS |
-| EG | LEVEL, ATK, DEC, SUS, REL, CURVE, VEL |
+| PITCH | FREQ (RATIO / FIXED), RATIO (in FIXED: the frequency, a semitone per click), FINE (in FIXED a cent per click), DTUN, TRANS; P MOD: EG1 (INT, semitones), EG CTRL, LFO1 (INT), LFO CTRL, VEL, VEL DEST (FINE / COARSE; RATIO only) |
+| EG | LEVEL, ATK, DEC, SUS, REL, CURVE, VEL; LMOD: LFO1 (INT, %), LFO CTRL |
 | KTRK | LOW, CENTER, HIGH, L CRV, H CRV |
 | USER | TO OP1 … TO OP6: what this operator sends to each, as exact numbers (its own row reads "(SELF)" and is its self feedback); OUT, as on the matrix. Dimmed unless the track plays USER |
 | ALGO | ALG (the patch's algorithm), ALG FB |
+| EG1 | the patch's pitch envelope: ATK, DEC, SUS, REL, CURVE |
+| LFO1 | WAVE (the opsix's 23), TEMPO, SPEED (Hz; with TEMPO a note value), KSYNC (OFF, COMMON, VOICE), PHASE (RND: random), FADE (with KSYNC on) |
+| PROG | PROG PITCH: LFO1 (INT), LFO CTRL, TRANS, OCT |
 | VOICE | the track's VOICE pages: VOICE (POLY, MONO, LEG, UNI), GLIDE, GLIDE MODE, PRIORITY, ALLOC, DETUNE, PAN, MUTE, SPREAD, as on every engine (automation and MIDI LEARN included) |
 
 **ENVELOPE** draws the selected operator's EG in the left half (ATK a line, DEC and REL shaped by CURVE; the stage
@@ -128,6 +132,13 @@ the operator, KNOB 3 the row, KNOB 4 the value.
 
 **OP LEVELS** lists the six operators' LEVEL beside the algorithm chart: KNOB 3 (or KNOB 1) the operator, KNOB 4 its
 level.
+
+**EG1** draws the patch's pitch envelope as ENVELOPE draws an operator's, beside its five rows; **LFO1** draws two
+cycles of its wave beside LFO1's rows and PROG PITCH's. Both are the patch's: KNOB 1 does nothing there.
+
+A CTRL row picks what scales its INT: OFF (the INT as set), MOD WHEEL, PITCH WHEEL (±), PITCH WHL+ / WHL−, PEDAL,
+NOTE, VEL, EXP VEL, REL VEL, AFTER TOUCH, EG1, LFO1 (EG2, EG3, LFO2, LFO3: listed, no effect yet). P MOD INT moves
+0.05 semitone a click up to 1, 0.50 up to 12, 1 up to 48, then 12.
 
 **HOME > OP MIX** (the first page HOME opens on an OPX track, before MIXER and CLOCK) puts all six levels on knobs at
 once, for playing: PRESETS is OP 1's LEVEL, ALGORITHM OP 2's, KNOB 1–4 OP 3–6's. On this page those two knobs do not
