@@ -238,6 +238,8 @@
         <input type="file" id="opxfile" accept=".opx,application/octet-stream" hidden>
         <button id="opxexport" data-t="opxExport" data-ic="symbol_download"></button></p>
       <p class="dim" data-t="opxKeep"></p>
+      <p class="bar"><button id="opxtests" data-t="opxTestsBtn"></button></p>
+      <p class="dim" data-t="opxTestsHelp"></p>
     </div>
     <div class="group">
       <h2 data-t="opxPatch" data-ic="ui_knob"></h2>
@@ -1838,7 +1840,7 @@ function makeMockDevice(opt = {}) {
     { name: "-", titles: ["-", "-"], edit: [NONE, NONE, NONE, NONE, NONE, NONE, NONE, NONE], presets: [] },
     { name: "OPX", titles: ["ALGO", "MOD"], edit: [D("ALG", F.INT, 0, 41, 0), D("ATK", F.BIPCT, -64, 63, 0),
         D("DEC", F.BIPCT, -64, 63, 0), D("MLVL", F.BIPCT, -64, 63, 0), D("FB", F.BIPCT, -64, 63, 0), D("MRAT", F.INT, -16, 16, 0),
-        D("DTUN", F.PCT, 0, 127, 0), D("SLOT", F.INT, 0, 7, 0)],
+        D("DTUN", F.PCT, 0, 127, 0), D("SLOT", F.INT, 0, 8, 0)],   /* (F1..F7, OWN, INIT) */
       presets: [P("E.PIANO", [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 127, 0], 0, 6), P("BELL", [0, 0, 0, 0, 0, 0, 0, 1], [0, 0, 127, 0], 0, 7),
         P("FM BASS", [0, 0, 0, 0, 0, 0, 0, 2], [0, 0, 127, 0], 1, 2), P("BRASS", [0, 0, 0, 0, 0, 0, 0, 3], [0, 0, 127, 0], 0, 4),
         P("SAW LEAD", [0, 0, 0, 0, 0, 0, 0, 4], [0, 0, 127, 0], 1, 4), P("LOOP PAD", [0, 0, 0, 0, 0, 0, 0, 5], [0, 0, 127, 0], 0, 5),
@@ -2615,6 +2617,9 @@ const TEXT = {
     opxFactories: "ファクトリー音色", opxInit: "初期音色", opxImport: "ファイルを読み込む", opxExport: "ファイルに書き出し",
     opxKeep: "残すには、トラックへ送ってから本体でユーザープリセット（SAVE、OPX は 16 個まで）かプロジェクトに保存してください。",
     opxPatch: "音色", opxOps: "オペレーター", opxMode: "モード", opxPitch: "ピッチ", opxEg: "EG", opxKtrk: "キートラック",
+    opxTestsBtn: "テスト音色を空きユーザープリセットへ", opxTestsHelp: "opsix 比較用の 16 のテスト音色（T01〜T17）を空いているユーザープリセットに書き込みます。使用中のスロットには書きません。FM-1 で OPX のトラックを選んでから押してください（そのトラックの VOICE などの設定が使われます）。",
+    opxTestsConfirm: "テスト音色 {m} 個のうち {n} 個を空きユーザープリセットに書き込みます。よろしいですか？", opxTestsNeedOpx: "FM-1 で OPX のトラックを選んでください",
+    opxTestsNoRoom: "空きユーザープリセットがありません（OPX は 16 個まで）", opxTestsProgress: "テスト音色を書き込み中", opxTestsDone: "テスト音色を書き込みました", opxTestsLeft: "は空きがなく書き込めませんでした",
     opxEg1: "EG1（ピッチ）", opxLfo1: "LFO1（オペレーター）", opxProg: "プログラム ピッチ", opxMod: "モジュレーション（P MOD・L MOD、INT は 0.01 半音単位）",
     opxLfoHelp: "FADE は KSYNC が OFF のときは効きません。CTRL は選んだソースの値を INT に掛けます（OFF: INT のまま）。",
     opxUser: "USER アルゴリズム", opxUserHelp: "行が送り先、列が送り元のオペレーター（対角はセルフフィードバック）。OUT: 直接出力。",
@@ -2731,6 +2736,9 @@ const TEXT = {
     opxFactories: "Factory patch", opxInit: "Init patch", opxImport: "Import file", opxExport: "Export file",
     opxKeep: "To keep a patch, send it to a track, then save a user preset (SAVE; up to 16 OPX ones) or a project on the device.",
     opxPatch: "Patch", opxOps: "Operators", opxMode: "Mode", opxPitch: "Pitch", opxEg: "EG", opxKtrk: "Key track",
+    opxTestsBtn: "Put the test patches in empty user presets", opxTestsHelp: "Writes the 16 opsix comparison patches (T01–T17) into empty user presets, never over a used one. Select an OPX track on the FM-1 first: its VOICE and track settings go with them.",
+    opxTestsConfirm: "Write {n} of the {m} test patches into empty user presets?", opxTestsNeedOpx: "Select an OPX track on the FM-1 first",
+    opxTestsNoRoom: "No room: no empty user preset, or 16 OPX user presets already", opxTestsProgress: "Writing the test patches", opxTestsDone: "Test patches written", opxTestsLeft: "did not fit",
     opxEg1: "EG1 (pitch)", opxLfo1: "LFO1 (operators)", opxProg: "Program pitch", opxMod: "Modulation (P MOD, L MOD; INT in 0.01 semitones)",
     opxLfoHelp: "FADE has no effect with KSYNC OFF. CTRL multiplies the INT by the chosen source (OFF: the INT as it is).",
     opxUser: "USER algorithm", opxUserHelp: "Rows: the operator receiving; columns: the operator sending (the diagonal: self feedback). OUT: heard directly.",
@@ -5347,6 +5355,31 @@ $("opxload").addEventListener("click", () => op(async () => {
   sayK("opxLoaded", ` F${i + 1}: ${OX.name(opxPk)}`);
 }));
 $("opxinit").addEventListener("click", () => opxLoad().then(() => { opxPk = OX.defaults(); renderOpx(); }));
+/* the opsix comparison test patches (opx_tests.js) into empty user presets: the selected track's sound (an OPX track:
+   its VOICE and track settings) with ALG PAT, ATK and DEC 0, SLOT OWN, and each test's patch. Never over a used slot;
+   at most the 16 OPX user presets the firmware keeps (opx_store.c UPX_N), less those already used */
+const OPX_USER_MAX = 16;
+$("opxtests").addEventListener("click", () => libOp(async (d, rqf) => {
+  await opxLoad();
+  const T = await import("./opx_tests.js");
+  const list = T.make(OX);
+  const dump = parse[CMD.DUMP](await rqf(req.dump()), d.info);
+  if (dump.engine !== d.info.opx.engine) { sayK("opxTestsNeedOpx"); return; }
+  d.bank = await bank.list(rqf);
+  const used = d.bank.slots.filter((s) => s.used && s.engine === d.info.opx.engine).length;
+  const free = d.bank.slots.filter((s) => !s.used).map((s) => s.slot);
+  const n = Math.min(list.length, free.length, Math.max(0, OPX_USER_MAX - used));
+  if (!n) { sayK("opxTestsNoRoom"); return; }
+  if (!confirm(t("opxTestsConfirm").replace("{n}", n).replace("{m}", list.length))) return;
+  const pe0 = d.info.pe0, p = dump.p.slice();
+  p[pe0] = 0; p[pe0 + 1] = 0; p[pe0 + 2] = 0; p[pe0 + 7] = d.info.opx.factory;   /* ALG PAT, ATK DEC 0, SLOT OWN */
+  for (let i = 0; i < n; i++) {
+    sayK("opxTestsProgress", ` ${i + 1}/${n}: ${slotName(free[i])} ${list[i].name}`);
+    checkRc(await bank.put(rqf, free[i], { name: list[i].name, engine: dump.engine, p, pattern: null, grid: null, opx: list[i].pk }, d.info));
+    await refreshSlot(free[i], d);
+  }
+  sayK("opxTestsDone", ` ${n}: ${slotName(free[0])} … ${slotName(free[n - 1])}` + (n < list.length ? ` (${list.slice(n).map((x) => x.name).join(", ")} ${t("opxTestsLeft")})` : ""));
+}));
 $("opximport").addEventListener("click", () => $("opxfile").click());
 $("opxfile").addEventListener("change", async (e) => {
   const f = e.target.files[0];

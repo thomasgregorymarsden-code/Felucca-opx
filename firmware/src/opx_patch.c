@@ -12,7 +12,9 @@
  * the ISR never sees half a patch.
  *
  * SLOT (P_E7): F1..F7 load that factory patch into the track (opx_poll, the main loop); OWN (OPX_OWN) is the track's own
- * patch: an edited one (the operator pages, ui_fm6op.c), or one a project brought (opx_store.c). */
+ * patch: an edited one (the operator pages, ui_fm6op.c), or one a project brought (opx_store.c); INIT (OPX_INIT, after
+ * OWN so that stored OWN values keep their meaning) loads the INIT patch: the spec's defaults, as the opsix's
+ * INITIALIZE (OP1 alone heard, algorithm 1, ratio 1, no modulation). */
 #include "opx_fields.h"          /* build/gen: tools/opx_patch_spec.py --emit-c */
 
 /* operator k's (0..5) field f, f given as OP1's */
@@ -201,6 +203,7 @@ static void opx_encode(const opx_patch_t *p, uint8_t *pk)
 
 /* ----------------------------------------------------------- per track --- */
 #define OPX_OWN OPX_NFACTORY     /* SLOT: the track's own patch (F1..F7 before it) */
+#define OPX_INIT (OPX_OWN + 1u)  /* SLOT: the INIT patch (opx_defaults) */
 static uint8_t opx_pk[NTRK][OPX_PK_BYTES] __attribute__((section(".pool")));   /* the tracks' patches (main loop) */
 static opx_patch_t opx_tp[NTRK][2] __attribute__((section(".pool")));          /* decoded: the ISR's and the next */
 static uint8_t opx_slot[NTRK] = {0xFFu, 0xFFu, 0xFFu, 0xFFu};   /* the SLOT value last loaded; 0xFF none yet */
@@ -228,6 +231,21 @@ static void opx_load_factory(uint32_t tr, uint32_t i)
     opx_set_pk(tr, pk);
     opx_slot[tr % NTRK] = (uint8_t)i;
 }
+static void opx_load_init(uint32_t tr)
+{
+    uint8_t pk[OPX_PK_BYTES];
+    opx_defaults(pk);
+    opx_set_pk(tr, pk);
+    opx_slot[tr % NTRK] = (uint8_t)OPX_INIT;
+}
+/* track tr's patch by SLOT value s: F n, INIT; anything else F1 (OWN without a patch of its own) */
+static void opx_load_slot(uint32_t tr, int32_t s)
+{
+    if (s == (int32_t)OPX_INIT)
+        opx_load_init(tr);
+    else
+        opx_load_factory(tr, s >= 0 && s < (int32_t)OPX_NFACTORY ? (uint32_t)s : 0u);
+}
 /* field f of track tr's patch = v (main loop; the operator pages): the patch is the track's own from now on */
 static void opx_edit(uint32_t tr, uint32_t f, int32_t v)
 {
@@ -249,11 +267,11 @@ static void opx_poll(void)
     for (tr = 0; tr < NTRK; tr++) {
         int32_t s = trk[tr].p[P_E7];
         if (opx_slot[tr] == 0xFFu)                     /* (first time: a patch to edit even before OPX is picked) */
-            opx_load_factory(tr, trk[tr].eng_req == ENGI_OPX && s >= 0 && s < (int32_t)OPX_NFACTORY ? (uint32_t)s : 0u);
+            opx_load_slot(tr, trk[tr].eng_req == ENGI_OPX ? s : 0);
         if (trk[tr].eng_req != ENGI_OPX || s == opx_slot[tr])
             continue;
-        if (s >= 0 && s < (int32_t)OPX_NFACTORY)
-            opx_load_factory(tr, (uint32_t)s);
+        if ((s >= 0 && s < (int32_t)OPX_NFACTORY) || s == (int32_t)OPX_INIT)
+            opx_load_slot(tr, s);
         else
             opx_slot[tr] = (uint8_t)OPX_OWN;           /* OWN: the patch the track has */
     }

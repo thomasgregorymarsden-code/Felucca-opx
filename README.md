@@ -78,7 +78,8 @@ them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SA
   10 kHz, the HD versions to 20 kHz. **WIDTH** (FM mode; OFF, 1–99 %) squeezes the whole wave into that part of each
   cycle and leaves the rest silent. A noise ignores pitch, FM, FB and WIDTH.
 - **A patch** is all of that for six operators plus the algorithm. Each track has its own. SLOT F1–F7 loads a
-  factory patch; editing any value makes it the track's own (**SLOT OWN**).
+  factory patch, **SLOT INIT** the INIT patch (as the opsix's INITIALIZE: OP1 alone at LEVEL 100, algorithm 1, ratio
+  1, no modulation; turn past OWN to reach it); editing any value makes it the track's own (**SLOT OWN**).
 
 ### The pages
 

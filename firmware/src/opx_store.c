@@ -72,7 +72,7 @@ static int opx_in_use(void)
 static void opx_track_factory(uint32_t tr)
 {
     int32_t s = trk[tr].p[P_E7];
-    opx_load_factory(tr, s >= 0 && s < (int32_t)OPX_NFACTORY ? (uint32_t)s : 0u);
+    opx_load_slot(tr, s);
     if (trk[tr].eng_req == ENGI_OPX && s == (int32_t)OPX_OWN)
         opx_slot[tr] = (uint8_t)OPX_OWN;
 }
@@ -81,7 +81,7 @@ static void opx_track_stored(uint32_t tr, const uint8_t *pk)
 {
     int32_t s = trk[tr].p[P_E7];
     opx_set_pk(tr, pk);
-    opx_slot[tr] = (uint8_t)(s >= 0 && s <= (int32_t)OPX_OWN ? s : (int32_t)OPX_OWN);   /* (opx_poll: it stays) */
+    opx_slot[tr] = (uint8_t)(s >= 0 && s <= (int32_t)OPX_INIT ? s : (int32_t)OPX_OWN);   /* (opx_poll: it stays) */
 }
 /* after any restore (a project, the autosave, a backup): each track's patch by its SLOT, before an entry (if one
  * matches) puts the project's own back */

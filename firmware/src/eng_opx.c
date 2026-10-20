@@ -25,7 +25,8 @@
  *   ATK   all operators' attack times, longer (+) or shorter (-) (the opsix's HOME ATK)
  *   DEC   all operators' decay and release times (HOME DECAY)
  *   SLOT  F1..F7 load a factory patch into the track; OWN the track's own (edited on the operator pages, ui_fm6op.c,
- *         or loaded with a project, opx_store.c). The patch is opx_patch.c's packed record per track
+ *         or loaded with a project, opx_store.c); INIT the INIT patch (the opsix's INITIALIZE). The patch is
+ *         opx_patch.c's packed record per track
  * Felucca's FM6-style macros (E3..E6: MLVL, FB, MRAT, DTUN) are not the opsix's: off (OPX_FELUCCA_MACROS 0; the track
  * keeps their values, nothing reads them, no page shows them: ui.c page_visible). So are Felucca's general modulation
  * routes into the engine: FLT (ENV / LFO -> FLT, the matrix's CUT: the modulators' level) and SHP (the feedback).
@@ -1748,9 +1749,9 @@ static const char *const N_OPX_ALG[] = {"PAT", "1", "2", "3", "4", "5", "6", "7"
                                         "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26",
                                         "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39",
                                         "40", "USR", 0};
-static const char *const N_OPX_SLOT[] = {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "OWN", 0};
+static const char *const N_OPX_SLOT[] = {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "OWN", "INIT", 0};
 _Static_assert(NELEM(N_OPX_ALG) == OPX_NALG + 3u, "an ALG name per value");
-_Static_assert(NELEM(N_OPX_SLOT) == NELEM(OPX_FACTORY) + 2u, "a SLOT name per factory patch, then OWN");
+_Static_assert(NELEM(N_OPX_SLOT) == NELEM(OPX_FACTORY) + 3u, "a SLOT name per factory patch, then OWN, INIT");
 
 /* {ALG, ATK, DEC, MLVL, FB, MRAT, DTUN, SLOT}: each factory patch as it is */
 static const preset_t OPX_PRESETS[] = {
@@ -1774,7 +1775,7 @@ static const engine_t ENG_OPX = {
         {"FB", F_BIPCT, -64, 63, 0, 0, 0},
         {"MRAT", F_INT, -16, 16, 0, 0, 0},
         {"DTUN", F_PCT, 0, 127, 0, 0, 0},
-        {"SLOT", F_INT, 0, (int16_t)NELEM(OPX_FACTORY), 0, N_OPX_SLOT, 0},
+        {"SLOT", F_INT, 0, (int16_t)NELEM(OPX_FACTORY) + 1, 0, N_OPX_SLOT, 0},   /* (F1..F7, OWN, INIT) */
     },
     .presets = OPX_PRESETS,
     .npresets = NELEM(OPX_PRESETS),

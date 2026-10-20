@@ -59,6 +59,9 @@ static int ed_opx_handle(uint32_t cmd, const uint8_t *a, uint32_t n)
                 if (!memcmp(fp, ed_opx_pk, OPX_PK_BYTES))
                     break;
             }
+            opx_defaults(fp);                              /* (the INIT patch unchanged: SLOT INIT) */
+            if (f == OPX_NFACTORY && !memcmp(fp, ed_opx_pk, OPX_PK_BYTES))
+                f = OPX_INIT;
             opx_set_pk(a[1], ed_opx_pk);
             opx_slot[a[1]] = (uint8_t)f;                   /* (OWN, or F n: opx_poll keeps it) */
             trk[a[1]].p[P_E7] = (int16_t)f;

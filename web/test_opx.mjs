@@ -4,6 +4,7 @@
 // the firmware makes (opx_pk_ok), the name, the device's texts.
 import { readFileSync } from "node:fs";
 import * as OPX from "./opx_patch.js";
+import * as TST from "./opx_tests.js";
 let fails = 0;
 const ok = (c, what) => { console.log(`${what.padEnd(78)} ${c ? "ok" : "FAIL"}`); if (!c) fails++; };
 const hex = (b) => Buffer.from(b).toString("hex");
@@ -31,5 +32,14 @@ OPX.put(pk, "op2.eg_atk", 1); OPX.put(pk, "op2.coarse", 7); OPX.put(pk, "op2.fx_
 OPX.put(pk, "op2.flt_cutoff", -125); OPX.put(pk, "op2.ktrk_center", 60);
 ok(OPX.text(pk, 2, "eg_atk") === "1.0 MS" && OPX.text(pk, 2, "coarse") === "1" && OPX.text(pk, 2, "fx_e") === "10 MS" &&
    OPX.text(pk, 2, "flt_cutoff") === "-12.5 ST" && OPX.text(pk, 2, "ktrk_center") === "C4", "opx: the device's texts");
+const D = OPX.defaults();
+ok(OPX.get(D, "op1.level") === 100 && [2, 3, 4, 5, 6].every((k) => OPX.get(D, `op${k}.level`) === 0) && OPX.get(D, "algo") === 0,
+   "opx: INIT is the opsix's: OP1 alone at 100, algorithm 1");
+const tp = TST.make(OPX);
+ok(tp.length === 16 && tp.every((x) => OPX.ok(x.pk) && x.name.length <= 12 && OPX.name(x.pk) === x.name),
+   "opx: 16 test patches (one per OPX user preset), each a record the firmware takes, named");
+ok(OPX.timeText(TST.timeCode(50)) === "50 MS" && OPX.timeText(TST.timeCode(2000)) === "2.00 S" &&
+   Math.abs(parseFloat(OPX.speedText(TST.hzCode(5))) / 5 - 1) < 0.01 && OPX.get(tp[0].pk, "op2.level") === 25 && OPX.get(tp[15].pk, "op1.mode") === 5,
+   "opx: the test patches' times, LFO speeds (the nearest code, +-1 %) and values as the sheet's");
 console.log(fails ? `OPX WEB TESTS FAILED (${fails})` : "opx web tests passed");
 process.exit(fails ? 1 : 0);

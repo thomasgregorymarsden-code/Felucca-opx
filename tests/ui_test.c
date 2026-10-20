@@ -9653,6 +9653,28 @@ static int test_opx_ops(void)
         TSEL->p[P_E7] = 0;
         frame();
     }
+    {   /* SLOT INIT (after OWN): the opsix's INIT patch: OP1 alone at 100, algorithm 1, ratio 1; an edit makes it OWN */
+        const char *un;
+        char val[16];
+        uint32_t k;
+        go_title("ALGO"); frame();
+        frames(1600);
+        turn(EN_K4, 20);                             /* (to the end: F1..F7, OWN, INIT) */
+        frame();
+        ok = TSEL->p[P_E7] == (int16_t)OPX_INIT && opx_slot[tr] == OPX_INIT && opx_get(opx_pk[tr], OPXF_ALGO) == 0 &&
+             opx_get(opx_pk[tr], OPXF_OP(0, OPXF_OP1_LEVEL)) == 100 && opx_get(opx_pk[tr], OPXF_OP(0, OPXF_OP1_COARSE)) == 7;
+        for (k = 1; k < 6u; k++)
+            ok &= opx_get(opx_pk[tr], OPXF_OP(k, OPXF_OP1_LEVEL)) == 0;
+        ok &= opx_own[tr] && opx_own[tr]->op[1].level == 0;
+        param_format(track_desc(TSEL, P_E7), TSEL->p[P_E7], val, &un);
+        ok &= str_eq(val, "INIT");
+        opx_edit(tr, OPXF_OP(1, OPXF_OP1_LEVEL), 40);
+        ok &= TSEL->p[P_E7] == (int16_t)OPX_OWN && opx_slot[tr] == OPX_OWN;
+        bad += check("OPX: SLOT INIT loads the opsix's INIT (OP1 alone at 100, ALG 1, ratio 1); an edit makes it OWN", ok);
+        opx_load_factory(tr, 0);
+        TSEL->p[P_E7] = 0;
+        frame();
+    }
     return bad;
 }
 #endif

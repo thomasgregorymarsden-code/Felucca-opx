@@ -75,7 +75,7 @@ def main(pkg, version, out):
     for doc in ("LICENSE", "LICENSING.md"):
         shutil.copy(HERE.parent / doc, fw / doc)
     shutil.copy(HERE / "editor.html", ed / "index.html")
-    for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "fm1backup.js", "opx_fields.js", "opx_patch.js"):   # (OPX fork: the last two)
+    for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "fm1backup.js", "opx_fields.js", "opx_patch.js", "opx_tests.js"):   # (OPX fork: the last three)
         if (HERE / f).exists():
             shutil.copy(HERE / f, ed / f)
     (out / "index.html").write_text(

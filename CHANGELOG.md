@@ -5,6 +5,12 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **SLOT INIT** (OPX, the ALGO page's SLOT after OWN): loads the INIT patch, now the opsix's INITIALIZE: OP1 alone at
+  LEVEL 100 (OPX's INIT had all six at 100), algorithm 1, ratio 1, no modulation. The web editor's "Init patch" is
+  the same.
+- **The web editor's OPX tab: "Put the test patches in empty user presets"** writes the 16 opsix comparison patches
+  (T01–T17 of the test sheet) into empty user presets, never over a used one.
+
 - **OPX M4: EG1, LFO1 and the pitch modulation.** Each operator's P MOD (EG1 INT, LFO1 INT, ±144.00 semitones; VEL
   with DEST FINE or COARSE) and LMOD LFO1 INT (±100 %), PROG PITCH (LFO1 INT, TRANS, OCT), each INT with its CTRL
   source (MOD WHEEL, PITCH WHEEL ±, PEDAL, NOTE, VEL, EXP VEL, AFTER TOUCH, EG1, LFO1; REL VEL fixed; EG2/3 and
