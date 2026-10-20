@@ -30,10 +30,13 @@ static void panel_setup(void) {}
 
 static uint8_t nor[0x100000], flash_ok = 1;
 static int erase_error, fail_after = -1;
+static int dead_after = -1;                      /* (OPX M3: the power goes after that many erases + programs) */
 static uint32_t erases, as_erases;               /* (as_erases: the autosave's two sectors, 0xE5000 / 0xE6000) */
 static int st_read(uint32_t off, void *dst, uint32_t n) { memcpy(dst, nor + off, n); return 0; }
 static int st_erase(uint32_t off)
 {
+    if (dead_after == 0) return -8;
+    if (dead_after > 0) dead_after--;
     erases++;
     as_erases += off >= 0xE5000u && off < 0xE7000u;
     if (erase_error) return -8;
@@ -44,8 +47,9 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 {
     const uint8_t *s = src;
     uint32_t i;
-    if (fail_after == 0) return -9;
+    if (fail_after == 0 || dead_after == 0) return -9;
     if (fail_after > 0) fail_after--;
+    if (dead_after > 0) dead_after--;
     for (i = 0; i < n; i++) nor[off + i] &= s[i];
     return 0;
 }
@@ -449,11 +453,11 @@ static int opx_persist_test(void)
     memcpy(mine, opx_pk[1], OPX_PK_BYTES);
     memcpy(snap, nor, sizeof nor);
     ok = project_save(1) == 0 && str_eq(ui.msg, "SAVED");
-    for (off = 0; off < sizeof nor; off++)                /* written: project 1's pair, extension 1's pair only */
+    for (off = 0; off < sizeof nor; off++)                /* written: project 1's pair, OPX object 0 (projects 0, 1) */
         if (nor[off] != snap[off] && !(off >= 0x99000u && off < 0x9B000u) &&
-            !(off >= OPX_EXT_LO + 2u * 0x1000u && off < OPX_EXT_LO + 4u * 0x1000u))
+            !(off >= OPX_EXT_LO && off < OPX_EXT_LO + 2u * 0x1000u))
             outside++;
-    bad += check("OPX: a project save writes its record and its extension (slot 1's pair in the OPX region) only",
+    bad += check("OPX: a project save writes its record and its OPX object (projects 1 and 2's, the first in the region) only",
                  ok && !outside);
     opx_load_factory(1, 5);
     trk[1].p[P_E7] = 5;
@@ -490,9 +494,8 @@ static int opx_persist_test(void)
     trk[1].p[P_E7] = (int16_t)OPX_OWN;
     opx_slot[1] = (uint8_t)OPX_OWN;
     project_save(2);
-    nor[OPX_EXT_LO + 4u * 0x1000u + (nor[OPX_EXT_LO + 4u * 0x1000u + 8u] != 0xFF ? 0x1000u : 0u) + 300u] ^= 0x10u;
-    nor[OPX_EXT_LO + 4u * 0x1000u + 300u] ^= 0x10u;
-    nor[OPX_EXT_LO + 5u * 0x1000u + 300u] ^= 0x10u;
+    nor[OPX_EXT_LO + 2u * 0x1000u + 300u] ^= 0x10u;    /* (project 2: OPX object 1, both copies damaged) */
+    nor[OPX_EXT_LO + 3u * 0x1000u + 300u] ^= 0x10u;
     opx_load_factory(1, 4);
     project_load(2);
     opx_load_factory(1, 0);                              /* (what the load should have put: F1's, OWN) */
@@ -528,6 +531,180 @@ static int opx_persist_test(void)
     before = as.writes;
     as_run(70000u);
     bad += check("OPX: an OPX edit alone is a change the autosave writes", as.writes == before + 1u);
+    return bad;
+}
+
+/* ---- OPX M3 (0.2): two projects an object, the user presets' OPX patches; 0.1.0's per-project objects converted ---- */
+static uint8_t m3_old[4][NTRK][OPX_PK_BYTES];
+static const uint32_t M3_LINK[4] = {0x11111111u, 0x22222222u, 0x33333333u, 0x44444444u};
+/* 0.1.0's object j (its tag, its sectors), copy `copy`, sequence seq */
+static void m3_old_put(uint32_t j, uint32_t copy, uint32_t seq, uint32_t link, uint8_t (*pk)[OPX_PK_BYTES])
+{
+    static opx_ext_t e;
+    st_hdr_t h;
+    uint32_t base = opx_old_off(j) + copy * ST_SECTOR;
+    memset(&e, 0, sizeof e);
+    e.magic = OPX_EXT_MAGIC, e.link = link, e.ver = OPX_FORMAT_VERSION, e.ntrk = NTRK;
+    memcpy(e.pk, pk, sizeof e.pk);
+    memset(nor + base, 0xFF, ST_SECTOR);
+    memcpy(nor + base + ST_PAYLOAD_OFF, &e, sizeof e);
+    h.magic = ST_MAGIC, h.type = (uint16_t)(OPX_EXT_TAG0 + j), h.slot = (uint16_t)copy, h.seq = seq, h.len = sizeof e;
+    h.crc = st_crc32(&e, sizeof e), h.rsv[0] = h.rsv[1] = 0xFFFFFFFFu;
+    h.hcrc = st_crc32(&h, sizeof h - 4u);
+    memcpy(nor + base, &h, sizeof h);
+}
+/* a device as 0.1.0 left it: the four projects' objects (some in copy B, an older copy beside), the autosave's */
+static void m3_old_device(void)
+{
+    uint32_t j, tr;
+    static uint8_t junk[NTRK][OPX_PK_BYTES];
+    memset(nor + OPX_EXT_LO, 0xFF, OPX_EXT_HI - OPX_EXT_LO);
+    for (j = 0; j < 4u; j++)
+        for (tr = 0; tr < NTRK; tr++) {
+            opx_encode(&OPX_FACTORY[(j * 2u + tr) % OPX_NFACTORY], m3_old[j][tr]);
+            opx_put(m3_old[j][tr], OPXF_OP(tr % 6u, OPXF_OP1_LEVEL), (int32_t)(10u + j * 4u + tr));
+            opx_encode(&OPX_FACTORY[6], junk[tr]);
+        }
+    m3_old_put(0, 0, 5, M3_LINK[0], m3_old[0]);
+    m3_old_put(0, 1, 4, 0x99u, junk);                   /* (older: copy A wins) */
+    m3_old_put(1, 0, 2, 0x98u, junk);
+    m3_old_put(1, 1, 3, M3_LINK[1], m3_old[1]);         /* (copy B wins) */
+    m3_old_put(2, 1, 1, M3_LINK[2], m3_old[2]);
+    m3_old_put(3, 0, 7, M3_LINK[3], m3_old[3]);
+    m3_old_put(4, 0, 1, 0x77u, junk);                   /* (the autosave's: kept where it is) */
+}
+static int m3_old_all(void)                            /* every project's patches still found: 1 */
+{
+    uint32_t j, ok = 1;
+    for (j = 0; j < 4u; j++) {
+        const uint8_t (*pk)[OPX_PK_BYTES] = opx_ext_read(j, M3_LINK[j]);
+        ok &= pk && !memcmp(pk, m3_old[j], sizeof m3_old[j]);
+    }
+    return (int)ok;
+}
+static void m3_track(uint32_t tr, int32_t level)        /* track tr: OPX, its own patch (OP1 LEVEL level) */
+{
+    trk[tr].eng_req = trk[tr].engine = ENGI_OPX;
+    trk[tr].p[P_E7] = 1;
+    opx_slot[tr] = 0xFFu;
+    opx_poll();
+    opx_edit(tr, OPXF_OP(0, OPXF_OP1_LEVEL), level);
+}
+static int opx_m3_test(void)
+{
+    int bad = 0, ok;
+    uint32_t off, j, cut, k;
+    static uint8_t snap[0x100000];
+
+    /* conversion at boot */
+    reset();
+    opx_reset();
+    m3_old_device();
+    memcpy(snap, nor, sizeof nor);
+    ok = m3_old_all();                                  /* (before: read where 0.1.0 left them) */
+    ok &= opx_ext_convert() == 2u && opx_pair_valid(0) && opx_pair_valid(1) && m3_old_all();
+    for (off = 0; off < sizeof nor; off++)
+        ok &= nor[off] == snap[off] || (off >= OPX_EXT_LO && off < OPX_EXT_LO + 4u * ST_SECTOR);
+    bad += check("OPX M3: 0.1.0's four project objects -> two pairs at boot; only objects 0, 1 written", ok);
+    memcpy(snap, nor, sizeof nor);
+    ok = opx_ext_convert() == 0u && !memcmp(snap, nor, sizeof nor);
+    reset();                                            /* (a device that never had OPX patches) */
+    ok &= opx_ext_convert() == 0u && erases == 0u;
+    bad += check("OPX M3: a second boot, or a device without 0.1.0's objects, writes nothing", ok);
+
+    /* a power cut at any erase or program of the conversion: nothing lost, the next boot finishes */
+    ok = 1;
+    for (cut = 0; cut < 200u; cut++) {
+        reset();
+        m3_old_device();
+        dead_after = (int)cut;
+        opx_ext_convert();
+        k = dead_after > 0;                             /* (finished before the cut) */
+        dead_after = -1;
+        ok &= m3_old_all();
+        opx_ext_convert();
+        ok &= m3_old_all() && opx_pair_valid(0) && opx_pair_valid(1);
+        if (k)
+            break;
+    }
+    bad += check("OPX M3: a power cut anywhere in the conversion loses no project's patches; the next boot completes",
+                 ok && cut > 20u && cut < 200u);
+
+    /* without the boot's conversion: the first writes move what they would cover */
+    reset();
+    m3_old_device();
+    opx_reset();
+    m3_track(0, 77);
+    ok = project_save(3) == 0;                          /* (pair 1 lies over 0.1.0's object 1: pair 0 first) */
+    ok &= opx_pair_valid(0) && opx_pair_valid(1);
+    for (j = 0; j < 3u; j++) {
+        const uint8_t (*pk)[OPX_PK_BYTES] = opx_ext_read(j, M3_LINK[j]);
+        ok &= pk && !memcmp(pk, m3_old[j], sizeof m3_old[j]);
+    }
+    opx_edit(0, OPXF_OP(0, OPXF_OP1_LEVEL), 5);
+    project_load(3);
+    ok &= opx_get(opx_pk[0], OPXF_OP(0, OPXF_OP1_LEVEL)) == 77;
+    bad += check("OPX M3: a project save before any conversion moves the other projects' patches first", ok);
+    reset();
+    m3_old_device();
+    opx_reset();
+    m3_track(0, 66);
+    ok = up_store(4, "OPX 4") == 0 && m3_old_all();     /* (user preset object 0 lies over 0.1.0's object 2) */
+    bad += check("OPX M3: an OPX user preset saved before any conversion moves the projects' patches first", ok);
+
+    /* the user presets */
+    reset();
+    opx_reset();
+    song.sel = 0;
+    m3_track(0, 41);
+    ok = up_store(5, "MINE") == 0;
+    opx_edit(0, OPXF_OP(0, OPXF_OP1_LEVEL), 3);
+    ok &= up_load(5) == 0 && opx_get(opx_pk[0], OPXF_OP(0, OPXF_OP1_LEVEL)) == 41 && opx_slot[0] == OPX_OWN &&
+          trk[0].eng_req == ENGI_OPX;
+    opx_poll();
+    ok &= opx_get(opx_pk[0], OPXF_OP(0, OPXF_OP1_LEVEL)) == 41;   /* (opx_poll keeps it) */
+    bad += check("OPX M3: an OPX user preset keeps its track's patch (SLOT OWN, as saved)", ok);
+    ok = up_rename(5, "RENAMED") == 0;
+    opx_edit(0, OPXF_OP(0, OPXF_OP1_LEVEL), 3);
+    ok &= up_load(5) == 0 && opx_get(opx_pk[0], OPXF_OP(0, OPXF_OP1_LEVEL)) == 41;
+    bad += check("OPX M3: a rename keeps the patch", ok);
+    {   /* another value of the record (an editor's UP_PUT without a patch): the SLOT's factory patch */
+        up_rec_t r = *up_rec(5);
+        uint8_t f[OPX_PK_BYTES];
+        up_set_value(&r, P_E7, 3);
+        ok = up_put(5, &r) == 0 && up_load(5) == 0;
+        opx_encode(&OPX_FACTORY[3], f);
+        ok &= !memcmp(f, opx_pk[0], OPX_PK_BYTES) && opx_slot[0] == 3u;
+        bad += check("OPX M3: a record changed without its patch loads its SLOT's factory patch", ok);
+    }
+    ok = 1;
+    for (k = 0; k < 16u; k++) {                         /* 16 OPX user presets, each its own patch */
+        m3_track(0, (int32_t)(20u + k));
+        ok &= up_store(k, "OPX") == 0;
+    }
+    m3_track(0, 99);
+    ok &= up_store(16, "SEVENTEEN") == 5 && !up_used(16);   /* (refused: nothing written) */
+    for (k = 0; k < 16u; k++) {
+        opx_edit(0, OPXF_OP(0, OPXF_OP1_LEVEL), 0);
+        ok &= up_load(k) == 0 && opx_get(opx_pk[0], OPXF_OP(0, OPXF_OP1_LEVEL)) == (int32_t)(20u + k);
+    }
+    bad += check("OPX M3: 16 OPX user presets keep their patches; a 17th is refused, nothing written", ok);
+    ok = up_put(3, 0) == 0;                             /* an erase frees an entry */
+    m3_track(0, 98);
+    ok &= up_store(16, "NOW") == 0;
+    trk[0].eng_req = trk[0].engine = ENGI_FM6;          /* another engine saved over one frees its entry too */
+    ok &= up_store(7, "FM6") == 0;
+    m3_track(0, 97);
+    ok &= up_store(17, "AND") == 0 && up_store(18, "NOT") == 5;
+    opx_edit(0, OPXF_OP(0, OPXF_OP1_LEVEL), 0);
+    ok &= up_load(16) == 0 && opx_get(opx_pk[0], OPXF_OP(0, OPXF_OP1_LEVEL)) == 98;
+    ok &= up_load(17) == 0 && opx_get(opx_pk[0], OPXF_OP(0, OPXF_OP1_LEVEL)) == 97;
+    ok &= up_load(15) == 0 && opx_get(opx_pk[0], OPXF_OP(0, OPXF_OP1_LEVEL)) == 35;
+    bad += check("OPX M3: an erased preset or another engine saved over one frees its entry", ok);
+    m3_track(0, 55);                                    /* the same slot again: its own entry, no second one */
+    ok = up_store(16, "AGAIN") == 0 && up_load(16) == 0 && opx_get(opx_pk[0], OPXF_OP(0, OPXF_OP1_LEVEL)) == 55;
+    ok &= up_store(18, "STILL") == 5;
+    bad += check("OPX M3: saving over an OPX preset reuses its entry", ok);
     return bad;
 }
 #endif
@@ -811,6 +988,7 @@ int main(void)
     bad += autosave_test();
 #if FELUCCA_OPX
     bad += opx_persist_test();
+    bad += opx_m3_test();
 #endif
     printf("%s\n", bad ? "PERSISTENCE TEST FAILED" : "persistence test passed");
     return bad != 0;

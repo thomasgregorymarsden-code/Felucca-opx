@@ -1098,7 +1098,8 @@ static void persist_boot(void)                    /* before settings_init / pane
     fl_plain_window_init();                        /* flash above 0x93000 reads as plaintext through XIP
                                                     * (user sample sets are played from there) */
 #if FELUCCA_OPX
-    opx_ext_migrate();                             /* OPX fork: data left at a former OPX_EXT_LO (opx_map.h), first */
+    opx_ext_migrate();                             /* OPX fork: data left at a former OPX_EXT_LO (opx_map.h), first; */
+    opx_ext_convert();                             /* then 0.1.0's per-project objects into pairs (opx_store.c) */
 #endif
 #if FELUCCA_SLICE
     slc_store_boot();                              /* (the scans read each slot's stored slices) */

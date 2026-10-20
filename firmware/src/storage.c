@@ -78,7 +78,7 @@ static uint32_t st_tag(uint32_t obj)
 {
 #if FELUCCA_OPX
     if (obj >= OBJ_OPX0 && obj < OBJ_OPX_END)
-        return OPX_EXT_TAG0 + (obj - OBJ_OPX0);
+        return OPX_OBJ_TAG(obj - OBJ_OPX0);
 #endif
     return obj;
 }

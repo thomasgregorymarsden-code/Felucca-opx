@@ -32,9 +32,12 @@ Installing custom firmware is at your own risk.
   an OPX sound, and for the autosave (RESTORE LAST) when it holds an OPX track.
 - **User sample slot 3 holds 40 KB** (about 3.7 s) instead of 80 KB: the OPX patches use the other half. A longer
   sample already in slot 3 must be uploaded again, shorter or into slot 1 or 2. Slots 1 and 2 are unchanged.
-- **Not yet saved:** an OPX track's own patch in a user preset or in the editor's backup archive. A user preset keeps
-  the OPX sound's ALG ATK DEC and SLOT, and comes back with that SLOT's factory patch. Projects and the autosave keep the
-  patch.
+- **OPX patches** are kept with projects, the autosave, user presets (up to 16 OPX user presets; a 17th is refused
+  with "OPX PRESETS FULL" until one is erased or saved over) and the editor's full backup. An OPX user preset saved by
+  0.1.0 or earlier has no patch of its own and comes back with its SLOT's factory patch.
+- **Updating from 0.1.0:** the first start moves the projects' OPX patches into the 0.2 layout, once; nothing else
+  changes. Installing 0.1.0 again afterwards loses the projects' OPX patches (their tracks play the SLOT's factory
+  patch), not the projects.
 - **Kept when installing:** projects, user presets, samples, settings and MIDI LEARN assignments.
 - **Coming from an older Felucca:** Felucca's own warnings apply. Projects saved by 1.4 or later do not open on
   1.1.5.x, and projects saved by 1.5 or later do not open on 1.2 to 1.4.1. See
@@ -189,7 +192,7 @@ Felucca's release history is in [docs/FELUCCA_HISTORY.md](docs/FELUCCA_HISTORY.m
   keep the layer open; one-step undo (SAVE held); REC on every page; OCT+ confirms, OCT- goes back; what can be
   pressed breathes softly instead of blinking
 - **Presets:** factory presets, 32 user preset slots and 4 projects, named on the device (an FM6
-  sound keeps its own patch in both; an OPX sound keeps its patch in projects only, for now); user presets get a category, and a project can get a random name; projects
+  or OPX sound keeps its own patch in both; up to 16 OPX user presets); user presets get a category, and a project can get a random name; projects
   from every earlier version load. The PRESETS knob changes the sound from every page that is not a list.
   Turn the FM-1 off and on and the music is as you left it (MENU > RESTORE LAST, an autosave of its own,
   written only when stopped and idle)

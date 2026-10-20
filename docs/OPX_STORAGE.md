@@ -1,6 +1,9 @@
 # OPX storage: where the OPX engine keeps its data, and how to move it
 
-The OPX engine needs more per-project data than a Felucca project record can hold: four OPX patches of up to 434 bytes each. So each project gets a second storage object, its **extension**. There are five extensions: one for each of the four projects, and one for the autosave.
+The OPX engine needs more data than Felucca's records can hold: four OPX patches of up to 434 bytes per project,
+and one per OPX user preset. It keeps them in five storage objects of its own, each with an A and a B copy, in Felucca's
+own A/B storage (`storage.c`): erase, write the payload, then write the 32-byte commit record last, with CRCs on both.
+A save interrupted at any point leaves the previous copy in use.
 
 ## Where it is now
 
@@ -11,7 +14,34 @@ The OPX engine needs more per-project data than a Felucca project record can hol
 | Defined in | `firmware/src/opx_map.h` only (`OPX_EXT_LO`, `OPX_EXT_OBJS`) |
 | Flash survey | 2026-10-13 (`web/opx/flashscan.html`): all 10 sectors erased. The unmapped block `0xEA000`–`0xFBFFF` held stock data in 17 of 18 sectors, so it was not used |
 
-Each extension uses Felucca's own A/B storage (`storage.c`): erase, write the payload, then write the 32-byte commit record last, with CRCs on both. A save interrupted at any point leaves the previous copy in use.
+## What the objects hold (since 0.2)
+
+| Object | Sectors | Holds | Commit record type |
+|---|---|---|---|
+| 0 | 1–2 | projects 1 and 2's patches (`opx_pair_t`: per project the record's CRC as `link`, its 4 patches) | `0x4F58` |
+| 1 | 3–4 | projects 3 and 4's | `0x4F59` |
+| 2 | 5–6 | 8 OPX user presets' patches (`upx_obj_t`: per entry the slot, a tag of its record, the patch) | `0x4F5A` |
+| 3 | 7–8 | 8 more | `0x4F5B` |
+| 4 | 9–10 | the autosave's patches (`opx_ext_t`, as in 0.1.0) | `0x4F54` |
+
+A project's entry counts only while its `link` equals the CRC of the project record it is loaded with; a user preset's
+entry only while its record is an OPX sound with the same tag (`upf_tag`, the record without its name, as FM6's user
+preset patches use). A stale entry is never applied: the track plays its SLOT's factory patch. Saving one project of a
+pair reads the pair, changes its entry and writes the pair. With 16 OPX user presets saved, a 17th is refused before
+its record is written.
+
+**From 0.0.1–0.1.0:** objects 0–3 held one project each (`opx_ext_t`, types `0x4F50`–`0x4F53`, in the same sectors).
+Their contents move into the two pairs once, at the first boot of 0.2 (`opx_ext_convert`, `opx_store.c`), and lazily
+before any write if that boot could not: object j is never written while 0.1.0's object j there is still the only copy
+of its project's patches (`opx_free`). Pair 0 goes into the copy of object 0 that 0.1.0's project 1 does not use now; pair 1
+only once pair 0 holds project 2 (whose 0.1.0 object it overwrites). A power cut at any erase or program loses nothing
+(`tests/persistence_test.c`). New types for the new contents mean a 0.1.0 object is never read as a 0.2 one; installing
+0.1.0 again after the move finds no objects of its types for projects 1–4 (their OPX tracks play the SLOT's factory
+patch).
+
+**Backup:** the editor's full backup (`editor_backup.c`) lists objects 0–3 as ids 10–13, as stored, and the tracks'
+current patches as id 14 (restored after the live music, id 0). Archives without them (Felucca, Felucca-OPX 0.1.0) still
+restore; firmware without them skips them (rc 1 at begin).
 
 ## Precautions so the region can be moved later
 
@@ -25,7 +55,7 @@ These are for the case where upstream Felucca takes the OPX engine but wants its
    - the size the editor reports per slot (`SMP_INFO`).
 
    If the region moves out of slot 3, slot 3 gets its 80 KB back without any other edit. Compile-time checks reject a region that would overlap the projects, the FM6 patches or the preset banks, leave a sample slot under 8 KB, or span two slots.
-2. **Fixed on-flash identity.** Each extension's commit record carries a fixed type tag (`0x4F50 + i`). The tag is not the object's position in `storage.c`'s enum, so adding upstream storage objects later does not change what is already on a device's flash. The upstream objects' commit records are unchanged.
+2. **Fixed on-flash identity.** Each object's commit record carries a fixed type tag (table above, `OPX_OBJ_TAG`). The tag is not the object's position in `storage.c`'s enum, so adding upstream storage objects later does not change what is already on a device's flash. The upstream objects' commit records are unchanged.
 3. **Built-in migration.** At boot, before anything else uses the flash map, `opx_ext_migrate()` checks each extension:
    - If the extension has no valid copy at the current location, the firmware looks at each former location listed in `OPX_EXT_LEGACY`.
    - It copies the first valid copy it finds (both CRCs checked), keeping its sequence number.
@@ -42,7 +72,7 @@ These are for the case where upstream Felucca takes the OPX engine but wants its
 2. Add the old value to `OPX_EXT_LEGACY`, newest first, e.g. `#define OPX_EXT_LEGACY 0xD2000u`.
 3. Build and run `tests/run_tests.sh`. The compile-time checks catch overlaps.
 
-The one thing a move cannot protect against is the old location being overwritten before the new firmware's first boot. For example, a user might install a firmware without OPX that gives slot 3 its full 80 KB back, then upload a long sample into slot 3. That loses OPX patches only; the device still works. A later milestone adds the extensions to the editor's backup archive, so users can export them first; an archive does not depend on where the data lives in flash.
+The one thing a move cannot protect against is the old location being overwritten before the new firmware's first boot. For example, a user might install a firmware without OPX that gives slot 3 its full 80 KB back, then upload a long sample into slot 3. That loses OPX patches only; the device still works. The editor's backup archive holds them (ids 10–13), so users can export them first; an archive does not depend on where the data lives in flash.
 
 ## Engine number
 

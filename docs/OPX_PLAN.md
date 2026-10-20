@@ -16,7 +16,7 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M2a | The 23 waveforms and WIDTH; the renderer an operator at a time | done (device cost: see [Cost](#cost)) |
 | M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | done (device cost: see [Cost](#cost); SHORT DELAY limited to 17 ms, see below; sound not yet compared with an opsix) |
 | | **Second release, `0.1.0`: M2a and M2b; the VOICE pages in OPERATORS; SELECT turns pages with BPM LOCK ON** | |
-| M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | |
+| M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | user presets (16) and the backup done, the storage repacked ([OPX_STORAGE.md](OPX_STORAGE.md)); the web editor's page to do |
 | M4 | EG1 (pitch), EG2 (filter), EG3, LFO1–3, pitch modulation | |
 | M5 | Main filter, effects 1–3, virtual patch, as far as the processor time allows | |
 

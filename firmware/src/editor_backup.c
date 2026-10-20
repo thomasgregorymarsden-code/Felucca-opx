@@ -7,8 +7,21 @@
  * Id 8 (the FM6 patch bank of 1.0..1.0.2) is listed empty since 1.0.3; a PUT of it from an older archive moves its
  * patches into the user presets restored before it (ids 6, 7), as the first boot after the update does (up_fm6.c).
  * Id 9 is the user presets' FM6 patches (up_fm6.c), appended in 1.0.3.
+ * OPX fork (0.2): ids 10..13 the OPX objects as stored (opx_store.c: projects 1-2's and 3-4's patches, the OPX user
+ * presets' two objects), id 14 the tracks' OPX patches now (the live music's, opx_pk: restored after id 0).
  */
+#if FELUCCA_OPX
+static const uint8_t ED_BK_IDS[18] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 32, 33, 34};
+#define ED_BK_TOP 14u                               /* (the highest id below the samples) */
+#ifndef OPX_XIP
+#define OPX_XIP(off) fm1_xip_ptr(off)               /* (flash above 0x93000 reads through XIP: storage.c's objects too) */
+#endif
+_Static_assert(sizeof proj_wire_u.raw >= sizeof(opx_pair_t) && sizeof proj_wire_u.raw >= sizeof(upx_obj_t) &&
+               sizeof proj_wire_u.raw >= sizeof opx_pk, "backup staging: the OPX objects");
+#else
 static const uint8_t ED_BK_IDS[13] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 32, 33, 34};
+#define ED_BK_TOP 9u
+#endif
 #define ED_BK_N ((uint32_t)sizeof ED_BK_IDS)
 #define ED_BK_MAX ((uint32_t)sizeof proj_wire_u.raw)
 #define ED_BK_RAW (proj_wire_u.raw)  /* reuse the existing serialized main-loop scratch */
@@ -50,6 +63,20 @@ static const uint8_t *ed_bk_object(uint32_t id, uint32_t *len)
         if (upf_valid(&upf)) *len = sizeof upf;
         return (const uint8_t *)&upf;
     }
+#if FELUCCA_OPX
+    if (id >= 10u && id <= 13u) {                   /* an OPX object: its current copy as stored (none: empty) */
+        st_hdr_t h;
+        int c = flash_ok ? st_current(OBJ_OPX0 + id - 10u, &h) : -1;
+        if (c < 0)
+            return ED_BK_RAW;
+        *len = h.len;
+        return OPX_XIP(st_sector(OBJ_OPX0 + id - 10u, (uint32_t)c) + ST_PAYLOAD_OFF);
+    }
+    if (id == 14u) {                                /* the tracks' OPX patches */
+        *len = sizeof opx_pk;
+        return &opx_pk[0][0];
+    }
+#endif
     if (id >= 32u && id < 32u + SMP_USER_SLOTS) {
         uint32_t k = id - 32u;
         const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(k);
@@ -128,7 +155,41 @@ static uint32_t ed_bk_commit(void)
         if (ed_bk_len) memcpy(&upf, raw, sizeof upf); else upf_empty();
         sync_reload = 1; ui.force = 1;
         return upf_save() == 2 ? 4u : 0u;           /* (a failed write keeps the restored RAM copy) */
-    } else return 1;
+    }
+#if FELUCCA_OPX
+    else if (ed_bk_id >= 10u && ed_bk_id <= 13u) {  /* an OPX object (0: an empty one, nothing kept) */
+        uint32_t j = ed_bk_id - 10u;
+        if (j < 2u) {
+            const opx_pair_t *q = (const opx_pair_t *)raw;
+            if (ed_bk_len && (ed_bk_len != sizeof *q || q->magic != OPX_PAIR_MAGIC || q->n != 2u ||
+                q->ver != OPX_FORMAT_VERSION)) return 2;
+        } else {
+            const upx_obj_t *q = (const upx_obj_t *)raw;
+            if (ed_bk_len && (ed_bk_len != sizeof *q || q->magic != OPX_UPX_MAGIC || q->n != UPX_N ||
+                q->ver != OPX_FORMAT_VERSION)) return 2;
+        }
+#if FELUCCA_FLASH
+        if (!flash_ok || opx_free(j)) return 4;
+        if (!ed_bk_len) {                           /* (what an empty object means: no patches) */
+            if (j < 2u) opx_pair_empty(); else upx_empty();
+            memcpy(raw, &opx_sb, j < 2u ? sizeof opx_sb.pair : sizeof opx_sb.up);
+            ed_bk_len = j < 2u ? sizeof opx_sb.pair : sizeof opx_sb.up;
+        }
+        if (st_save(OBJ_OPX0 + j, raw, ed_bk_len)) return 4;
+#endif
+        sync_reload = 1; ui.force = 1;
+        return 0;
+    } else if (ed_bk_id == 14u) {                   /* the tracks' OPX patches: each OPX track takes its own */
+        uint32_t tr;
+        if (ed_bk_len != sizeof opx_pk) return 2;
+        for (tr = 0; tr < NTRK; tr++)
+            if (trk[tr].eng_req == ENGI_OPX && opx_pk_ok(raw + tr * OPX_PK_BYTES))
+                opx_track_stored(tr, raw + tr * OPX_PK_BYTES);
+        sync_reload = 1; ui.force = 1;
+        return 0;
+    }
+#endif
+    else return 1;
 #if FELUCCA_FLASH
     if (!flash_ok || st_save(obj, raw, ed_bk_len)) return 4;
 #else
@@ -163,7 +224,7 @@ static int proj_store_len(uint32_t len)
 static uint32_t ed_bk_write(const uint8_t *a, uint32_t n)
 {
     /* the arguments first: a malformed request never stops the transport */
-    if (n < 2u || a[0] > 3u || a[1] > 9u) return 1;
+    if (n < 2u || a[0] > 3u || a[1] > ED_BK_TOP) return 1;
     if (a[0] == 0u) {
         if (n != 12u || a[6] > 15u || a[11] > 15u) return 1;
         uint32_t len = ed_bk_r32(a + 2);
@@ -171,7 +232,12 @@ static uint32_t ed_bk_write(const uint8_t *a, uint32_t n)
             (a[1] == 1u && len != sizeof(persist_t)) ||
             (a[1] >= 2u && a[1] <= 5u && len && !proj_store_len(len)) ||
             ((a[1] == 6u || a[1] == 7u) && len && len != sizeof(up_bank_t)) ||
-            (a[1] == 8u && len && len != sizeof(fm6_bank_t)) || (a[1] == 9u && len && len != sizeof(upf_t))) return 1;
+            (a[1] == 8u && len && len != sizeof(fm6_bank_t)) || (a[1] == 9u && len && len != sizeof(upf_t))
+#if FELUCCA_OPX
+            || (a[1] >= 10u && a[1] <= 11u && len && len != sizeof(opx_pair_t))
+            || (a[1] >= 12u && a[1] <= 13u && len && len != sizeof(upx_obj_t)) || (a[1] == 14u && len != sizeof opx_pk)
+#endif
+            ) return 1;
         if (ed_flash_stop()) return 3;
         ed_bk_valid = 0; ed_bk_put = 1; ed_bk_id = a[1]; ed_bk_len = len; ed_bk_gen = ++proj_wire_gen;
         ed_bk_crc = ed_bk_r32(a + 7); ed_bk_pos = 0;

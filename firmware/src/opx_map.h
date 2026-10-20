@@ -23,7 +23,10 @@
 #define OPX_EXT_OBJS 5u                      /* one extension per project (4) and one for the autosave */
 #define OPX_EXT_LO 0x000D2000u
 #define OPX_EXT_HI (OPX_EXT_LO + OPX_EXT_OBJS * 2u * 0x1000u)   /* exclusive; A/B per object */
-#define OPX_EXT_TAG0 0x4F50u                  /* "PO" little-endian: commit record type of extension 0 (+ index) */
+#define OPX_EXT_TAG0 0x4F50u                  /* "PO" little-endian: 0.0.1..0.1.0's commit record type of object i: + i */
+/* since 0.2 (opx_store.c): objects 0, 1 two projects' patches each, 2, 3 the OPX user presets', 4 the autosave's (its
+ * type kept). New types for the new contents: an object written by 0.1.0 is never read as one of 0.2 */
+#define OPX_OBJ_TAG(i) ((i) == 4u ? OPX_EXT_TAG0 + 4u : 0x4F58u + (i))
 
 /* former OPX_EXT_LO values, newest first (a comma-separated list; empty: nothing to migrate from) */
 #ifndef OPX_EXT_LEGACY

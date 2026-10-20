@@ -69,8 +69,10 @@ int main(void)
         ok = 1;
         for (o = 0; o < OBJ_OPX0; o++)
             ok &= st_tag(o) == o;
-        for (i = 0; i < OPX_EXT_OBJS; i++)
-            ok &= st_tag(OBJ_OPX0 + i) == OPX_EXT_TAG0 + i;
+        for (i = 0; i < OPX_EXT_OBJS; i++)              /* (0.2: new types for the new contents of 0..3, the
+                                                         * autosave's kept; never 0.1.0's types of 0..3) */
+            ok &= st_tag(OBJ_OPX0 + i) == OPX_OBJ_TAG(i) && st_tag(OBJ_OPX0 + i) >= OBJ_COUNT &&
+                  (i == 4u ? st_tag(OBJ_OPX0 + i) == OPX_EXT_TAG0 + 4u : st_tag(OBJ_OPX0 + i) >= OPX_EXT_TAG0 + 5u);
         bad += check("commit record types: upstream objects unchanged, OPX objects fixed tags", ok);
     }
 
@@ -90,7 +92,7 @@ int main(void)
         ok = 1;
         for (i = 0; i < OPX_EXT_OBJS; i++) {
             memcpy(&h, nor + st_sector(OBJ_OPX0 + i, 0), sizeof h);
-            ok &= h.type == OPX_EXT_TAG0 + i && h.magic == ST_MAGIC;
+            ok &= h.type == OPX_OBJ_TAG(i) && h.magic == ST_MAGIC;
             ok &= st_load(OBJ_OPX0 + i, got, sizeof got) == (int)sizeof got && !memcmp(got, pay[i], sizeof got);
         }
         bad += check("on flash: magic and the fixed tag; every object loads back", ok);

@@ -285,6 +285,11 @@ static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for
 }
 
 #include "up_fm6.c"                            /* the FM6 user presets' patches: the same kind of store */
+#if FELUCCA_OPX
+static int upx_room(uint32_t k);               /* OPX fork: OPX user presets' patches (opx_store.c, after project.c's) */
+static int upx_store(uint32_t k, uint32_t tr);
+static void upx_track_load(track_t *t, uint32_t k);
+#endif
 #include "fm6_vbank.c"                         /* FM6's voice bank (SLOT B1..B32, 1.4.1) */
 
 static void up_boot(void)                      /* persist_boot: the banks from flash */
@@ -423,12 +428,24 @@ static int up_store_cat(uint32_t k, const char *name, uint32_t cat)
         }
     }
     {
-        int rc = up_put(k, &r);                         /* the record first, then its FM6 patch (up_fm6.c) */
+        int rc;
+#if FELUCCA_OPX
+        if (r.engine == ENGI_OPX && !upx_room(k))       /* OPX fork: 16 OPX user presets keep a patch: a 17th is */
+            return 5;                                   /* refused before anything is written */
+#endif
+        rc = up_put(k, &r);                             /* the record first, then its FM6 patch (up_fm6.c) */
         if ((rc == 0 || rc == 3) && r.engine == ENGI_FM6) {
             int u = upf_store(k, (uint32_t)(TSEL - trk));
             if (u == 2)
                 rc = 2;
         }
+#if FELUCCA_OPX
+        if ((rc == 0 || rc == 3) && r.engine == ENGI_OPX) {   /* .. or its OPX patch (opx_store.c) */
+            int u = upx_store(k, (uint32_t)(TSEL - trk));
+            if (u == 2 || u == 4)
+                rc = 2;
+        }
+#endif
         return rc;
     }
 }
@@ -481,6 +498,9 @@ static int up_load(uint32_t k)
         t->preset = 0;
         fm1_irq_on();
         upf_track_load(t, k);                           /* FM6: the preset's own patch (up_fm6.c) */
+#if FELUCCA_OPX
+        upx_track_load(t, k);                           /* OPX: its own, else its SLOT's (opx_store.c) */
+#endif
     }
     t->user = (uint8_t)(k + 1u);
     load_end(t);
@@ -590,6 +610,8 @@ static void up_ui_named(uint32_t op, uint32_t k, const char *name, uint32_t cat)
     rc = op == 1u ? up_put(k, 0) : op == 3u ? up_rename_cat(k, name, cat) : up_store_cat(k, name, cat);
     if (rc == 3)
         ui_message(op == 1u ? "ERASED (RAM)" : op == 3u ? "RENAMED (RAM)" : "SAVED (RAM)");
+    else if (rc == 5)                                   /* (OPX fork: up_store_cat, nothing written) */
+        ui_message("OPX PRESETS FULL");
     else if (rc)
         ui_message(op == 1u ? "ERASE ERROR" : "SAVE ERROR");
     else

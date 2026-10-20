@@ -3,6 +3,18 @@
 Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork is based on, are in
 [docs/FELUCCA_HISTORY.md](docs/FELUCCA_HISTORY.md).
 
+## Unreleased
+
+- **OPX user presets keep their patch** (up to 16 OPX user presets; a 17th is refused with "OPX PRESETS FULL", nothing
+  written). A rename keeps it; erasing the preset or saving another sound over it frees its place. Presets saved by
+  0.1.0 load their SLOT's factory patch, as before.
+- **The full backup includes OPX:** the projects' and user presets' OPX patches and the tracks' current ones. Archives
+  of 0.1.0 and Felucca still restore; a new archive restored onto 0.1.0 skips the OPX parts.
+- **Storage:** the projects' OPX patches are kept two projects per storage object (was one each), which frees room
+  for the user presets' without taking more of sample slot 3. The first start after updating moves 0.1.0's layout
+  over once; a power cut during the move loses nothing (tested at every write). Going back to 0.1.0 afterwards loses
+  the projects' OPX patches, not the projects.
+
 ## 0.1.0 (2026-10-19)
 
 Based on Felucca 1.5.1, as 0.0.1. Projects and patches saved with 0.0.1 open unchanged (the patch format is the same).

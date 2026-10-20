@@ -5,6 +5,7 @@
  * project formats, settings values and user preset banks kept byte for byte. */
 static unsigned char host_samples[3][0x14000];
 #define SMP_USER_XIP(k) host_samples[k]
+#define OPX_XIP(off) (nor + (off))                       /* (OPX: the objects read in place, as the device does) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -178,8 +179,8 @@ int main(void)
 
     reset();
     trk[0].step[0] = (step_t){{60}, 1, ST_NOTE, 0, 96, 0, 0};
-    bad += check("LIST captures the runtime: 13 objects (id 8 empty, id 9 the FM6 patches), runtime 3840 B (FUN10)",
-                 list(0, &len, &crc) == 0 && rep[2] == 13u && len == sizeof(project_store_t) && len == 3840u &&
+    bad += check("LIST captures the runtime: 13 objects (+ OPX's 10..14), id 8 empty, id 9 FM6's, runtime 3840 B",
+                 list(0, &len, &crc) == 0 && rep[2] == (FELUCCA_OPX ? 18u : 13u) && len == sizeof(project_store_t) && len == 3840u &&
                  crc == st_crc32(ED_BK_RAW, len));
     bad += check("an empty project slot lists as length 0", list(2, &len, &crc) == 0 && len == 0);
     bad += check("GET of the runtime copy", get(0, 0, 64) == 0);
@@ -377,7 +378,8 @@ int main(void)
         bad += check("an id 9 of another layout is refused (2), the patches kept",
                      put_all(9, &got, sizeof got, st_crc32(&got, sizeof got)) == 2u && !upf_get(0, pk));
         bad += check("an id 9 of the wrong size is refused at begin (1)", put_begin(9, sizeof got - 4u, 0) == 1u);
-        bad += check("an id 10 is refused (1)", put_begin(10, 0, 0) == 1u);
+        bad += check("an id above the last (15 with OPX, else 10) is refused (1)",
+                     put_begin(FELUCCA_OPX ? 15u : 10u, 0, 0) == 1u);
     }
     memcpy(&st, &proj_slot[2], sizeof st);
     erase_error = 1;
@@ -389,6 +391,59 @@ int main(void)
     bad += check("an empty project object clears the slot", put_all(4, 0, 0, st_crc32(0, 0)) == 0 && !project_used(2));
     st.raw[200] ^= 1;                                    /* hash no longer matches */
     bad += check("a project whose own hash fails is refused", put_all(4, &st, sizeof st, st_crc32(&st, sizeof st)) == 2u);
+
+#if FELUCCA_OPX
+    {   /* OPX fork: ids 10..13 the OPX objects as stored, 14 the tracks' patches; a whole round trip */
+        static uint8_t bytes[15][3840];
+        static uint32_t blen[15];
+        static const uint8_t ORDER[] = {3, 6, 10, 11, 12, 13, 0, 14};   /* (as fm1backup.js: id 14 after 0) */
+        uint8_t saved[OPX_PK_BYTES], preset[OPX_PK_BYTES], live[OPX_PK_BYTES];
+        uint32_t i, id, ok = 1;
+        reset();
+        song.sel = 0;
+        trk[0].eng_req = trk[0].engine = ENGI_OPX;
+        opx_slot[0] = 0xFFu;
+        opx_poll();
+        opx_edit(0, OPXF_OP(2, OPXF_OP1_LEVEL), 44);
+        memcpy(saved, opx_pk[0], OPX_PK_BYTES);
+        ok &= project_save(1) == 0;
+        opx_edit(0, OPXF_OP(2, OPXF_OP1_LEVEL), 55);
+        memcpy(preset, opx_pk[0], OPX_PK_BYTES);
+        ok &= up_store(3, "OPX") == 0;
+        opx_edit(0, OPXF_OP(2, OPXF_OP1_LEVEL), 66);
+        memcpy(live, opx_pk[0], OPX_PK_BYTES);
+        ok &= list(0, &len, &crc) == 0;
+        for (i = 0; i < sizeof ORDER; i++) {
+            const uint8_t *p;
+            id = ORDER[i];
+            p = ed_bk_object(id, &blen[id]);
+            ok &= list(id, &len, &crc) == 0 && len == blen[id] && crc == st_crc32(p, len);
+            memcpy(bytes[id], p, blen[id]);
+        }
+        ok &= blen[10] == sizeof(opx_pair_t) && blen[11] == 0u && blen[12] == sizeof(upx_obj_t) && blen[13] == 0u &&
+              blen[14] == sizeof opx_pk;
+        bad += check("OPX: ids 10..13 list the stored OPX objects (none: empty), 14 the tracks' patches", ok);
+        reset();
+        opx_slot[0] = 0xFFu;
+        opx_poll();
+        ok = 1;
+        for (i = 0; i < sizeof ORDER; i++) {
+            id = ORDER[i];
+            ok &= put_all(id, bytes[id], blen[id], st_crc32(bytes[id], blen[id])) == 0;
+        }
+        ok &= trk[0].eng_req == ENGI_OPX && !memcmp(live, opx_pk[0], OPX_PK_BYTES);
+        bad += check("OPX: restored, the live music's OPX track plays its own patch (id 14 after id 0)", ok);
+        project_load(1);
+        ok = !memcmp(saved, opx_pk[0], OPX_PK_BYTES);
+        ok &= up_load(3) == 0 && !memcmp(preset, opx_pk[0], OPX_PK_BYTES);
+        bad += check("OPX: restored, a project and a user preset bring their OPX patches back", ok);
+        bytes[12][0] ^= 1;
+        ok = put_all(12, bytes[12], blen[12], st_crc32(bytes[12], blen[12])) == 2u;
+        ok &= put_begin(12, sizeof(upx_obj_t) - 4u, 0) == 1u && put_begin(14, 100, 0) == 1u;
+        ok &= put_all(12, 0, 0, st_crc32(0, 0)) == 0 && up_load(3) == 0 && memcmp(preset, opx_pk[0], OPX_PK_BYTES);
+        bad += check("OPX: a malformed object is refused (2, 1 at begin); an empty one clears", ok);
+    }
+#endif
 
     /* the runtime */
     reset();

@@ -3,10 +3,14 @@
 // Local, complete musical archives. Requests name whitelisted objects, never flash addresses.
 // 8: the FM6 patch bank of 1.0..1.0.2 (listed empty since 1.0.3: a restore of an older archive's bank moves its patches
 // into the user presets restored before it); 9: the user presets' FM6 patches (1.0.3)
-export const BACKUP_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 32, 33, 34];
-const BACKUP_IDS_V2 = BACKUP_IDS.filter((id) => id !== 9);              // 1.0..1.0.2, and their archives
+// OPX fork (0.2): 10, 11 the projects' OPX patches (two projects each), 12, 13 the OPX user presets', 14 the tracks'
+// OPX patches now (restored after the live music, 0)
+export const BACKUP_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 32, 33, 34];
+const OPX_IDS = [10, 11, 12, 13, 14];
+const BACKUP_IDS_V3 = BACKUP_IDS.filter((id) => !OPX_IDS.includes(id)); // Felucca 1.0.3 .. 1.5.1, Felucca-OPX 0.1.0
+const BACKUP_IDS_V2 = BACKUP_IDS_V3.filter((id) => id !== 9);           // 1.0..1.0.2, and their archives
 const BACKUP_IDS_V1 = BACKUP_IDS_V2.filter((id) => id !== 8);           // firmware before FM6, and its archives
-const idsOf = (n) => [BACKUP_IDS, BACKUP_IDS_V2, BACKUP_IDS_V1].find((ids) => ids.length === n) || null;
+const idsOf = (n) => [BACKUP_IDS, BACKUP_IDS_V3, BACKUP_IDS_V2, BACKUP_IDS_V1].find((ids) => ids.length === n) || null;
 export const BACKUP_CMD = { LIST: 65, GET: 66, PUT: 67 };
 const BACKUP_CHUNK = 256;
 export const bkU32 = (n) => Array.from({ length: 5 }, (_, i) => (n >>> (i * 7)) & (i === 4 ? 15 : 127));
@@ -114,7 +118,8 @@ export async function restoreBackup(request, file, onProgress = () => {}) {
   const ask = async (r, o = {}) => request(r, { timeout: 4000, retries: 0, ...o });
   const put = async (args) => { const a = await ask([BACKUP_CMD.PUT, args]); bkCheck(a[2]); return a; };
   // Restore live music last. Other objects commit individually; a disconnect can leave a partial restore.
-  for (const o of [...archive.objects.slice(2), archive.objects[1], archive.objects[0]]) {
+  const late = archive.objects.filter((o) => o.id === 14);              // (the tracks' OPX patches: onto the live music)
+  for (const o of [...archive.objects.slice(2).filter((o) => o.id !== 14), archive.objects[1], archive.objects[0], ...late]) {
     if (o.id >= 32) {
       const slot = o.id - 32;
       const check = (a) => { if (a[0] !== slot) throw new Error("Unexpected sample reply"); bkCheck(a.at(-1)); };
@@ -131,7 +136,8 @@ export async function restoreBackup(request, file, onProgress = () => {}) {
         done += 512; onProgress(done, total);
       }
     } else {
-      if (o.id === 9) {                    // firmware before 1.0.3 does not take id 9 (rc 1 at begin, nothing written): skip it
+      if (o.id >= 9 && o.id <= 14) {       // firmware before 1.0.3 does not take id 9, without OPX 10..14 (rc 1 at begin,
+                                           // nothing written): skip it
         const a = await ask([BACKUP_CMD.PUT, [0, o.id, ...bkU32(o.size), ...bkU32(o.crc)]]);
         if (a[2] === 1) { done += o.size; onProgress(done, total); continue; }
         bkCheck(a[2]);
