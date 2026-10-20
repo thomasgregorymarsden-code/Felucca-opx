@@ -11,7 +11,9 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 - **The full backup includes OPX:** the projects' and user presets' OPX patches and the tracks' current ones. Archives
   of 0.1.0 and Felucca still restore; a new archive restored onto 0.1.0 skips the OPX parts.
 - **OPX pages ENVELOPE and OP LEVELS** (trial, beside OPERATORS): the selected operator's EG drawn with ATK DEC SUS
-  REL beside it; the six operators' LEVEL beside the algorithm chart.
+  REL CURVE beside it; the six operators' LEVEL beside the algorithm chart.
+- **HOME > OP MIX** (OPX tracks; HOME's first page there): the six operator levels on six knobs, PRESETS OP 1,
+  ALGORITHM OP 2, KNOB 1–4 OP 3–6.
 - **OPX knobs:** FINE moves 0.01 a click (was 0.001, below what the screen shows). ATK, DEC and REL move through a
   ladder of times (1 ms steps at the bottom up to 5 s steps at the top): 10 ms to 1 s takes 36 clicks (was about 420).
 - **The web editor's OPX tab:** read a track's OPX patch or a factory one, edit every operator value the engine plays

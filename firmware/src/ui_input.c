@@ -1653,6 +1653,14 @@ static void ui_input(void)
      * pass runs, so one landing after the layer's read went to the page as well: KNOB 1..4 edited the layer's control
      * and the page under it (HOME's sound, motion recorded), PRESETS could load a sound. They stay for the next pass */
     kq |= lay;
+#if FELUCCA_OPX
+    if (!lay && !ui.home && cur_page()->graph == GR_OPXK && xop_ok()) {   /* (OPX fork) HOME > OP MIX: PRESETS and */
+        if ((s = panel_enc(EN_PRESET)) != 0)       /* ALGORITHM are OP 1's and OP 2's LEVEL (KNOB 1..4 OP 3..6's) */
+            xop_level_turn(0, s, EN_PRESET);
+        if ((s = panel_enc(EN_ALGO)) != 0)
+            xop_level_turn(1, s, EN_ALGO);
+    }
+#endif
     if (!lay && (s = panel_enc(EN_PRESET)) != 0)
         presets_turn(s);
     if (!lay && (s = panel_enc(EN_ALGO)) != 0)     /* ALGORITHM: the selected track, on every page */

@@ -42,6 +42,7 @@ static const struct { const char *title, *hint; } HELP_PAGE[] = {
     {"OPERATORS", H_OPXL},                                   /* (OPX fork) */
     {"ENVELOPE", "[K1]OP[K3]STAGE[K4]VALUE"},                /* (OPX fork) */
     {"OP LEVELS", "[K3]OP[K4]LEVEL"},                        /* (OPX fork) */
+    {"OP MIX", "[PRESETS]OP1[ALGO]OP2[K1]OP3-6"},           /* (OPX fork: HOME) */
     {"ALGO", H_EDIT},                                        /* (OPX fork: EDIT 1 / 2 on an OPX track) */
     {"VOICE", "[K1]POLY, MONO[K2]GLIDE"},
     {"VOICE 2", "[K2]DETUNE[K3]PAN[K4]MUTE"},

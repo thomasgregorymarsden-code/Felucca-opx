@@ -123,11 +123,15 @@ rows hidden above or below.
 | VOICE | the track's VOICE pages: VOICE (POLY, MONO, LEG, UNI), GLIDE, GLIDE MODE, PRIORITY, ALLOC, DETUNE, PAN, MUTE, SPREAD, as on every engine (automation and MIDI LEARN included) |
 
 **ENVELOPE** draws the selected operator's EG in the left half (ATK a line, DEC and REL shaped by CURVE; the stage
-being edited highlighted) and lists ATK, DEC, SUS and REL in the right half: KNOB 1 the operator, KNOB 3 the row,
-KNOB 4 the value.
+being edited highlighted, both DEC and REL on CURVE) and lists ATK, DEC, SUS, REL and CURVE in the right half: KNOB 1
+the operator, KNOB 3 the row, KNOB 4 the value.
 
 **OP LEVELS** lists the six operators' LEVEL beside the algorithm chart: KNOB 3 (or KNOB 1) the operator, KNOB 4 its
 level.
+
+**HOME > OP MIX** (the first page HOME opens on an OPX track, before MIXER and CLOCK) puts all six levels on knobs at
+once, for playing: PRESETS is OP 1's LEVEL, ALGORITHM OP 2's, KNOB 1–4 OP 3–6's. On this page those two knobs do not
+load presets or change the track; any other page gives them back.
 
 On these pages and OPERATORS, ATK, DEC and REL move through 0, 1–9 ms by 1, 10–95 ms by 5, 100–950 ms by 50, 1–9.5 s
 by 0.5 and 10–90 s by 5 (10 ms to 1 s is 36 clicks); FINE moves 0.01 a click. MENU > KNOB ACCEL ON multiplies fast

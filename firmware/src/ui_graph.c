@@ -1651,12 +1651,12 @@ static int32_t ev_value(int32_t y, const char *v, const char *unit, uint16_t fg,
  * REL (the key let go: a RAISE mark). A stage's width follows its time code (the codes run log-time: 2 .. 32 px), the
  * height its level (the peak at the top: LEVEL scales the whole); ATK a line, DEC and REL shaped by CURVE as the engine
  * shapes them (eng_opx.c opx_eg_step: LIN a line, EXP an approach, 1 .. 9 between). The stage KNOB 3 picks ACCENT, a dot
- * at its end; "OP3" top left. 8 points a stage */
+ * at its end (CURVE: DEC and REL ACCENT); "OP3" top left. 8 points a stage */
 static void graph_opxenv(const track_t *t, uint16_t c)
 {
     static const uint16_t EXQ[9] = {32768, 13777, 5793, 2436, 1024, 431, 181, 76, 32};   /* 2^(-10 k / 8), Q15 */
     const uint8_t *pk = opx_pk[(uint32_t)(t - trk) % NTRK];
-    uint32_t op = fop_op % 6u, sg = xop_row() & 3u, k;
+    uint32_t op = fop_op % 6u, sg = xop_row(), k;      /* (sg 4, CURVE: DEC and REL, the stages it shapes) */
     int32_t a = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_ATK)), d = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_DEC));
     int32_t r = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_REL)), su = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_SUS));
     int32_t cv = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_CURVE)), top = 22, bot = 104, x0 = 8, x1, x2, x3, x4 = 114, st;
@@ -1670,7 +1670,8 @@ static void graph_opxenv(const track_t *t, uint16_t c)
     for (st = 0; st < 4; st++) {                     /* ATK, DEC, the hold (SUS), REL */
         int32_t xa = st == 0 ? x0 : st == 1 ? x1 : st == 2 ? x2 : x3, xb = st == 0 ? x1 : st == 1 ? x2 : st == 2 ? x3 : x4;
         int32_t ya = st == 0 ? bot : st == 1 ? top : ys, yb = st == 0 ? top : st == 3 ? bot : ys;
-        uint16_t col = (uint32_t)st == sg ? T_ACCENT : c;
+        int hot = (uint32_t)st == sg || (sg == 4u && (st == 1 || st == 3));
+        uint16_t col = hot ? T_ACCENT : c;
         px = xa, py = ya;
         for (k = 1; k <= 8u && st != 2; k++) {       /* the shape: LIN and EXP blended by CURVE (0 .. 10) */
             int32_t lin = (int32_t)k * 4096, ex = (int32_t)(((32768 - EXQ[k]) * 32768) / (32768 - 32));   /* Q15 */
@@ -2617,6 +2618,7 @@ static void draw_graph(void)
         case GR_OPXL:
         case GR_OPXE:
         case GR_OPXV:
+        case GR_OPXK:
             cv_oy = 0;
             if (xop_ok()) graph_opxlist(t, c);
             break;

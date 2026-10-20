@@ -2681,7 +2681,8 @@ static int test_page_cycles(void)
         uint32_t f = PAGES[i].fam;
         ok &= f != FAM_SEQ || PAGES[i].graph == GR_ROLL || PAGES[i].graph == GR_EVENTS;
         ok &= f != FAM_GLO || PAGES[i].graph == GR_SONG;   /* (1.2: GLO's only page) */
-        ok &= f != FAM_TRK || PAGES[i].graph == GR_TRK || str_eq(PAGES[i].title, "CLOCK");   /* HOME's: MIXER CLOCK */
+        ok &= f != FAM_TRK || PAGES[i].graph == GR_TRK || str_eq(PAGES[i].title, "CLOCK") ||
+              (FELUCCA_OPX && PAGES[i].graph == GR_OPXK);   /* HOME's: MIXER CLOCK (OPX fork: OP MIX on an OPX track) */
         ok &= PAGES[i].graph != GR_TRK || f == FAM_TRK;
         ui_power_on(); ui.home = 0; ui.page = (uint8_t)i; page_entered();
         ok &= FAM_BTN[cur_fam()] == (f == FAM_TRK ? B_HOME : f == FAM_GLO ? B_GLO : f == FAM_SEQ ? B_SEQ :
@@ -9175,7 +9176,7 @@ static int test_opx_ops(void)
         go_title("ENVELOPE"); frame();
         fop_op = 2;
         xo_set(EN_K3, 0, 10);
-        ok = xop_n() == 4u && xop_kind(0) == XR_ATK && xop_kind(3) == XR_REL;
+        ok = xop_n() == 5u && xop_kind(0) == XR_ATK && xop_kind(3) == XR_REL && xop_kind(4) == XR_CRV;
         turn(EN_K3, 2);
         ok &= xop_kind(xop_row()) == XR_SUS;
         opx_edit(tr, OPXF_OP(2, OPXF_OP1_EG_SUS), 50);
@@ -9185,7 +9186,7 @@ static int test_opx_ops(void)
         ok &= fop_op == 3u && xop_kind(xop_row()) == XR_SUS;   /* (another operator: the same row) */
         turn(EN_K2, 3);
         ok &= xop_kind(xop_row()) == XR_SUS && !xop_card(1, &lb, val, &un, &ra, &ic);
-        bad += check("OPX ops: ENVELOPE: ATK DEC SUS REL of the picked operator; KNOB 1 the operator, 3 the row, 2 nothing", ok);
+        bad += check("OPX ops: ENVELOPE: ATK DEC SUS REL CURVE of the picked operator; KNOB 1 the operator, 3 the row, 2 nothing", ok);
 
         go_title("OP LEVELS"); frame();
         fop_op = 0;
@@ -9200,6 +9201,38 @@ static int test_opx_ops(void)
         turn(EN_K1, -1);
         ok &= fop_op == 3u && xop_row() == 3u;
         bad += check("OPX ops: OP LEVELS: a row per operator (the row is the operator), KNOB 4 its LEVEL", ok);
+
+        /* HOME > OP MIX: HOME's first page on an OPX track; PRESETS, ALGORITHM, KNOB 1..4 = OP 1..6's LEVEL */
+        go_home(); frame();
+        press(B_HOME);
+        ok = !ui.home && str_eq(cur_page()->title, "OP MIX");
+        press(B_HOME); ok &= str_eq(cur_page()->title, "MIXER");
+        press(B_HOME); ok &= str_eq(cur_page()->title, "CLOCK");
+        press(B_HOME); ok &= ui.home;
+        press(B_HOME);
+        {
+            uint32_t k, sel0 = song.sel;
+            int32_t lv[6];
+            for (k = 0; k < 6u; k++) {
+                opx_edit(tr, OPXF_OP(k, OPXF_OP1_LEVEL), 50);
+                lv[k] = 50;
+            }
+            turn(EN_PRESET, 3); lv[0] += 3;
+            turn(EN_ALGO, -2); lv[1] -= 2;
+            for (k = 0; k < 4u; k++) {
+                turn(EN_K1 + k, (int32_t)k + 1);
+                lv[k + 2] += (int32_t)k + 1;
+            }
+            for (k = 0; k < 6u; k++)
+                ok &= opx_get(opx_pk[tr], OPXF_OP(k, OPXF_OP1_LEVEL)) == lv[k];
+            ok &= song.sel == sel0 && fop_op == 5u && xop_row() == 5u;   /* (no track change; the last turned lit) */
+            ok &= xop_card(0, &lb, val, &un, &ra, &ic) && str_eq(lb, "OP 3") && str_eq(val, "51");
+        }
+        bad += check("OPX ops: HOME > OP MIX (first on an OPX track): PRESETS OP 1, ALGORITHM OP 2, KNOB 1..4 OP 3..6", ok);
+        hold(B_SAVE);
+        ok = opx_get(opx_pk[tr], OPXF_OP(5, OPXF_OP1_LEVEL)) == 50 && opx_get(opx_pk[tr], OPXF_OP(4, OPXF_OP1_LEVEL)) == 53;
+        bad += check("OPX ops: OP MIX: SAVE held undoes the last gesture", ok);
+        go_title("OPERATORS"); frame();
         go_title("OPERATORS"); frame();
         opx_load_factory(tr, 0);                     /* (F1 again, as the tests below start) */
         TSEL->p[P_E7] = 0;

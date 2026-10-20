@@ -29,7 +29,8 @@ static const uint8_t FO_PAGE[3][4] = {
 /* per field: its byte in an operator's 21 (RATE / LEVEL: + the stage) */
 static const uint8_t FO_OFF[10] = {0, 0, FP_FC, FP_FF, FP_OL, FP_MODE, FP_DET, FP_KVS, FP_R1, FP_L1};
 
-static int xop_page(uint32_t g) { return g >= GR_OPXL && g <= GR_OPXV; }   /* (OPX fork: OPERATORS, ENVELOPE, LEVELS) */
+static int xop_page(uint32_t g) { return g >= GR_OPXL && g <= GR_OPXK; }   /* (OPX fork: OPERATORS, ENVELOPE, OP LEVELS,
+                                                                             * HOME's OP MIX) */
 static int fop_page(uint32_t g) { return (g >= GR_FMOP && g <= GR_FMENV) || xop_page(g); }
 static int fop_ok(void) { return TSEL->eng_req % NENGINES == ENGI_FM6; }
 static uint32_t fop_field(uint32_t slot)
@@ -237,9 +238,13 @@ static const char *const N_OPX_FX[10] = {"PEAK EQ", "SHELV EQ", "PHASER", "SHORT
 #define XL_MAX 48u
 /* the pages over the list: OPERATORS (every row), ENVELOPE (ATK DEC SUS REL of the picked operator, its EG drawn at the
  * left: graph_opxenv), OP LEVELS (a row per operator, its LEVEL; the row is the picked operator). Each its own row */
-enum { XV_ALL, XV_ENV, XV_LVL };
-static uint32_t xop_view(void) { uint32_t g = cur_page()->graph; return g == GR_OPXE ? XV_ENV : g == GR_OPXV ? XV_LVL : XV_ALL; }
-static uint8_t xop_lis[3], xop_tops[3];
+enum { XV_ALL, XV_ENV, XV_LVL, XV_KNB };             /* (XV_KNB: HOME > OP MIX, the six LEVELs on six knobs) */
+static uint32_t xop_view(void)
+{
+    uint32_t g = cur_page()->graph;
+    return g == GR_OPXE ? XV_ENV : g == GR_OPXV ? XV_LVL : g == GR_OPXK ? XV_KNB : XV_ALL;
+}
+static uint8_t xop_lis[4], xop_tops[4];
 #define xop_li xop_lis[xop_view()]                   /* KNOB 3: the picked row */
 #define xop_top xop_tops[xop_view()]                 /* the first row on show */
 
@@ -256,10 +261,10 @@ static uint32_t xop_list(uint8_t *rw)
         {XR_FGAIN, XR_GMIX, XR_BIAS}, {XR_FX, XR_XMIX, XR_FXE, XR_FXF}, {0}, {0}};
     uint32_t n = 0, md = xop_mode(song.sel % NTRK), k;
     if (xop_view() == XV_ENV) {
-        rw[0] = XR_ATK, rw[1] = XR_DEC, rw[2] = XR_SUS, rw[3] = XR_REL;
-        return 4;
+        rw[0] = XR_ATK, rw[1] = XR_DEC, rw[2] = XR_SUS, rw[3] = XR_REL, rw[4] = XR_CRV;
+        return 5;
     }
-    if (xop_view() == XV_LVL) {                      /* (row k: operator k's) */
+    if (xop_view() >= XV_LVL) {                      /* (row k: operator k's) */
         for (k = 0; k < 6u; k++)
             rw[k] = XR_LVL;
         return 6;
@@ -277,7 +282,7 @@ static uint32_t xop_n(void) { uint8_t rw[XL_MAX]; return xop_list(rw); }
 static uint32_t xop_row(void)
 {
     uint32_t n = xop_n();
-    if (xop_view() == XV_LVL)                        /* (OP LEVELS: the row is the operator) */
+    if (xop_view() >= XV_LVL)                        /* (OP LEVELS, OP MIX: the row is the operator) */
         return fop_op % 6u;
     return xop_li < n ? xop_li : n - 1u;
 }
@@ -307,7 +312,7 @@ static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
         OPXF_OP1_DETUNE, OPXF_OP1_TRANS, OPXF_OP1_LEVEL, OPXF_OP1_EG_ATK, OPXF_OP1_EG_DEC, OPXF_OP1_EG_SUS,
         OPXF_OP1_EG_REL, OPXF_OP1_EG_CURVE, OPXF_OP1_LMOD_VEL, OPXF_OP1_KTRK_LOW, OPXF_OP1_KTRK_CENTER,
         OPXF_OP1_KTRK_HIGH, OPXF_OP1_KTRK_LCRV, OPXF_OP1_KTRK_HCRV};
-    uint32_t k = xop_kind(i), op = xop_view() == XV_LVL ? i % 6u : fop_op % 6u;   /* (OP LEVELS: row i, operator i) */
+    uint32_t k = xop_kind(i), op = xop_view() >= XV_LVL ? i % 6u : fop_op % 6u;   /* (OP LEVELS, OP MIX: row i, op i) */
     if (k < XR_TO0)
         *field = (k == XR_RATIO || k == XR_FINE) && xop_fixed(tr) ? OPXF_OP(op, OPXF_OP1_FIXED_FREQ) : OPXF_OP(op, F[k]);
     else if (k <= XR_TO5)
@@ -410,10 +415,27 @@ static int32_t xop_time_step(int32_t c, int32_t steps)
 }
 /* a list's values (the modes, the filter / effect types, the curves, FREQ): one a detent */
 static int xop_enum(uint32_t k) { return k == XR_MODE || k == XR_FTYPE || k == XR_FX || k == XR_KLC || k == XR_KHC || k == XR_FREQ; }
+/* OP MIX (HOME): operator op's LEVEL turned by the knob of role `role` (PRESETS OP 1, ALGORITHM OP 2, KNOB 1..4 OP 3..6);
+ * the operator becomes the picked one (its row lit); one undo per gesture, as the list's */
+static void xop_level_turn(uint32_t op, int32_t steps, uint32_t role)
+{
+    uint32_t tr = song.sel % NTRK, f = OPXF_OP(op % 6u, OPXF_OP1_LEVEL);
+    int32_t was = opx_get(opx_pk[tr], f), v = clamp(was + accel(role, steps, 100), 0, 100);
+    fop_op = (uint8_t)(op % 6u);
+    if (v == was)
+        return;
+    edit_undo_take(TSEL, 0x4000u | f, UNDO_SOUND);
+    opx_edit(tr, f, v);
+    motion_undo_done(TSEL);
+}
 static void xop_knob(uint32_t slot, int32_t steps)
 {
     uint32_t tr = song.sel % NTRK, f, k, n = xop_n();
     int32_t v;
+    if (xop_view() == XV_KNB) {                      /* (OP MIX: KNOB 1..4 = OP 3..6's LEVEL) */
+        xop_level_turn(slot + 2u, steps, EN_K1 + slot);
+        return;
+    }
     if (slot == 0u) {
         fop_op = (uint8_t)clamp((int32_t)fop_op + steps, 0, 5);
         xop_li = (uint8_t)xop_row();                 /* (another operator, another MODE section: the row kept in range) */
@@ -686,7 +708,7 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
     case XR_LVL:
         on = v != 0;
         *unit = "%";
-        if (xop_view() == XV_LVL) {                  /* (OP LEVELS: a row per operator) */
+        if (xop_view() >= XV_LVL) {                  /* (OP LEVELS, OP MIX: a row per operator) */
             static char lb[8] = "OP ?";
             lb[3] = (char)('1' + r % 6u);
             *label = lb;
@@ -740,6 +762,16 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
     uint32_t tr = song.sel % NTRK, f;
     *unit = "";
     *ratio = -1;
+    if (xop_view() == XV_KNB) {                      /* (OP MIX: KNOB 1..4 = OP 3..6's LEVEL) */
+        static const char *const LB[4] = {"OP 3", "OP 4", "OP 5", "OP 6"};
+        int32_t v = opx_get(opx_pk[tr], OPXF_OP(slot + 2u, OPXF_OP1_LEVEL));
+        *label = LB[slot & 3u];
+        fmt_int(val, v);
+        *unit = "%";
+        *ratio = v * 10;
+        *icon = ICON_LEVEL;
+        return v != 0;
+    }
     if (slot == 0u) {
         *label = "OP";
         fmt_int(val, (int32_t)fop_op + 1);

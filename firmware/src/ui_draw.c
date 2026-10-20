@@ -1523,7 +1523,8 @@ static void ui_draw_page(uint32_t counting)
     }
     if (!ui.home && !page_visible(ui.page)) {          /* an OP page of a track that is not DIGITAL (without
                                                          * FELUCCA_FM4: any track): EDIT 1 */
-        ui.page = (uint8_t)page_first(FAM_EDIT);
+        ui.page = (uint8_t)page_first(PAGES[ui.page].fam == FAM_TRK ? FAM_TRK : FAM_EDIT);   /* (OPX fork: HOME's OP
+                                                         * MIX of a track that is not OPX any more: the MIXER) */
         page_entered();
     }
     cursor_fix();
