@@ -1659,12 +1659,15 @@ static void ui_input(void)
             xop_level_turn(0, s, EN_PRESET);
         if ((s = panel_enc(EN_ALGO)) != 0)
             xop_level_turn(1, s, EN_ALGO);
-    }
+    } else                                          /* (each knob read once a pass: a detent the 10 kHz scan counted
+                                                     * between two reads went to the sound or the track) */
 #endif
-    if (!lay && (s = panel_enc(EN_PRESET)) != 0)
-        presets_turn(s);
-    if (!lay && (s = panel_enc(EN_ALGO)) != 0)     /* ALGORITHM: the selected track, on every page */
-        track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+    {
+        if (!lay && (s = panel_enc(EN_PRESET)) != 0)
+            presets_turn(s);
+        if (!lay && (s = panel_enc(EN_ALGO)) != 0) /* ALGORITHM: the selected track, on every page */
+            track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+    }
     if ((s = glo ? sel : panel_enc(EN_SELECT)) != 0) {   /* SELECT knob = global tempo; */
         if (glo || !(ui_prefs & PREF_BPM_LOCK)) {
             song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);

@@ -9240,6 +9240,21 @@ static int test_opx_ops(void)
         hold(B_SAVE);
         ok = opx_get(opx_pk[tr], OPXF_OP(5, OPXF_OP1_LEVEL)) == 50 && opx_get(opx_pk[tr], OPXF_OP(4, OPXF_OP1_LEVEL)) == 53;
         bad += check("OPX ops: OP MIX: SAVE held undoes the last gesture", ok);
+        {   /* (testing note 2026-10-20) a detent the scan counts while the pass runs, between the OP MIX read and where
+             * the sound and track handlers read: it waits for the next pass and goes to OP 1 / OP 2, never to them */
+            uint32_t sel0 = song.sel, pre0 = TSEL->preset, slot0 = opx_slot[tr];
+            int32_t l0 = opx_get(opx_pk[tr], OPXF_OP(0, OPXF_OP1_LEVEL)), l1 = opx_get(opx_pk[tr], OPXF_OP(1, OPXF_OP1_LEVEL));
+            host_enc_late[panel.enc[EN_PRESET]] += 2 * panel.dir[EN_PRESET];
+            host_enc_late[panel.enc[EN_ALGO]] += 1 * panel.dir[EN_ALGO];
+            turn(EN_PRESET, 1);
+            turn(EN_ALGO, 1);
+            frame();
+            ok = song.sel == sel0 && TSEL->preset == pre0 && TSEL->eng_req == ENGI_OPX &&
+                 opx_get(opx_pk[tr], OPXF_OP(0, OPXF_OP1_LEVEL)) == l0 + 3 &&
+                 opx_get(opx_pk[tr], OPXF_OP(1, OPXF_OP1_LEVEL)) == l1 + 2;
+            (void)slot0;
+            bad += check("OPX ops: OP MIX: a detent counted mid-pass goes to OP 1 / OP 2, never loads a sound or changes track", ok);
+        }
         go_title("OPERATORS"); frame();
         go_title("OPERATORS"); frame();
         opx_load_factory(tr, 0);                     /* (F1 again, as the tests below start) */

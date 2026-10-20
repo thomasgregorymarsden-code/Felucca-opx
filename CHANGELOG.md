@@ -14,6 +14,8 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
   beside its rows and PROG PITCH's. OPERATORS gains the rows (PITCH: P MOD; EG: LMOD LFO1; sections EG1, LFO1,
   PROG). P MOD INT moves 0.05 a click up to 1, 0.50 up to 12, then 1 and 12 semitones.
 - **The web editor's OPX tab** edits the same (Modulation, EG1, LFO1, Program pitch).
+- Fix: HOME > OP MIX: a fast turn of PRESETS or ALGORITHM could still load a sound or change the track now and then
+  (the knob was read twice a pass; a click landing between the reads went to the usual handler).
 - Fixes: an OPX phaser product could overflow 32 bits at high resonance (found by the host sanitizer); a host test
   read past its buffer.
 
