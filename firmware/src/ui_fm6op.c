@@ -29,7 +29,8 @@ static const uint8_t FO_PAGE[3][4] = {
 /* per field: its byte in an operator's 21 (RATE / LEVEL: + the stage) */
 static const uint8_t FO_OFF[10] = {0, 0, FP_FC, FP_FF, FP_OL, FP_MODE, FP_DET, FP_KVS, FP_R1, FP_L1};
 
-static int fop_page(uint32_t g) { return (g >= GR_FMOP && g <= GR_FMENV) || g == GR_OPXL; }   /* (GR_OPXL: OPX fork) */
+static int xop_page(uint32_t g) { return g >= GR_OPXL && g <= GR_OPXV; }   /* (OPX fork: OPERATORS, ENVELOPE, LEVELS) */
+static int fop_page(uint32_t g) { return (g >= GR_FMOP && g <= GR_FMENV) || xop_page(g); }
 static int fop_ok(void) { return TSEL->eng_req % NENGINES == ENGI_FM6; }
 static uint32_t fop_field(uint32_t slot)
 {
@@ -234,8 +235,13 @@ static const char *const N_OPX_FLT[12] = {"LPF", "HPF", "BPF", "BRF", "MG LPF12"
 static const char *const N_OPX_FX[10] = {"PEAK EQ", "SHELV EQ", "PHASER", "SHORT DLY", "COMB", "DIST", "DRIVE", "DEC",
                                          "WAVESHAPER", "PUNCH"};                                 /* (p.34) */
 #define XL_MAX 48u
-static uint8_t xop_li;                               /* KNOB 3: the picked row */
-static uint8_t xop_top;                              /* the first row on show */
+/* the pages over the list: OPERATORS (every row), ENVELOPE (ATK DEC SUS REL of the picked operator, its EG drawn at the
+ * left: graph_opxenv), OP LEVELS (a row per operator, its LEVEL; the row is the picked operator). Each its own row */
+enum { XV_ALL, XV_ENV, XV_LVL };
+static uint32_t xop_view(void) { uint32_t g = cur_page()->graph; return g == GR_OPXE ? XV_ENV : g == GR_OPXV ? XV_LVL : XV_ALL; }
+static uint8_t xop_lis[3], xop_tops[3];
+#define xop_li xop_lis[xop_view()]                   /* KNOB 3: the picked row */
+#define xop_top xop_tops[xop_view()]                 /* the first row on show */
 
 static int xop_ok(void) { return TSEL->eng_req % NENGINES == ENGI_OPX; }
 static int32_t xop_get(uint32_t tr, uint32_t f1) { return opx_get(opx_pk[tr % NTRK], OPXF_OP(fop_op % 6u, f1)); }
@@ -249,6 +255,15 @@ static uint32_t xop_list(uint8_t *rw)
         {XR_FB, XR_WIDTH}, {XR_RDEPTH, XR_RSHAPE}, {XR_FTYPE, XR_FMIX, XR_CUT, XR_RESO}, {XR_FTYPE, XR_CUT, XR_RESO},
         {XR_FGAIN, XR_GMIX, XR_BIAS}, {XR_FX, XR_XMIX, XR_FXE, XR_FXF}, {0}, {0}};
     uint32_t n = 0, md = xop_mode(song.sel % NTRK), k;
+    if (xop_view() == XV_ENV) {
+        rw[0] = XR_ATK, rw[1] = XR_DEC, rw[2] = XR_SUS, rw[3] = XR_REL;
+        return 4;
+    }
+    if (xop_view() == XV_LVL) {                      /* (row k: operator k's) */
+        for (k = 0; k < 6u; k++)
+            rw[k] = XR_LVL;
+        return 6;
+    }
     rw[n++] = XR_MODE;
     if (md != OPX_M_BYPASS && md != OPX_M_MUTE)
         rw[n++] = XR_WAVE;
@@ -259,7 +274,13 @@ static uint32_t xop_list(uint8_t *rw)
     return n;
 }
 static uint32_t xop_n(void) { uint8_t rw[XL_MAX]; return xop_list(rw); }
-static uint32_t xop_row(void) { uint32_t n = xop_n(); return xop_li < n ? xop_li : n - 1u; }
+static uint32_t xop_row(void)
+{
+    uint32_t n = xop_n();
+    if (xop_view() == XV_LVL)                        /* (OP LEVELS: the row is the operator) */
+        return fop_op % 6u;
+    return xop_li < n ? xop_li : n - 1u;
+}
 static uint32_t xop_kind(uint32_t i) { uint8_t rw[XL_MAX]; uint32_t n = xop_list(rw); return rw[i < n ? i : n - 1u]; }
 static uint32_t xop_find(uint32_t kind)              /* the row of a kind (tests, the sections); none: the count */
 {
@@ -286,7 +307,7 @@ static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
         OPXF_OP1_DETUNE, OPXF_OP1_TRANS, OPXF_OP1_LEVEL, OPXF_OP1_EG_ATK, OPXF_OP1_EG_DEC, OPXF_OP1_EG_SUS,
         OPXF_OP1_EG_REL, OPXF_OP1_EG_CURVE, OPXF_OP1_LMOD_VEL, OPXF_OP1_KTRK_LOW, OPXF_OP1_KTRK_CENTER,
         OPXF_OP1_KTRK_HIGH, OPXF_OP1_KTRK_LCRV, OPXF_OP1_KTRK_HCRV};
-    uint32_t k = xop_kind(i), op = fop_op % 6u;
+    uint32_t k = xop_kind(i), op = xop_view() == XV_LVL ? i % 6u : fop_op % 6u;   /* (OP LEVELS: row i, operator i) */
     if (k < XR_TO0)
         *field = (k == XR_RATIO || k == XR_FINE) && xop_fixed(tr) ? OPXF_OP(op, OPXF_OP1_FIXED_FREQ) : OPXF_OP(op, F[k]);
     else if (k <= XR_TO5)
@@ -371,6 +392,22 @@ static int32_t xop_pow(int32_t f, int32_t n, uint32_t num, uint32_t den)
     }
     return f;
 }
+/* the EG times a detent of KNOB 4 goes through: 0, 1..9 ms by 1, 10..95 by 5, 100..950 by 50, 1..9.5 s by 0.5, 10..90 s
+ * by 5 (81 places: 10 ms to 1 s is 36 detents). The stored code is the TIME10 one nearest each (tools: its shown value is
+ * within 1 % of the place's; the codes in between stay reachable from the web editor, a turn goes to the next place) */
+static const uint16_t XOP_TLAD[] = {0, 1, 64, 100, 126, 146, 162, 176, 188, 198, 208, 244, 270, 290, 306, 320, 332, 343,
+    352, 361, 368, 375, 382, 388, 394, 399, 405, 409, 414, 450, 476, 496, 512, 526, 538, 548, 558, 566, 574, 581, 588, 594,
+    600, 605, 610, 615, 620, 656, 682, 702, 718, 732, 744, 755, 764, 773, 780, 788, 794, 800, 806, 812, 817, 822, 827, 863,
+    888, 908, 925, 938, 950, 961, 970, 979, 987, 994, 1000, 1007, 1012, 1018, 1023};
+static int32_t xop_time_step(int32_t c, int32_t steps)
+{
+    int32_t i, n = (int32_t)NELEM(XOP_TLAD);
+    for (i = 0; i + 1 < n && XOP_TLAD[i + 1] <= c; i++)
+        ;                                            /* (the place at or below c) */
+    if (steps < 0 && XOP_TLAD[i] < c)
+        steps++;                                     /* (between two places: left goes to the one below first) */
+    return XOP_TLAD[clamp(i + steps, 0, n - 1)];
+}
 /* a list's values (the modes, the filter / effect types, the curves, FREQ): one a detent */
 static int xop_enum(uint32_t k) { return k == XR_MODE || k == XR_FTYPE || k == XR_FX || k == XR_KLC || k == XR_KHC || k == XR_FREQ; }
 static void xop_knob(uint32_t slot, int32_t steps)
@@ -381,6 +418,12 @@ static void xop_knob(uint32_t slot, int32_t steps)
         fop_op = (uint8_t)clamp((int32_t)fop_op + steps, 0, 5);
         xop_li = (uint8_t)xop_row();                 /* (another operator, another MODE section: the row kept in range) */
         xop_scroll();
+        return;
+    }
+    if (slot == 1u && xop_view() != XV_ALL)          /* (ENVELOPE, OP LEVELS: no sections) */
+        return;
+    if (slot == 2u && xop_view() == XV_LVL) {        /* (OP LEVELS: the row is the operator) */
+        fop_op = (uint8_t)clamp((int32_t)fop_op + steps, 0, 5);
         return;
     }
     if (slot == 1u) {                                /* a section a detent: to its first row (left: this one's first) */
@@ -427,6 +470,10 @@ static void xop_knob(uint32_t slot, int32_t steps)
         v = opx_get(opx_pk[tr], f);
         if (f == OPXF_OP(fop_op % 6u, OPXF_OP1_FIXED_FREQ))
             v = k == XR_RATIO ? xop_pow(v, steps, 1059463u, 1000000u) : xop_pow(v, steps, 1000578u, 1000000u);
+        else if (k == XR_FINE)                       /* (RATIO's FINE: 0.01 a detent, as shown; from a value between: to it) */
+            v = (steps > 0 ? v / 10 : (v + 9) / 10) * 10 + 10 * accel(EN_K4, steps, (hi - lo) / 10);
+        else if (k == XR_ATK || k == XR_DEC || k == XR_REL)
+            v = xop_time_step(v, accel(EN_K4, steps, (int32_t)NELEM(XOP_TLAD)));
         else if (xop_enum(k))
             v += steps;
         else
@@ -639,6 +686,11 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
     case XR_LVL:
         on = v != 0;
         *unit = "%";
+        if (xop_view() == XV_LVL) {                  /* (OP LEVELS: a row per operator) */
+            static char lb[8] = "OP ?";
+            lb[3] = (char)('1' + r % 6u);
+            *label = lb;
+        }
         break;
     case XR_OUT: {
         uint32_t heard;
@@ -694,7 +746,8 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         *unit = "/6";
         *ratio = (int32_t)fop_op * 200;
         *icon = ICON_ALGORITHM;
-        return xop_sec_of(xop_row()) < XS_ALGO;       /* (ALGO's rows: the patch's, VOICE's the track's: no operator) */
+        return xop_view() != XV_ALL || xop_sec_of(xop_row()) < XS_ALGO;   /* (ALGO's rows: the patch's, VOICE's the
+                                                                           * track's: no operator) */
     }
     if (slot == 1u) {
         uint32_t sc = xop_sec_of(xop_row());
@@ -702,6 +755,11 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         str_cpy(val, XS_NAME[sc], 12);
         *ratio = (int32_t)sc * 1000 / (XS_N - 1);
         *icon = ICON_ENV;
+        if (xop_view() != XV_ALL) {                  /* (ENVELOPE, OP LEVELS: no sections; KNOB 2 does nothing) */
+            str_cpy(val, xop_view() == XV_ENV ? "EG" : "LEVEL", 12);
+            *ratio = -1;
+            return 0;
+        }
         return 1;
     }
     if (slot == 2u) {
@@ -745,7 +803,7 @@ _Static_assert(XR_N == 52, "xop_rowtext's LBL, xop_card's ICN: a label and an ic
 static int fop_any_ok(void)
 {
 #if FELUCCA_OPX
-    if (cur_page()->graph == GR_OPXL)
+    if (xop_page(cur_page()->graph))
         return xop_ok();
 #endif
     return fop_ok();
@@ -753,7 +811,7 @@ static int fop_any_ok(void)
 static void fop_any_knob(uint32_t slot, int32_t steps)
 {
 #if FELUCCA_OPX
-    if (cur_page()->graph == GR_OPXL) {
+    if (xop_page(cur_page()->graph)) {
         if (xop_ok() && steps)
             xop_knob(slot, steps);
         return;
@@ -764,7 +822,7 @@ static void fop_any_knob(uint32_t slot, int32_t steps)
 static int fop_any_card(uint32_t slot, const char **label, char *val, const char **unit, int32_t *ratio, uint32_t *icon)
 {
 #if FELUCCA_OPX
-    if (cur_page()->graph == GR_OPXL)
+    if (xop_page(cur_page()->graph))
         return xop_card(slot, label, val, unit, ratio, icon);
 #endif
     return fop_card(slot, label, val, unit, ratio, icon);

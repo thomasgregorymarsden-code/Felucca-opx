@@ -394,7 +394,7 @@ static int page_visible(uint32_t i)
         return ENGINES[TSEL->eng_req % NENGINES] == &ENG_ANALOG;
     if (PAGES[i].graph >= GR_FMOP && PAGES[i].graph <= GR_FMENV)
         return TSEL->eng_req % NENGINES == ENGI_FM6;
-    if (PAGES[i].graph == GR_OPXL)                    /* (OPX fork) */
+    if (PAGES[i].graph >= GR_OPXL && PAGES[i].graph <= GR_OPXV)   /* (OPX fork: OPERATORS, ENVELOPE, LEVELS) */
         return FELUCCA_OPX && TSEL->eng_req % NENGINES == ENGI_OPX;
 #if FELUCCA_OPX
     if (PAGES[i].fam == FAM_EDIT && PAGES[i].scope == SC_TRACK &&   /* (OPX fork) VOICE, VOICE 2, VOICE 3: an OPX track's

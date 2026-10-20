@@ -81,7 +81,7 @@ them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SA
 
 ### The pages
 
-On an OPX track, EDIT goes **ALGO, OPERATORS** and back: VOICE, VOICE 2 and VOICE 3 are OPERATORS' VOICE section on an
+On an OPX track, EDIT goes **ALGO, OPERATORS, ENVELOPE, OP LEVELS** and back: VOICE, VOICE 2 and VOICE 3 are OPERATORS' VOICE section on an
 OPX track (the same parameters). Both OPX pages
 show the algorithm in the left half: a chart of square operator boxes for a preset algorithm, the matrix for USER.
 
@@ -121,6 +121,17 @@ rows hidden above or below.
 | USER | TO OP1 … TO OP6: what this operator sends to each, as exact numbers (its own row reads "(SELF)" and is its self feedback); OUT, as on the matrix. Dimmed unless the track plays USER |
 | ALGO | ALG (the patch's algorithm), ALG FB |
 | VOICE | the track's VOICE pages: VOICE (POLY, MONO, LEG, UNI), GLIDE, GLIDE MODE, PRIORITY, ALLOC, DETUNE, PAN, MUTE, SPREAD, as on every engine (automation and MIDI LEARN included) |
+
+**ENVELOPE** draws the selected operator's EG in the left half (ATK a line, DEC and REL shaped by CURVE; the stage
+being edited highlighted) and lists ATK, DEC, SUS and REL in the right half: KNOB 1 the operator, KNOB 3 the row,
+KNOB 4 the value.
+
+**OP LEVELS** lists the six operators' LEVEL beside the algorithm chart: KNOB 3 (or KNOB 1) the operator, KNOB 4 its
+level.
+
+On these pages and OPERATORS, ATK, DEC and REL move through 0, 1–9 ms by 1, 10–95 ms by 5, 100–950 ms by 50, 1–9.5 s
+by 0.5 and 10–90 s by 5 (10 ms to 1 s is 36 clicks); FINE moves 0.01 a click. MENU > KNOB ACCEL ON multiplies fast
+turns (up to 8 times).
 
 **SAVE held** undoes the last knob gesture, the patch and SLOT included; held again it redoes.
 

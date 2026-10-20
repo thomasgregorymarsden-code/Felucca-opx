@@ -1647,11 +1647,53 @@ static int32_t ev_value(int32_t y, const char *v, const char *unit, uint16_t fg,
  * the picked row on THEME; a row that does not sound now DIM (USER's, when the track plays a preset algorithm; LEVEL 0) */
 #define XLR_X 122                                        /* the right half's rows: x 122 .. 232 */
 #define XLR_Y(k) (1 + 15 * (int32_t)(k))                 /* 8 rows of 14 px, 1 px apart */
+/* ENVELOPE (OPX fork): the picked operator's EG in the left half, from 0 up at ATK, down to SUS at DEC, held, to 0 at
+ * REL (the key let go: a RAISE mark). A stage's width follows its time code (the codes run log-time: 2 .. 32 px), the
+ * height its level (the peak at the top: LEVEL scales the whole); ATK a line, DEC and REL shaped by CURVE as the engine
+ * shapes them (eng_opx.c opx_eg_step: LIN a line, EXP an approach, 1 .. 9 between). The stage KNOB 3 picks ACCENT, a dot
+ * at its end; "OP3" top left. 8 points a stage */
+static void graph_opxenv(const track_t *t, uint16_t c)
+{
+    static const uint16_t EXQ[9] = {32768, 13777, 5793, 2436, 1024, 431, 181, 76, 32};   /* 2^(-10 k / 8), Q15 */
+    const uint8_t *pk = opx_pk[(uint32_t)(t - trk) % NTRK];
+    uint32_t op = fop_op % 6u, sg = xop_row() & 3u, k;
+    int32_t a = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_ATK)), d = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_DEC));
+    int32_t r = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_REL)), su = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_SUS));
+    int32_t cv = opx_get(pk, OPXF_OP(op, OPXF_OP1_EG_CURVE)), top = 22, bot = 104, x0 = 8, x1, x2, x3, x4 = 114, st;
+    int32_t px, py, ys = bot - su * (bot - top) / 100;
+    char b[4] = {'O', 'P', (char)('1' + op), 0};
+    x1 = x0 + 2 + a * 30 / 1023;
+    x2 = x1 + 2 + d * 30 / 1023;
+    x3 = x4 - 2 - r * 30 / 1023;
+    cv_rect(x0, bot + 2, x4 - x0, 1, T_RAISE);
+    cv_rect(x3, top, 1, bot - top + 1, T_RAISE);     /* (the key let go) */
+    for (st = 0; st < 4; st++) {                     /* ATK, DEC, the hold (SUS), REL */
+        int32_t xa = st == 0 ? x0 : st == 1 ? x1 : st == 2 ? x2 : x3, xb = st == 0 ? x1 : st == 1 ? x2 : st == 2 ? x3 : x4;
+        int32_t ya = st == 0 ? bot : st == 1 ? top : ys, yb = st == 0 ? top : st == 3 ? bot : ys;
+        uint16_t col = (uint32_t)st == sg ? T_ACCENT : c;
+        px = xa, py = ya;
+        for (k = 1; k <= 8u && st != 2; k++) {       /* the shape: LIN and EXP blended by CURVE (0 .. 10) */
+            int32_t lin = (int32_t)k * 4096, ex = (int32_t)(((32768 - EXQ[k]) * 32768) / (32768 - 32));   /* Q15 */
+            int32_t w = st ? cv : 0;                 /* (ATK: linear, as the engine's: opx_eg_step) */
+            int32_t f = (lin * (10 - w) + ex * w) / 10, x = xa + (xb - xa) * (int32_t)k / 8, y = ya + (yb - ya) * f / 32768;
+            cv_line_t(px, py, x, y, col, 2);
+            px = x, py = y;
+        }
+        if (st == 2)
+            cv_line_t(xa, ya, xb, yb, col, 2);
+        if ((uint32_t)st == sg)
+            fm_dot(st == 2 ? (xa + xb) / 2 : xb, yb, T_ACCENT);
+    }
+    cv_text(x0, 2, &AF_S, b, T_MID);
+}
 static void graph_opxlist(const track_t *t, uint16_t c)
 {
     uint32_t cur = xop_row(), top, i, n = xop_n();
     int32_t row;
-    graph_opx_left(t, c, 0, xop_sec_of(cur) >= XS_ALGO ? 6u : fop_op % 6u);
+    if (xop_view() == XV_ENV)
+        graph_opxenv(t, c);
+    else
+        graph_opx_left(t, c, 0, xop_view() == XV_ALL && xop_sec_of(cur) >= XS_ALGO ? 6u : fop_op % 6u);
     cv_rect(OPX_HALF, 6, 1, 110, T_RAISE);               /* (the rule between the halves) */
     xop_scroll();
     top = xop_top;
@@ -2573,6 +2615,8 @@ static void draw_graph(void)
             break;
 #if FELUCCA_OPX
         case GR_OPXL:
+        case GR_OPXE:
+        case GR_OPXV:
             cv_oy = 0;
             if (xop_ok()) graph_opxlist(t, c);
             break;

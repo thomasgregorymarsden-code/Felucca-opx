@@ -757,7 +757,7 @@ enum { S_HOME, S_HOME_IDLE, S_MESSAGE, S_MESSAGE_KEY, S_MESSAGE_NOFILE, S_PRESET
        S_ALG1, S_ALG2, S_ALG3, S_ALG4, S_ALG5, S_ALG6, S_ALG7, S_ALG8, S_OP_LEVEL,
        S_FM6_ALG1, S_FM6_ALG5, S_FM6_ALG22, S_FM6_ALG32, S_FM6_OP, S_FM6_OP_FIXED, S_FM6_OP2, S_FM6_OP_ENV, S_FM6_OP_ENV_REL,
        S_OPX_PITCH, S_OPX_EG, S_OPX_USER, S_OPX_FIXED, S_OPX_ALGO, S_OPX_ALG5, S_OPX_ALG34, S_OPX_ALG36, S_OPX_MATRIX,
-       S_OPX_MATRIX_OUT, S_OPX_MATRIX_E2, S_OPX_SCOPE, S_OPX_USERL, S_OPX_OSC, S_OPX_RING, S_OPX_FILTER, S_OPX_FX, S_OPX_KTRK, S_OPX_VOICE, S_OPX_ENVDEST, S_INFO, S_BENCH_RUN, S_BENCH, S_BENCH_END,
+       S_OPX_MATRIX_OUT, S_OPX_MATRIX_E2, S_OPX_SCOPE, S_OPX_USERL, S_OPX_OSC, S_OPX_RING, S_OPX_FILTER, S_OPX_FX, S_OPX_KTRK, S_OPX_VOICE, S_OPX_ENV, S_OPX_LVL, S_OPX_ENVDEST, S_INFO, S_BENCH_RUN, S_BENCH, S_BENCH_END,
        S_CONFIRM_SEQ, S_CONFIRM_PROJ, S_CONFIRM_USER, S_CONFIRM_PAT, S_CONFIRM_MOTION, S_CONFIRM_ERASE,
        S_MENU, S_MENU_SPEAKER, S_ABOUT, S_ABOUT_REC, S_ABOUT_CREDITS, S_ABOUT_END, S_UBOOT, S_CALIBRATION, S_SPLASH,
        S_BATT0, S_BATT1, S_BATT2, S_BATT3, S_BATT_USB, S_MOTION_REC, S_MOTION_OFF, S_MOTION_CARD, S_SONG_HOME,
@@ -786,7 +786,7 @@ static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "mes
     "voice", "clock", "menu_midi", "edit_analog", FELUCCA_FM4 ? "edit_digital" : "edit_fm6", "op_env", "edit_wheel", "edit_sample",
     "edit_grain", "edit_phys", "alg_1", "alg_2", "alg_3", "alg_4", "alg_5", "alg_6", "alg_7", "alg_8", "op_level", "fm6_alg_01", "fm6_alg_05", "fm6_alg_22", "fm6_alg_32", "fm6_op", "fm6_op_fixed", "fm6_op2", "fm6_op_env", "fm6_op_env_rel",
     "opx_pitch", "opx_eg", "opx_roll", "opx_fixed", "opx_algo", "opx_alg5", "opx_alg34", "opx_alg36", "opx_matrix",
-    "opx_matrix_out", "opx_matrix_e2", "opx_scope", "opx_userl", "opx_osc", "opx_ring", "opx_filter", "opx_fx", "opx_ktrk", "opx_voice", "opx_envdest", "info", "bench_run", "bench", "bench_end", "confirm_seq", "confirm_project", "confirm_user", "confirm_pattern",
+    "opx_matrix_out", "opx_matrix_e2", "opx_scope", "opx_userl", "opx_osc", "opx_ring", "opx_filter", "opx_fx", "opx_ktrk", "opx_voice", "opx_env", "opx_lvl", "opx_envdest", "info", "bench_run", "bench", "bench_end", "confirm_seq", "confirm_project", "confirm_user", "confirm_pattern",
     "confirm_motion", "confirm_erase", "menu", "menu_speaker", "about", "about_rec", "about_credits", "about_end", "uboot", "calibration", "splash",
     "batt_0", "batt_1", "batt_2", "batt_3", "batt_usb", "motion_rec", "motion_off", "motion_card", "song_home",
     "perform_peek", "perform_held", "perform_wait", "perform_harm", "perform_mod", "perform_assign", "menu_hold", "menu_leds", "menu_end", "menu_system", "menu_slide", "reverb_spring",
@@ -1262,6 +1262,11 @@ static void setup(int s)
         go_title("ENV DEST"); break;
     case S_OPX_VOICE: eng(ENGI_OPX); opx_poll(); TSEL->p[P_VOICE] = 3; TSEL->p[P_DETUNE] = 52; XO_AT(xop_find(XR_V0 + 5u));
         go_title("OPERATORS"); break;
+    case S_OPX_ENV: eng(ENGI_OPX); opx_poll(); fop_op = 2; opx_edit(song.sel, OPXF_OP(2, OPXF_OP1_EG_ATK), 400);
+        opx_edit(song.sel, OPXF_OP(2, OPXF_OP1_EG_DEC), 600); opx_edit(song.sel, OPXF_OP(2, OPXF_OP1_EG_SUS), 60);
+        opx_edit(song.sel, OPXF_OP(2, OPXF_OP1_EG_REL), 700); opx_edit(song.sel, OPXF_OP(2, OPXF_OP1_EG_CURVE), 10);
+        go_title("ENVELOPE"); XO_AT(1); break;
+    case S_OPX_LVL: eng(ENGI_OPX); opx_poll(); fop_op = 3; go_title("OP LEVELS"); break;
     case S_OPX_KTRK: eng(ENGI_OPX); opx_poll(); fop_op = 3; opx_edit(song.sel, OPXF_OP(3, OPXF_OP1_KTRK_LOW), -40);
         opx_edit(song.sel, OPXF_OP(3, OPXF_OP1_KTRK_LCRV), 1); opx_edit(song.sel, OPXF_OP(3, OPXF_OP1_KTRK_CENTER), 54);
         XO_AT(xop_find(XR_KCTR)); go_title("OPERATORS"); break;

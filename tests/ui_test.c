@@ -9077,7 +9077,7 @@ static void xo_set(uint32_t knob, int32_t to, int32_t span)   /* a knob to its l
 }
 static int test_opx_ops(void)
 {
-    static const char *const CYC_O[] = {"ALGO", "OPERATORS", "ALGO"};
+    static const char *const CYC_O[] = {"ALGO", "OPERATORS", "ENVELOPE", "OP LEVELS", "ALGO"};
     int bad = 0, ok;
     uint32_t tr, at = 0, opn, row, n = 0, f;
     uint8_t before[OPX_PK_BYTES], v[OPX_PK_BYTES];
@@ -9086,7 +9086,7 @@ static int test_opx_ops(void)
     tr = song.sel;
     set_engine_of(TSEL, ENGI_OPX);
     frame();
-    bad += check("OPX ops: OPX's EDIT cycle ALGO OPERATORS ALGO (EDIT 1 / 2, VOICE 1..3 and FM6's pages not shown)",
+    bad += check("OPX ops: OPX's EDIT cycle ALGO OPERATORS ENVELOPE OP LEVELS ALGO (EDIT 1 / 2, VOICE 1..3, FM6's not shown)",
                  TSEL->eng_req == ENGI_OPX && engine_cycle(CYC_O, NELEM(CYC_O)));
     ok = TSEL->p[P_E7] == 0 && opx_slot[tr] == 0u && opx_own[tr] && opx_own[tr]->op[0].level == OPX_FACTORY[0].op[0].level;
     bad += check("OPX ops: the track's patch is F1 (E.PIANO), the audio plays the decoded copy", ok);
@@ -9139,6 +9139,71 @@ static int test_opx_ops(void)
         turn(EN_K4, 3);
         ok &= TSEL->p[P_GLIDE] == 3;
         bad += check("OPX ops: VOICE: the track's VOICE GLIDE .. SPREAD as the VOICE pages show and turn them", ok);
+    }
+    {   /* testing notes (2026-10-20): FINE 0.01 a detent; the EG times through a ladder; ENVELOPE and OP LEVELS */
+        const char *lb, *un;
+        char val[12];
+        int32_t ra;
+        uint32_t ic, f0 = OPXF_OP(1, OPXF_OP1_FINE), fa = OPXF_OP(1, OPXF_OP1_EG_ATK);
+        fop_op = 1;
+        opx_edit(tr, OPXF_OP(1, OPXF_OP1_FREQ_FIXED), 0);
+        opx_edit(tr, f0, 1003);
+        xo_set(EN_K3, (int32_t)xop_find(XR_FINE), 60);
+        turn(EN_K4, 1);
+        ok = opx_get(opx_pk[tr], f0) == 1010;
+        turn(EN_K4, -1); ok &= opx_get(opx_pk[tr], f0) == 1000;
+        turn(EN_K4, -1); ok &= opx_get(opx_pk[tr], f0) == 990;
+        bad += check("OPX ops: FINE moves 0.01 a detent (from between: to the next 0.01)", ok);
+        opx_edit(tr, fa, 0);
+        xo_set(EN_K3, (int32_t)xop_find(XR_ATK), 60);
+        ok = 1;
+        for (ic = 0; ic < 80u; ic++) {
+            int32_t was = opx_get(opx_pk[tr], fa);
+            turn(EN_K4, 1);
+            ok &= opx_get(opx_pk[tr], fa) > was;
+            if (ic == 9u || ic == 45u) {             /* 0, 1..9, then 10 ms; 36 detents later 1 s */
+                xop_rowtext(xop_row(), &lb, val, &un, &ra);
+                ok &= ic == 9u ? str_eq(val, "10") && str_eq(un, "MS") : str_eq(val, "1.00") && str_eq(un, "S");
+            }
+        }
+        ok &= opx_get(opx_pk[tr], fa) == 1023;
+        opx_edit(tr, fa, 300);                        /* (between two places) */
+        turn(EN_K4, -1); ok &= opx_get(opx_pk[tr], fa) == 290;
+        turn(EN_K4, 1); ok &= opx_get(opx_pk[tr], fa) == 306;
+        bad += check("OPX ops: ATK / DEC / REL go 0, 1..9 ms, 10..95 by 5, .. 1 s .. 90 s: 10 ms to 1 s in 36 detents", ok);
+
+        go_title("ENVELOPE"); frame();
+        fop_op = 2;
+        xo_set(EN_K3, 0, 10);
+        ok = xop_n() == 4u && xop_kind(0) == XR_ATK && xop_kind(3) == XR_REL;
+        turn(EN_K3, 2);
+        ok &= xop_kind(xop_row()) == XR_SUS;
+        opx_edit(tr, OPXF_OP(2, OPXF_OP1_EG_SUS), 50);
+        turn(EN_K4, 5);
+        ok &= opx_get(opx_pk[tr], OPXF_OP(2, OPXF_OP1_EG_SUS)) == 55;
+        turn(EN_K1, 1);
+        ok &= fop_op == 3u && xop_kind(xop_row()) == XR_SUS;   /* (another operator: the same row) */
+        turn(EN_K2, 3);
+        ok &= xop_kind(xop_row()) == XR_SUS && !xop_card(1, &lb, val, &un, &ra, &ic);
+        bad += check("OPX ops: ENVELOPE: ATK DEC SUS REL of the picked operator; KNOB 1 the operator, 3 the row, 2 nothing", ok);
+
+        go_title("OP LEVELS"); frame();
+        fop_op = 0;
+        ok = xop_n() == 6u && xop_row() == 0u;
+        turn(EN_K3, 4);
+        ok &= fop_op == 4u && xop_row() == 4u;
+        opx_edit(tr, OPXF_OP(4, OPXF_OP1_LEVEL), 60);
+        turn(EN_K4, -3);
+        ok &= opx_get(opx_pk[tr], OPXF_OP(4, OPXF_OP1_LEVEL)) == 57;
+        xop_rowtext(1, &lb, val, &un, &ra);
+        ok &= str_eq(lb, "OP 2") && opx_get(opx_pk[tr], OPXF_OP(1, OPXF_OP1_LEVEL)) == (int32_t)strtol(val, 0, 10);
+        turn(EN_K1, -1);
+        ok &= fop_op == 3u && xop_row() == 3u;
+        bad += check("OPX ops: OP LEVELS: a row per operator (the row is the operator), KNOB 4 its LEVEL", ok);
+        go_title("OPERATORS"); frame();
+        opx_load_factory(tr, 0);                     /* (F1 again, as the tests below start) */
+        TSEL->p[P_E7] = 0;
+        frame();
     }
 
     /* the roll: 8 places, "..." below while rows are hidden there, above likewise; the picked row never on a "..." */
