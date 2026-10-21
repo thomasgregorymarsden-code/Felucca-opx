@@ -5,6 +5,9 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **Web editor on iPad / iPhone:** every question it asks first (save, load, erase, overwrite, a name) is now its own
+  dialog in the page. Some WebMIDI browsers there answer the browser's built-in confirm and prompt with "no" without
+  showing them, so those buttons did nothing (seen with "Put the test patches in empty user presets").
 - **SLOT INIT** (OPX, the ALGO page's SLOT after OWN): loads the INIT patch, now the opsix's INITIALIZE: OP1 alone at
   LEVEL 100 (OPX's INIT had all six at 100), algorithm 1, ratio 1, no modulation. The web editor's "Init patch" is
   the same.

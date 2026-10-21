@@ -38,6 +38,10 @@
   .bar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 0 0 8px; }
   .dim { color: var(--dim); }
   #status { min-height: 1.4em; }
+  dialog.ask { background: var(--bg); color: var(--fg); border: 1px solid var(--fg); padding: 12px 16px; max-width: min(28em, 90vw); }
+  dialog.ask::backdrop { background: rgba(0, 0, 0, .45); }
+  dialog.ask .bar { justify-content: flex-end; margin: 12px 0 0; }
+  dialog.ask .askin { width: 100%; box-sizing: border-box; }
   section { margin: 12px 0; }
   .groups { columns: 250px; column-gap: 20px; }
   .group { break-inside: avoid; margin: 0 0 12px; }
@@ -2554,6 +2558,27 @@ const el = (tag, attrs = {}, ...kids) => {
   return e;
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/* the page's own confirm / prompt (OPX fork): some WebMIDI browsers on iPad and iPhone (an app's web view without
+   dialog support) answer window.confirm with false and window.prompt with null, showing nothing, so every button
+   that asked first did nothing there. ask(msg) -> true / null; ask(msg, value) -> the text typed / null */
+function ask(msg, value) {
+  if (typeof HTMLDialogElement === "undefined")
+    return Promise.resolve(value == null ? (confirm(msg) || null) : prompt(msg, value));
+  return new Promise((res) => {
+    const input = value == null ? null : el("input", { type: "text", value: String(value), class: "askin" });
+    const dlg = el("dialog", { class: "ask" });
+    const done = (v) => { if (!dlg.open) return; dlg.close(); dlg.remove(); res(v); };
+    dlg.append(el("p", { text: msg }), ...(input ? [input] : []),
+      el("p", { class: "bar" }, el("button", { text: t("askCancel"), onclick: () => done(null) }),
+        el("button", { text: t("askOk"), onclick: () => done(input ? input.value : true) })));
+    dlg.addEventListener("cancel", (e) => { e.preventDefault(); done(null); });
+    if (input) input.addEventListener("keydown", (e) => { if (e.key === "Enter") done(input.value); });
+    document.body.append(dlg);
+    dlg.showModal();
+    (input || dlg.querySelector("button:last-child")).focus();
+  });
+}
+const askYes = async (msg) => (await ask(msg)) === true;
 
 /* ---------------------------------------------------------------- icons --- */
 /* Fukiai glyphs by their names in hugelton-plugin-rules lib/include/hugelton/Glyphs.h */
@@ -2617,6 +2642,7 @@ const TEXT = {
     opxFactories: "ファクトリー音色", opxInit: "初期音色", opxImport: "ファイルを読み込む", opxExport: "ファイルに書き出し",
     opxKeep: "残すには、トラックへ送ってから本体でユーザープリセット（SAVE、OPX は 16 個まで）かプロジェクトに保存してください。",
     opxPatch: "音色", opxOps: "オペレーター", opxMode: "モード", opxPitch: "ピッチ", opxEg: "EG", opxKtrk: "キートラック",
+    askOk: "OK", askCancel: "キャンセル",
     opxTestsBtn: "テスト音色を空きユーザープリセットへ", opxTestsHelp: "opsix 比較用の 16 のテスト音色（T01〜T17）を空いているユーザープリセットに書き込みます。使用中のスロットには書きません。FM-1 で OPX のトラックを選んでから押してください（そのトラックの VOICE などの設定が使われます）。",
     opxTestsConfirm: "テスト音色 {m} 個のうち {n} 個を空きユーザープリセットに書き込みます。よろしいですか？", opxTestsNeedOpx: "FM-1 で OPX のトラックを選んでください",
     opxTestsNoRoom: "空きユーザープリセットがありません（OPX は 16 個まで）", opxTestsProgress: "テスト音色を書き込み中", opxTestsDone: "テスト音色を書き込みました", opxTestsLeft: "は空きがなく書き込めませんでした",
@@ -2736,6 +2762,7 @@ const TEXT = {
     opxFactories: "Factory patch", opxInit: "Init patch", opxImport: "Import file", opxExport: "Export file",
     opxKeep: "To keep a patch, send it to a track, then save a user preset (SAVE; up to 16 OPX ones) or a project on the device.",
     opxPatch: "Patch", opxOps: "Operators", opxMode: "Mode", opxPitch: "Pitch", opxEg: "EG", opxKtrk: "Key track",
+    askOk: "OK", askCancel: "Cancel",
     opxTestsBtn: "Put the test patches in empty user presets", opxTestsHelp: "Writes the 16 opsix comparison patches (T01–T17) into empty user presets, never over a used one. Select an OPX track on the FM-1 first: its VOICE and track settings go with them.",
     opxTestsConfirm: "Write {n} of the {m} test patches into empty user presets?", opxTestsNeedOpx: "Select an OPX track on the FM-1 first",
     opxTestsNoRoom: "No room: no empty user preset, or 16 OPX user presets already", opxTestsProgress: "Writing the test patches", opxTestsDone: "Test patches written", opxTestsLeft: "did not fit",
@@ -3404,7 +3431,7 @@ async function afterSoundChange(msg = "ready", d = dev) {
   sayK(msg);
 }
 $("init").addEventListener("click", async () => {
-  if (!dev || !confirm(t("confirmInit"))) return;
+  if (!dev || !(await askYes(t("confirmInit")))) return;
   const releaseBusy = beginBusy();
   try { selfLoad(true); await rq(req.set(1, gEng(), dev.dump.engine)); await afterSoundChange(); }
   catch (err) { report(err); } finally { releaseBusy(); }
@@ -3432,7 +3459,7 @@ function renderSlots() {
 }
 async function project(op, slot) {
   if (!dev) return;
-  if (!confirm(t(op ? "confirmSave" : "confirmLoad").replace("{n}", slot + 1))) return;
+  if (!(await askYes(t(op ? "confirmSave" : "confirmLoad").replace("{n}", slot + 1)))) return;
   const releaseBusy = beginBusy();
   try {
     /* save writes flash: a long timeout and no retry */
@@ -3516,7 +3543,7 @@ $("backup-file").addEventListener("change", () => {
     if (file.size > 600000) throw new Error("Backup file too large");
     const { readBackup, restoreBackup } = await backupModule();
     const archive = readBackup(await file.text()); assertSession(d);
-    if (!confirm(t("backupConfirm"))) return;
+    if (!(await askYes(t("backupConfirm")))) return;
     await restoreBackup((r, o) => sessionRequest(d, r, o), archive, backupProgress);
     await load(d); sayK("backupRestored");
   });
@@ -3563,7 +3590,7 @@ $("motion-on").addEventListener("change", () => op(async () => {
 }));
 $("motion-clear").addEventListener("click", () => op(async () => {
   const d = dev;
-  if (!d?.info?.motionMax || !confirm(t("motionConfirm"))) return;
+  if (!d?.info?.motionMax || !(await askYes(t("motionConfirm")))) return;
   const r = parse[CMD.MOTION](await sessionRequest(d, req.motion(d.sel ?? 0, 2)));
   if (r.rc) throw new Error("Automation edit refused"); d.motion = r; renderMotion();
 }));
@@ -3702,7 +3729,7 @@ $("reloadsteps").addEventListener("click", async () => {
   try { await loadSteps(); sayK("ready"); } catch (err) { report(err); } finally { releaseBusy(); }
 });
 $("clearseq").addEventListener("click", async () => {
-  if (!dev || !confirm(t("confirmClear"))) return;
+  if (!dev || !(await askYes(t("confirmClear")))) return;
   const releaseBusy = beginBusy();
   try {
     for (let i = 0; i < dev.info.nstep; i++) {
@@ -4107,7 +4134,7 @@ async function smpUpload(k, prog) {
   let built;
   try { built = buildSlot(d.name, d.files.map((f) => ({ s: f.s, root: f.root })), smpMax(k)); }
   catch (e) { sayK("smpFail", e.message); return; }
-  if (!confirm(t("confirmUpload").replace("{n}", k + 1))) return;
+  if (!(await askYes(t("confirmUpload").replace("{n}", k + 1)))) return;
   const { hdr, data } = built;
   const session = dev;
   const releaseBusy = beginBusy();
@@ -4140,7 +4167,7 @@ async function smpUpload(k, prog) {
 }
 
 async function smpErase(k) {
-  if (!dev || !confirm(t("confirmErase").replace("{n}", k + 1))) return;
+  if (!dev || !(await askYes(t("confirmErase").replace("{n}", k + 1)))) return;
   const session = dev;
   const releaseBusy = beginBusy();
   smpBusy = true;
@@ -4868,7 +4895,7 @@ $("libaud").addEventListener("click", () => libAudition(libSel));
 
 $("libsave").addEventListener("click", () => libOp(async (d, rqf) => {
   const def = upName((dev.names[dev.dump.engine] || [])[dev.dump.preset] || dev.info.engines[dev.dump.engine]);
-  const name = prompt(t("promptName"), def);
+  const name = await ask(t("promptName"), def);
   if (name == null) return;
   const { patch } = await capturePatch(rqf, dev.info, name.trim() || def);
   await libAdd([patch]);
@@ -4891,12 +4918,12 @@ $("factlib").addEventListener("click", () => libOp(async (d, rqf) => {
   sayK("copiedLib", `${dev.info.engines[e]} ${name}`);
 }));
 
-function libPut(id, slot) {
+async function libPut(id, slot) {
   const p = lib.find((x) => x.id === id);
   if (!p || !dev || !dev.bank || slot == null || libBusy) return;
   const s = dev.bank.slots[slot];
   if (!engineOk(p)) { sayK("badEngine", p.engineName || p.engine); return; }
-  if (s.used && !confirm(t("confirmOverwrite").replace("{n}", slotName(slot)).replace("{name}", s.name))) return;
+  if (s.used && !(await askYes(t("confirmOverwrite").replace("{n}", slotName(slot)).replace("{name}", s.name)))) return;
   libOp(async (d, rqf) => {
     const keep4 = p.fm4 && dev.info.engines[1] === "-" && p.fm4.length === dev.info.pcount;   /* a converted DIGITAL sound:
                                                      its DIGITAL values as engine 1 (the device converts them on load) */
@@ -4908,18 +4935,18 @@ function libPut(id, slot) {
 }
 $("libput").addEventListener("click", () => libPut(libSel, bankSel));
 
-$("libren").addEventListener("click", () => {
+$("libren").addEventListener("click", async () => {
   const p = lib.find((x) => x.id === libSel);
   if (!p) return;
-  const v = prompt(t("promptName"), p.name);
+  const v = await ask(t("promptName"), p.name);
   if (v == null || !v.trim()) return;
   p.name = v.trim().slice(0, 32);
   libUpdate(p);
 });
-$("libtags").addEventListener("click", () => {
+$("libtags").addEventListener("click", async () => {
   const p = lib.find((x) => x.id === libSel);
   if (!p) return;
-  const v = prompt(t("promptTags"), p.tags.join(", "));
+  const v = await ask(t("promptTags"), p.tags.join(", "));
   if (v == null) return;
   p.tags = [...new Set(v.split(",").map((x) => x.trim()).filter(Boolean))];
   libUpdate(p);
@@ -4930,7 +4957,7 @@ $("libdup").addEventListener("click", () => {
 });
 $("libdel").addEventListener("click", async () => {
   const p = lib.find((x) => x.id === libSel);
-  if (!p || !confirm(t("confirmDelete").replace("{name}", p.name))) return;
+  if (!p || !(await askYes(t("confirmDelete").replace("{name}", p.name)))) return;
   lib = lib.filter((x) => x !== p);
   libSel = null;
   try { await store.del(p.id); } catch (e) { console.warn(e); }
@@ -4986,13 +5013,13 @@ function bankLoad(slot) {
   });
 }
 $("bkload").addEventListener("click", () => bankLoad(bankSel));
-$("bkstore").addEventListener("click", () => {
+$("bkstore").addEventListener("click", async () => {
   const slot = bankSel;
   if (!dev || !dev.bank || slot == null) return;
   const s = dev.bank.slots[slot];
-  const name = prompt(t("promptNameAuto"), s.used ? s.name : "");
+  const name = await ask(t("promptNameAuto"), s.used ? s.name : "");
   if (name == null) return;
-  if (s.used && !confirm(t("confirmOverwrite").replace("{n}", slotName(slot)).replace("{name}", s.name))) return;
+  if (s.used && !(await askYes(t("confirmOverwrite").replace("{n}", slotName(slot)).replace("{name}", s.name)))) return;
   libOp(async (d, rqf) => {
     checkRc(await bank.store(rqf, slot, name.trim()));
     await refreshSlot(slot, d);
@@ -5011,11 +5038,11 @@ function bankGet(slot) {
   });
 }
 $("bkget").addEventListener("click", () => bankGet(bankSel));
-$("bkerase").addEventListener("click", () => {
+$("bkerase").addEventListener("click", async () => {
   const slot = bankSel;
   if (!dev || !dev.bank || slot == null) return;
   const s = dev.bank.slots[slot];
-  if (!s.used || !confirm(t("confirmEraseSlot").replace("{n}", slotName(slot)).replace("{name}", s.name))) return;
+  if (!s.used || !(await askYes(t("confirmEraseSlot").replace("{n}", slotName(slot)).replace("{name}", s.name)))) return;
   libOp(async (d, rqf) => {
     checkRc(await bank.erase(rqf, slot));
     await refreshSlot(slot, d);
@@ -5370,7 +5397,7 @@ $("opxtests").addEventListener("click", () => libOp(async (d, rqf) => {
   const free = d.bank.slots.filter((s) => !s.used).map((s) => s.slot);
   const n = Math.min(list.length, free.length, Math.max(0, OPX_USER_MAX - used));
   if (!n) { sayK("opxTestsNoRoom"); return; }
-  if (!confirm(t("opxTestsConfirm").replace("{n}", n).replace("{m}", list.length))) return;
+  if (!(await askYes(t("opxTestsConfirm").replace("{n}", n).replace("{m}", list.length)))) return;
   const pe0 = d.info.pe0, p = dump.p.slice();
   p[pe0] = 0; p[pe0 + 1] = 0; p[pe0 + 2] = 0; p[pe0 + 7] = d.info.opx.factory;   /* ALG PAT, ATK DEC 0, SLOT OWN */
   for (let i = 0; i < n; i++) {
