@@ -1055,8 +1055,13 @@ static void test_m4(void)
     setup(&P, 0);
     engine_render(69, 127, y, FS / 4, 0, 0);
     b = freq_at(y, FS / 8, FS / 8);
-    check("  .. on the final ratio (COARSE x FINE): COARSE 2 at 127 ratio 12 (opsix: G6 from C3); 1/2 x 0.50 at 50 % 5.25",
-          fabs(a / f0 / 12 - 1) < 0.005 && fabs(b / f0 / 5.25 - 1) < 0.005);
+    P.op[0].coarse = 8, P.op[0].fine = 500, P.op[0].pm_vel = 55, P.op[0].pm_dest = 1;   /* (opsix: C5 from C3) */
+    setup(&P, 0);
+    engine_render(69, 127, y, FS / 4, 0, 0);
+    lo = freq_at(y, FS / 8, FS / 8);
+    check("  .. FINE on the final ratio: COARSE 2 at 127 ratio 12 (opsix: G6 from C3); 1/2 x 0.50 at 50 % 5.25; COARSE "
+          "whole steps on COARSE: 2 x 0.50, 55 % at 127: (2 + 6) x 0.5 = 4 (opsix: C5)",
+          fabs(a / f0 / 12 - 1) < 0.005 && fabs(b / f0 / 5.25 - 1) < 0.005 && fabs(lo / f0 / 4 - 1) < 0.005);
 
     /* the LFO shapes: bounds, the bipolar ones -1 .. +1, the "+" and GTR 0 .. +1; S/H held over a cycle */
     {

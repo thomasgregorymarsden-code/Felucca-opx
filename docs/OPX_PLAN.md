@@ -80,9 +80,10 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
 - **P MOD LFO1 INT** and **PROG PITCH LFO1 INT** move the pitch by INT semitones at the LFO's +1; **LMOD LFO1 INT**
   dips the operator's level, never above its own: at +100 % a bipolar LFO goes from full (its −1) to silent (its +1),
   a unipolar one from full (0) to silent (+1); −100 % turns the LFO over.
-- **P MOD VEL** (RATIO only) adds INT % × velocity/127 × 10 to the final ratio (COARSE × FINE), measured on an opsix
-  (100 % at velocity 127: ratio 1 → 11, COARSE 2 → 12; at 64: 1 → 6.04; 50 % at 64 → 3.52): DEST FINE as it is, DEST
-  COARSE to the nearest whole number (the steps fall at 5, 15 … 95 % at velocity 127).
+- **P MOD VEL** (RATIO only), measured on an opsix: INT % × velocity/127 × 10. DEST FINE adds it to the final ratio,
+  COARSE × FINE (100 % at velocity 127: ratio 1 → 11, COARSE 2 → 12; at 64: 1 → 6.04; 50 % at 64 → 3.52). DEST COARSE
+  adds it, to the nearest whole number, to COARSE before FINE multiplies (COARSE 2, FINE 0.50, 55 % at 127:
+  (2 + 6) × 0.5 = 4); the steps fall at 5, 15 … 95 % at velocity 127.
 - **PROG PITCH TRANS** and **OCT** move the note (not the FIXED operators).
 - **CTRL** (each INT's): the source's value multiplies the INT (p.51). OFF keeps the INT as it is. MOD WHEEL,
   AFTER TOUCH and the PITCH WHEEL are the part's MIDI ones, PEDAL its channel's damper; NOTE, VEL, EXP VEL the note's;
@@ -144,8 +145,9 @@ The manual gives no curve for these, so each is a reasonable guess:
 - **M4, LFO wave order:** the manual's list read down its columns; the opsix's knob order is not given.
 - **M4, the LFO shapes:** the manual draws them without a formula: X. waves on CURVE 10's exponential, TRI4/TRI6/SAW4/
   SAW6 the shape held over 4 or 6 steps, the random ones a new level (or, TIME, a flip) a cycle of random length (×0.5–2).
-- **M4, P MOD VEL, DEST COARSE:** measured with FINE 1.00 and COARSE 1 and 2 only. Assumed: the rounded addition goes on
-  the final ratio there too (with FINE 0.50 and COARSE 1/2, 50 % at velocity 127 would give 0.25 + 5).
+- **M4, P MOD VEL, DEST FINE:** measured with FINE 1.00 only: on the final ratio, or on COARSE before FINE as DEST COARSE,
+  is not yet told apart (COARSE 2, FINE 0.50, 55 % at 127: 6.5 or 3.75). Assumed the final ratio. DEST COARSE's whole
+  steps below COARSE 1 are assumed whole numbers added (1/2 + 1 = 1.5).
 - **M4, CTRL:** an OFF entry (the manual's list has none; without it every INT would need a source); NOTE −1 to +1
   over C4 ± 64 notes (the manual: "the center note is 60"); EXP VEL velocity squared; REL VEL fixed at 64 (Felucca
   keeps no release velocity); PITCH WHL+ / WHL− 0 to +1 as the wheel goes up / down.
