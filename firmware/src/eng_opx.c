@@ -334,10 +334,12 @@ static void opx_mode_build(const opx_op_t *o, opx_rt_t *r, uint32_t k)
     }
 }
 /* M4: EG1 (index OPX_NOP of the stage tables), LFO1, PROG PITCH. LFO1's SPEED: HZ10 (0.01 Hz x 10000^(c/1023)), or
- * TEMPO on a note value at the song's tempo. The tempo values (1/48 .. 4/1) are not listed in the manual: OPX_SYNC is
- * a reading of them, to be checked on an opsix */
-static const uint8_t OPX_SYNC[20][2] = {{1, 48}, {1, 32}, {1, 24}, {1, 16}, {1, 12}, {3, 32}, {1, 8}, {1, 6}, {3, 16},
-    {1, 4}, {1, 3}, {3, 8}, {1, 2}, {2, 3}, {3, 4}, {1, 1}, {3, 2}, {2, 1}, {3, 1}, {4, 1}};   /* {num, den} of a whole */
+ * TEMPO on a note value at the song's tempo: OPX_SYNC, the opsix's 24 as its SPEED knob goes (read off an opsix: the
+ * manual gives only 1/48 .. 4/1): for each length its triplet, dotted, straight value, 1/32 triplet .. 2x breve */
+static const uint8_t OPX_SYNC[24][2] = {{1, 48}, {3, 128}, {1, 32}, {1, 24}, {3, 64}, {1, 16}, {1, 12}, {3, 32}, {1, 8},
+    {1, 6}, {3, 16}, {1, 4}, {1, 3}, {3, 8}, {1, 2}, {2, 3}, {3, 4}, {1, 1}, {4, 3}, {3, 2}, {2, 1}, {8, 3}, {3, 1},
+    {4, 1}};                                          /* {num, den} of a whole note */
+#define OPX_SYNC_DEF 11u                              /* (1/4: a value out of range plays this) */
 static void opx_build_mod(const opx_patch_t *pt, opx_rt_t *r)
 {
     const opx_egp_t *e = &pt->eg1;
@@ -359,7 +361,7 @@ static void opx_build_mod(const opx_patch_t *pt, opx_rt_t *r)
     r->lrnd = l->phase < -180;
     r->lph0 = (uint32_t)(l->phase < -180 ? 0 : clamp(l->phase, -180, 180)) * 11930465u;   /* (2^32 / 360) */
     if (l->tempo) {                                  /* 2^32 x 32 / 44100 x BPM / 60 / (4 x num / den): 12985.6 x BPM x den / num */
-        const uint8_t *nv = OPX_SYNC[l->sync < 20u ? l->sync : 9u];
+        const uint8_t *nv = OPX_SYNC[l->sync < NELEM(OPX_SYNC) ? l->sync : OPX_SYNC_DEF];
         r->linc = (uint32_t)(12986 * clamp(song.g[G_BPM], 20, 300)) * nv[1] / nv[0];
     } else {                                         /* 0.01 Hz x 2^32 x 32 / 44100 = 31165.5, x 2^(13.2877 c / 1023) */
         r->linc = (uint32_t)(((uint64_t)(uint32_t)fm6_exp2(clamp(l->speed, 0, 1023) * 217926 - (9 << 24)) * 1021231104u) >> 30);

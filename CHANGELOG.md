@@ -5,12 +5,15 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **LFO1 TEMPO note values are the opsix's:** 24 of them, 1/48 to 4/1, in its knob's order (each length's triplet,
+  dotted, straight: 1/48 3/128 1/32 … 3/2 2/1 8/3 3/1 4/1), read off an opsix. They were 20 guessed ones. A patch
+  saved with TEMPO on before this plays a nearby value: re-pick it.
 - **Web editor on iPad / iPhone:** every question it asks first (save, load, erase, overwrite, a name) is now its own
   dialog in the page. Some WebMIDI browsers there answer the browser's built-in confirm and prompt with "no" without
   showing them, so those buttons did nothing (seen with "Put the test patches in empty user presets").
 - **SLOT INIT** (OPX, the ALGO page's SLOT after OWN): loads the INIT patch, now the opsix's INITIALIZE: OP1 alone at
   LEVEL 100 (OPX's INIT had all six at 100), algorithm 1, ratio 1, no modulation. The web editor's "Init patch" is
-  the same.
+  the same. Its LFOs start at KSYNC COMMON, as an initialised opsix program shows.
 - **The web editor's OPX tab: "Put the test patches in empty user presets"** writes the 16 opsix comparison patches
   (T01–T17 of the test sheet) into empty user presets, never over a used one.
 

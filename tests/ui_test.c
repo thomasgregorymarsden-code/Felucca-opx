@@ -9613,13 +9613,13 @@ static int test_opx_ops(void)
         ok &= !xop_rowtext(5, &lb, val, &u, &r) && str_eq(lb, "FADE") && str_eq(val, "500") && str_eq(u, "MS");   /* (KSYNC OFF: DIM) */
         xop_rowtext(4, &lb, val, &u, &r);
         ok &= str_eq(val, "RND");
-        opx_edit(tr, OPXF_LFO1_TEMPO, 1), opx_edit(tr, OPXF_LFO1_SYNC, 9);
+        opx_edit(tr, OPXF_LFO1_TEMPO, 1), opx_edit(tr, OPXF_LFO1_SYNC, 11);
         xop_rowtext(2, &lb, val, &u, &r);
         ok &= str_eq(val, "1/4");
         xo_set(EN_K3, 2, 20);
         frames(1600);
         turn(EN_K4, 100);
-        ok &= opx_get(opx_pk[tr], OPXF_LFO1_SYNC) == 19;   /* (the note values there are: 4/1 the last) */
+        ok &= opx_get(opx_pk[tr], OPXF_LFO1_SYNC) == 23;   /* (the opsix's 24 note values: 4/1 the last) */
         xop_rowtext(2, &lb, val, &u, &r);
         ok &= str_eq(val, "4/1");
         opx_edit(tr, OPXF_LFO1_TEMPO, 0);

@@ -139,8 +139,6 @@ The manual gives no curve for these, so each is a reasonable guess:
 - **The modes' depths:** WAVE FOLDER's GAIN ×1–8; FILTER FM ±4 octaves at a full-scale input; RING SHAPE as a blend
   towards the rectified input; BYPASS without the operator's level.
 - **KTRK scale:** 100 % LIN = 1 dB a semitone; EXP the square of the distance over 48 semitones.
-- **M4, LFO1 tempo values:** the manual gives 1/48 to 4/1 but not the steps between; `OPX_SYNC` has 20 (1/48 1/32
-  1/24 1/16 1/12 3/32 1/8 1/6 3/16 1/4 1/3 3/8 1/2 2/3 3/4 1/1 3/2 2/1 3/1 4/1).
 - **M4, LFO wave order:** the manual's list read down its columns; the opsix's knob order is not given.
 - **M4, the LFO shapes:** the manual draws them without a formula: X. waves on CURVE 10's exponential, TRI4/TRI6/SAW4/
   SAW6 the shape held over 4 or 6 steps, the random ones a new level (or, TIME, a flip) a cycle of random length (×0.5–2).

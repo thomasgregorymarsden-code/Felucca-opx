@@ -950,14 +950,28 @@ static void test_m4(void)
         P.lfo1.speed = 1023; opx_build(&trk[0], r); ok &= fabs(r->linc / 3116550.0 / 100.0 - 1.0) < 0.01;
         P.lfo1.speed = 512; opx_build(&trk[0], r); ok &= fabs(r->linc / 3116550.0 / (0.01 * pow(10000, 512.0 / 1023)) - 1.0) < 0.01;
         check("M4 LFO1 SPEED: 0.01 Hz at 0, 100 Hz at 1023, 0.01 x 10000^(c/1023) between (+-1 %)", ok);
-        P.lfo1.tempo = 1, P.lfo1.sync = 9;           /* 1/4 */
+        P.lfo1.tempo = 1, P.lfo1.sync = 11;          /* 1/4 */
         song.g[G_BPM] = 120;
         opx_build(&trk[0], r);
         ok = fabs(r->linc / 3116550.0 - 2.0) < 0.001;
-        P.lfo1.sync = 19;                            /* 4/1: 16 beats */
+        P.lfo1.sync = 23;                            /* 4/1: 16 beats */
         opx_build(&trk[0], r);
         ok &= fabs(r->linc / 3116550.0 - 0.125) < 0.001;
         check("M4 LFO1 TEMPO: 1/4 at 120 BPM is 2 Hz, 4/1 1/8 Hz", ok);
+        {   /* the opsix's 24 note values (read off one), in its knob's order: each length's triplet, dotted, straight */
+            static const double LEN[24] = {1. / 48, 3. / 128, 1. / 32, 1. / 24, 3. / 64, 1. / 16, 1. / 12, 3. / 32, 1. / 8,
+                1. / 6, 3. / 16, 1. / 4, 1. / 3, 3. / 8, 1. / 2, 2. / 3, 3. / 4, 1, 4. / 3, 3. / 2, 2, 8. / 3, 3, 4};
+            ok = NELEM(OPX_SYNC) == 24u;
+            for (i = 0; i < 24u; i++) {
+                P.lfo1.sync = (uint8_t)i;
+                opx_build(&trk[0], r);
+                ok &= fabs(r->linc / 3116550.0 / (2.0 / (4 * LEN[i])) - 1.0) < 0.001 && (i == 0 || LEN[i] > LEN[i - 1]);
+            }
+            P.lfo1.sync = 200;                       /* (out of range: 1/4) */
+            opx_build(&trk[0], r);
+            ok &= fabs(r->linc / 3116550.0 - 2.0) < 0.001;
+            check("M4 LFO1 TEMPO: the opsix's 24 note values 1/48 .. 4/1 at 120 BPM (+-0.1 %), rising; out of range 1/4", ok);
+        }
     }
 
     /* LMOD LFO1: SQR at 100 %: the level between full and silent; at -100 % the other way round; 50 %: half */

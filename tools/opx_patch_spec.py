@@ -34,7 +34,7 @@ NOPFX = 10             # operator effect types p.34 (PEAK EQ .. PUNCH)
 NCOARSE = 39           # coarse ratio 1/128, 1/64 .. 1/2, 1 .. 32
 NCTRL = 17             # Control Source List p.85, + OFF
 NLFOWAVES = 23         # LFO Wave List p.55
-NSYNC = 20             # LFO tempo-sync values 1/48 .. 4/1 (count not listed in the manual: room for 32)
+NSYNC = 24             # LFO tempo-sync values 1/48 .. 4/1 (read off an opsix: 24; the field has room for 32)
 NMAINFILT = 11         # main filter types p.38
 NFX = 31               # 30 effect types + OFF (Effect Parameter List p.91..)
 NALGO = 41             # 40 preset algorithms + USER
@@ -220,7 +220,8 @@ for _o in range(1, 7):
 for _e in range(1, 4):
     DEFAULTS[f"eg{_e}.sus"] = 100
 for _l in range(1, 4):
-    DEFAULTS.update({f"lfo{_l}.speed": 512, f"lfo{_l}.sync": 8})
+    DEFAULTS.update({f"lfo{_l}.speed": 512, f"lfo{_l}.sync": 11,   # (sync 11: 1/4)
+                     f"lfo{_l}.ksync": 1})   # (the opsix INIT's LFO1: KSYNC CMN, seen on one; LFO2, 3 assumed alike)
 DEFAULTS.update({"flt.cutoff": 1023, "flt.ktrk_center": 60, "prog.bend_up": 2, "prog.bend_down": -2,
                  "x.arp_gate": 75, "x.arp_oct": 1, "x.seq_tempo": 12000, "x.seq_len": 16})
 for _i in range(16):

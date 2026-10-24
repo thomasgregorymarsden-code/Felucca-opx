@@ -127,14 +127,14 @@ export function text(pk, k, f) {
   }
 }
 // M4: the LFO Wave List (p.56, eng_opx.c OPX_L_*), the Control Source List after OFF (p.85, OPX_C_*), LFO1's tempo
-// note values (eng_opx.c OPX_SYNC: the manual gives 1/48 .. 4/1, not the steps; a reading to be checked)
+// note values (eng_opx.c OPX_SYNC: read off an opsix, its SPEED knob's 24 with TEMPO on)
 export const LFO_WAVES = ["TRI", "SAW DOWN", "SAW UP", "SQR", "SIN", "S/H", "GTR", "X.TRI", "X.SAW DOWN", "X.SAW UP", "TRI4",
   "TRI6", "SAW4 DOWN", "SAW6 DOWN", "S.RND TIME", "S.RND LVTIME", "RND LEVEL", "RND TIME", "RND LVTIME", "TRI+",
   "SAW DOWN+", "SAW UP+", "SQR+"];
 export const CTRLS = ["OFF", "MOD WHEEL", "PITCH WHEEL", "PITCH WHL+", "PITCH WHL-", "PEDAL", "NOTE", "VEL", "EXP VEL",
   "REL VEL", "AFTER TOUCH", "EG1", "EG2", "EG3", "LFO1", "LFO2", "LFO3"];
-export const SYNC = ["1/48", "1/32", "1/24", "1/16", "1/12", "3/32", "1/8", "1/6", "3/16", "1/4", "1/3", "3/8", "1/2", "2/3",
-  "3/4", "1/1", "3/2", "2/1", "3/1", "4/1"];
+export const SYNC = ["1/48", "3/128", "1/32", "1/24", "3/64", "1/16", "1/12", "3/32", "1/8", "1/6", "3/16", "1/4", "1/3",
+  "3/8", "1/2", "2/3", "3/4", "1/1", "4/3", "3/2", "2/1", "8/3", "3/1", "4/1"];
 export const KSYNC = ["OFF", "COMMON", "VOICE"];
 // HZ10 code c (LFO SPEED, TEMPO off): 0.01 Hz x 10000^(c / 1023)
 export const speedText = (c) => `${(0.01 * 10000 ** (c / 1023)).toFixed(2)} HZ`;
