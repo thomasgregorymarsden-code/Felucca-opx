@@ -49,8 +49,8 @@ enum { OPX_W_SIN, OPX_W_SIN12, OPX_W_SIN8, OPX_W_TRI, OPX_W_SAW, OPX_W_SAWHD, OP
        OPX_W_ASQR3, OPX_W_ATRI3, OPX_W_A12345, OPX_W_A12, OPX_W_A13, OPX_W_A14, OPX_W_A15, OPX_W_A16, OPX_W_A17,
        OPX_W_A18, OPX_W_NOISE_SH, OPX_W_WHITE, OPX_W_PINK, OPX_W_BLUE, OPX_NWAVE };
 #define OPX_W_NARROW 0x80u
-/* M4: the LFO Wave List (p.56), its columns read down in turn (the manual gives no numbers: the order the opsix's knob
- * goes through, to be checked); GTR and the "+" ones 0 .. +1, the others -1 .. +1 */
+/* M4: the LFO Wave List (p.56) in the order an opsix's WAVE knob goes through (seen on one: the manual's columns read
+ * down in turn); GTR and the "+" ones 0 .. +1, the others -1 .. +1 */
 enum { OPX_L_TRI, OPX_L_SAWD, OPX_L_SAWU, OPX_L_SQR, OPX_L_SIN, OPX_L_SH, OPX_L_GTR, OPX_L_XTRI, OPX_L_XSAWD,
        OPX_L_XSAWU, OPX_L_TRI4, OPX_L_TRI6, OPX_L_SAW4D, OPX_L_SAW6D, OPX_L_SRT, OPX_L_SRLT, OPX_L_RL, OPX_L_RT,
        OPX_L_RLT, OPX_L_TRIP, OPX_L_SAWDP, OPX_L_SAWUP, OPX_L_SQRP, OPX_NLFOW };

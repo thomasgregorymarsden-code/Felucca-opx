@@ -142,13 +142,12 @@ The manual gives no curve for these, so each is a reasonable guess:
 - **The modes' depths:** WAVE FOLDER's GAIN ×1–8; FILTER FM ±4 octaves at a full-scale input; RING SHAPE as a blend
   towards the rectified input; BYPASS without the operator's level.
 - **KTRK scale:** 100 % LIN = 1 dB a semitone; EXP the square of the distance over 48 semitones.
-- **M4, LFO wave order:** the manual's list read down its columns; the opsix's knob order is not given.
 - **M4, the LFO shapes:** the manual draws them without a formula: X. waves on CURVE 10's exponential, TRI4/TRI6/SAW4/
   SAW6 the shape held over 4 or 6 steps, the random ones a new level (or, TIME, a flip) a cycle of random length (×0.5–2).
 - **M4, P MOD VEL, DEST FINE:** measured with FINE 1.00 only: on the final ratio, or on COARSE before FINE as DEST COARSE,
   is not yet told apart (COARSE 2, FINE 0.50, 55 % at 127: 6.5 or 3.75). Assumed the final ratio. DEST COARSE's whole
   steps below COARSE 1 are assumed whole numbers added (1/2 + 1 = 1.5).
-- **M4, CTRL:** an OFF entry (the manual's list has none; without it every INT would need a source); NOTE −1 to +1
+- **M4, CTRL:** (OFF first, as on an opsix, though the manual's list has none) NOTE −1 to +1
   over C4 ± 64 notes (the manual: "the center note is 60"); EXP VEL velocity squared; REL VEL fixed at 64 (Felucca
   keeps no release velocity); PITCH WHL+ / WHL− 0 to +1 as the wheel goes up / down.
 - **Filters and effects:** how the opsix builds them is not published: the types are standard designs with the
