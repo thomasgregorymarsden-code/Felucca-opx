@@ -221,9 +221,9 @@ for _o in range(1, 7):
 for _e in range(1, 4):
     DEFAULTS[f"eg{_e}.sus"] = 0                                    # (the opsix INIT's EG1..3: SUS 0, CURVE LIN)
 for _l in range(1, 4):
-    DEFAULTS.update({f"lfo{_l}.speed": 512 if _l == 1 else 589,   # (the opsix INIT: LFO3 2.00 Hz, read; LFO2's knob
-                     f"lfo{_l}.sync": 11,                            #  the same; LFO1's knob higher, at the centre: 1.00 Hz
-                     f"lfo{_l}.ksync": 1})                           #  assumed until read). sync 11: 1/4; KSYNC CMN on all
+    DEFAULTS.update({f"lfo{_l}.speed": 711 if _l == 1 else 589,   # (the opsix INIT, read: LFO1 6.00 Hz, LFO2 and
+                     f"lfo{_l}.sync": 11,                            #  LFO3 2.00 Hz; nearest codes 6.03, 2.01 Hz)
+                     f"lfo{_l}.ksync": 1})                           # (sync 11: 1/4; KSYNC CMN on all three)
 DEFAULTS.update({"x.glide_time": 500, "x.uni_detune": 10, "x.uni_spread": 100})   # (the opsix INIT's VOICE page)
 DEFAULTS.update({"flt.cutoff": 1023, "flt.ktrk_center": 60, "prog.bend_up": 2, "prog.bend_down": -2,
                  "x.arp_gate": 75, "x.arp_oct": 1, "x.seq_tempo": 12000, "x.seq_len": 16})
