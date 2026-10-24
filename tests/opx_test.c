@@ -1020,7 +1020,8 @@ static void test_m4(void)
     check("M4 PROG TRANS +12 an octave up, OCT -1 one down; a FIXED operator stays (220 Hz)",
           fabs(a / f0 - 2) < 0.01 && fabs(b / f0 - 0.5) < 0.01 && fabs(freq_at(y, FS / 8, FS / 8) - 220.0) < 1.0);
 
-    /* P MOD VEL: FINE at 100 %: velocity 127 an octave up, 0 none; COARSE: 8 steps (ratio 1 -> 9) */
+    /* P MOD VEL (read off an opsix): 100 % at velocity 127 ratio 1 -> 11 (FINE and COARSE), 64 -> 6.04 (FINE); 50 % at
+     * 64: FINE 3.52, COARSE 4 (the nearest whole step); velocity 0 none */
     m4_patch();
     P.op[0].pm_vel = 100;
     setup(&P, 0);
@@ -1028,12 +1029,24 @@ static void test_m4(void)
     a = freq_at(y, FS / 8, FS / 8);
     engine_render(69, 0, y, FS / 4, 0, 0);
     b = freq_at(y, FS / 8, FS / 8);
-    check("M4 P MOD VEL 100 % FINE: velocity 127 an octave up (FINE 2.000), 0 the note", fabs(a / f0 - 2) < 0.01 &&
+    engine_render(69, 64, y, FS / 4, 0, 0);
+    lo = freq_at(y, FS / 8, FS / 8);
+    P.op[0].pm_vel = 50;
+    setup(&P, 0);
+    engine_render(69, 64, y, FS / 4, 0, 0);
+    hi = freq_at(y, FS / 8, FS / 8);
+    check("M4 P MOD VEL FINE: 100 % at 127 ratio 11, at 64 6.04, 50 % at 64 3.52 (+-0.5 %), velocity 0 the note",
+          fabs(a / f0 / 11 - 1) < 0.005 && fabs(lo / f0 / 6.039 - 1) < 0.005 && fabs(hi / f0 / 3.520 - 1) < 0.005 &&
           fabs(b / f0 - 1) < 0.01);
     P.op[0].pm_dest = 1;
     setup(&P, 0);
+    engine_render(69, 64, y, FS / 4, 0, 0);
+    hi = freq_at(y, FS / 8, FS / 8);
+    P.op[0].pm_vel = 100;
+    setup(&P, 0);
     engine_render(69, 127, y, FS / 4, 0, 0);
-    check("  .. COARSE: 8 steps (ratio 1 -> 9)", fabs(freq_at(y, FS / 8, FS / 8) / f0 - 9) < 0.05);
+    check("  .. COARSE: whole steps to the nearest: 100 % at 127 ratio 11, 50 % at 64 ratio 4",
+          fabs(freq_at(y, FS / 8, FS / 8) / f0 / 11 - 1) < 0.005 && fabs(hi / f0 / 4 - 1) < 0.005);
 
     /* the LFO shapes: bounds, the bipolar ones -1 .. +1, the "+" and GTR 0 .. +1; S/H held over a cycle */
     {

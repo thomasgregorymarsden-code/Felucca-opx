@@ -80,7 +80,9 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
 - **P MOD LFO1 INT** and **PROG PITCH LFO1 INT** move the pitch by INT semitones at the LFO's +1; **LMOD LFO1 INT**
   dips the operator's level, never above its own: at +100 % a bipolar LFO goes from full (its −1) to silent (its +1),
   a unipolar one from full (0) to silent (+1); −100 % turns the LFO over.
-- **P MOD VEL** (RATIO only) adds to FINE (DEST FINE) or COARSE steps (DEST COARSE) by velocity.
+- **P MOD VEL** (RATIO only) adds INT % × velocity/127 × 10 to the ratio, measured on an opsix (100 % at velocity 127:
+  ratio 1 → 11; at 64 → 6.04; 50 % at 64 → 3.52): DEST FINE continuously, DEST COARSE in whole steps, to the nearest
+  (the steps fall at 5, 15 … 95 % at velocity 127).
 - **PROG PITCH TRANS** and **OCT** move the note (not the FIXED operators).
 - **CTRL** (each INT's): the source's value multiplies the INT (p.51). OFF keeps the INT as it is. MOD WHEEL,
   AFTER TOUCH and the PITCH WHEEL are the part's MIDI ones, PEDAL its channel's damper; NOTE, VEL, EXP VEL the note's;
@@ -142,7 +144,9 @@ The manual gives no curve for these, so each is a reasonable guess:
 - **M4, LFO wave order:** the manual's list read down its columns; the opsix's knob order is not given.
 - **M4, the LFO shapes:** the manual draws them without a formula: X. waves on CURVE 10's exponential, TRI4/TRI6/SAW4/
   SAW6 the shape held over 4 or 6 steps, the random ones a new level (or, TIME, a flip) a cycle of random length (×0.5–2).
-- **M4, P MOD VEL:** at 100 % and velocity 127, FINE +1.000 (an octave on a ratio of 1) or 8 COARSE steps.
+- **M4, P MOD VEL:** measured with COARSE 1 only. Assumed: FINE's addition goes to FINE (a multiplier of COARSE: COARSE
+  2 at velocity 127 would be ratio 22, not 12), and COARSE's steps are whole ratios above 1 (below 1, the COARSE list's
+  next entries).
 - **M4, CTRL:** an OFF entry (the manual's list has none; without it every INT would need a source); NOTE −1 to +1
   over C4 ± 64 notes (the manual: "the center note is 60"); EXP VEL velocity squared; REL VEL fixed at 64 (Felucca
   keeps no release velocity); PITCH WHL+ / WHL− 0 to +1 as the wheel goes up / down.
