@@ -213,15 +213,18 @@ DEFAULTS = {"version": FORMAT_VERSION, "algorithm": None}
 for _o in range(1, 7):
     DEFAULTS.update({f"op{_o}.coarse": 7, f"op{_o}.fine": 1000, f"op{_o}.fixed_freq": 44000,
                      f"op{_o}.level": 100 if _o == 1 else 0,   # (the opsix's INIT: OP1 alone heard, its LEVEL sliders)
-                     f"op{_o}.eg_sus": 100, f"op{_o}.ktrk_center": 60, f"op{_o}.fm_width": 0,
+                     f"op{_o}.eg_sus": 60, f"op{_o}.eg_curve": 6,   # (the opsix INIT: SUS 60, CURVE 6)
+                     f"op{_o}.ktrk_center": 60, f"op{_o}.fm_width": 0,
                      # the modes' values ready to be heard when a mode is picked: the ring and the oscillator mixes full
                      f"op{_o}.ring_depth": 100, f"op{_o}.flt_oscmix": 100, f"op{_o}.fold_oscmix": 100,
                      f"op{_o}.fx_oscmix": 100, f"op{_o}.fx_e": 500, f"op{_o}.fx_f": 180})   # (PEAK EQ: 0 st, 0 dB)
 for _e in range(1, 4):
-    DEFAULTS[f"eg{_e}.sus"] = 100
+    DEFAULTS[f"eg{_e}.sus"] = 0                                    # (the opsix INIT's EG1..3: SUS 0, CURVE LIN)
 for _l in range(1, 4):
-    DEFAULTS.update({f"lfo{_l}.speed": 512, f"lfo{_l}.sync": 11,   # (sync 11: 1/4)
-                     f"lfo{_l}.ksync": 1})   # (the opsix INIT's LFO1: KSYNC CMN, seen on one; LFO2, 3 assumed alike)
+    DEFAULTS.update({f"lfo{_l}.speed": 512 if _l == 1 else 589,   # (the opsix INIT: LFO3 2.00 Hz, read; LFO2's knob
+                     f"lfo{_l}.sync": 11,                            #  the same; LFO1's knob higher, at the centre: 1.00 Hz
+                     f"lfo{_l}.ksync": 1})                           #  assumed until read). sync 11: 1/4; KSYNC CMN on all
+DEFAULTS.update({"x.glide_time": 500, "x.uni_detune": 10, "x.uni_spread": 100})   # (the opsix INIT's VOICE page)
 DEFAULTS.update({"flt.cutoff": 1023, "flt.ktrk_center": 60, "prog.bend_up": 2, "prog.bend_down": -2,
                  "x.arp_gate": 75, "x.arp_oct": 1, "x.seq_tempo": 12000, "x.seq_len": 16})
 for _i in range(16):
