@@ -287,6 +287,7 @@ typedef struct {
      * P MOD VEL (%: FINE's addition at full velocity, Q16 of 1.000; COARSE steps), PROG PITCH */
     int32_t pme[OPX_NOP], pml[OPX_NOP], lml[OPX_NOP];
     uint8_t pmv[OPX_NOP], pmd[OPX_NOP], cidx[OPX_NOP];
+    uint16_t crq7[OPX_NOP];      /* COARSE as a ratio, Q7 (1/128 = 1 .. 32 = 4096): P MOD VEL's addition over it */
     uint8_t cpe[OPX_NOP], cpl[OPX_NOP], clm[OPX_NOP], cpg;   /* their CTRL (OPX_C_*; OFF: the INT as it is) */
     int32_t plfo, poff;          /* PROG LFO1 INT (Q24 octaves), TRANS + OCT (Q24 octaves, on the note) */
     uint8_t lw, lks, lrnd, lon;  /* LFO1: wave, KSYNC, PHASE RANDOM; lon: LFO1 reaches something */
@@ -464,6 +465,7 @@ static void opx_build(const track_t *t, opx_rt_t *r)
         r->pmv[k] = (uint8_t)(o->fixed ? 0 : clamp(o->pm_vel, 0, 100));   /* (RATIO only, p.51) */
         r->pmd[k] = (uint8_t)(o->pm_dest & 1u);
         r->cidx[k] = (uint8_t)clamp(c, 0, 38);
+        r->crq7[k] = (uint16_t)(r->cidx[k] < 7u ? 1u << r->cidx[k] : (r->cidx[k] - 6u) * 128u);
     }
     opx_build_mod(pt, r);
 }
@@ -770,8 +772,7 @@ typedef struct {                 /* a sounding note: 540 bytes */
     opx_eg_t eg1;                /* M4: EG1 */
     opx_lfo_t lfo;               /* M4: LFO1, KSYNC VOICE (else the part's: opx_lfoc) */
     int32_t lfade;               /* M4: LFO1 FADE's level, Q24 */
-    uint16_t vfa[OPX_NOP];       /* M4: P MOD VEL to FINE: what this note adds to FINE (Q12 of 1.000; up to 10.000) */
-    int8_t vci[OPX_NOP];         /* M4: P MOD VEL to COARSE: the steps it adds */
+    uint16_t vfa[OPX_NOP];       /* M4: P MOD VEL: what this note adds to the ratio (Q12 of 1.000; up to 10.000) */
 } opx_note_t;
 ENG_MEM_FITS("OPX", (sizeof(opx_note_t) + OPX_DLY * sizeof(int16_t)) * OPX_POLY);
 
@@ -872,13 +873,11 @@ static void opx_note_on(track_t *t, voice_t *v)
         /* LMOD VEL: at 100 % velocity 1 is silent, 127 full; linear in between */
         n->vg[k] = 32767 - (r->vel[k] * (127 - clamp(vel, 1, 127)) * 258 / 100);
         n->kt[k] = opx_ktrk(r, (uint32_t)k, v->note);
-        /* M4: P MOD VEL (RATIO only): the manual gives no scale: here 100 % at velocity 127 adds 1.000 to FINE (DEST
-         * FINE: up to an octave, FINE at most 2.000) or 8 COARSE steps (DEST COARSE); linear in velocity */
-        /* P MOD VEL (read off an opsix): INT % x velocity / 127 x 10 added to the ratio: velocity 127 at 100 % takes
-         * ratio 1 to 11, 64 to 6.04; FINE continuously (to FINE), COARSE in whole steps (to the nearest: 50 % at
-         * velocity 64 is 2.52 -> 3) */
-        n->vfa[k] = (uint16_t)(r->pmd[k] ? 0 : r->pmv[k] * clamp(vel, 0, 127) * 40960 / 12700);
-        n->vci[k] = (int8_t)(r->pmd[k] ? (r->pmv[k] * clamp(vel, 0, 127) * 10 + 6350) / 12700 : 0);
+        /* M4: P MOD VEL (RATIO only; measured on an opsix): INT % x velocity / 127 x 10 added to the final ratio
+         * (COARSE x FINE): 100 % at velocity 127 takes 1 to 11, and COARSE 2 to 12; at 64, 1 to 6.04. DEST FINE adds it
+         * as it is, DEST COARSE to the nearest whole number (50 % at velocity 64: 2.52 -> 3) */
+        n->vfa[k] = (uint16_t)(r->pmd[k] ? (r->pmv[k] * clamp(vel, 0, 127) * 10 + 6350) / 12700 * 4096
+                                         : r->pmv[k] * clamp(vel, 0, 127) * 40960 / 12700);
     }
     /* M4: EG1 as the operators' envelopes; LFO1 from its PHASE (KSYNC VOICE: this note's; COMMON: the part's, when
      * no other key is down; OFF: free), its FADE from 0 (not with KSYNC OFF) */
@@ -1606,11 +1605,10 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
         uint32_t f = r->finc[k];
         if (!f) {
             int32_t x = lf + r->lg[k] + d;
-            uint32_t fq = r->fine[k] + ((uint32_t)n->vfa[k] << 4);
-            if (n->vci[k])
-                x += OPX_COARSE[clamp(r->cidx[k] + n->vci[k], 0, 38)] - OPX_COARSE[r->cidx[k]];
-            uint64_t q = ((uint64_t)((uint32_t)fm6_freq(x) << 8) * (fq > 786432u ? 786432u : fq)) >> 16;   /* (FINE up
-                                                      * to 2.000, + 10.000 by velocity) */
+            uint32_t fq = r->fine[k];                /* (Q16; x has COARSE: P MOD VEL's addition over COARSE) */
+            if (n->vfa[k])
+                fq += ((uint32_t)n->vfa[k] << 11) / r->crq7[k];
+            uint64_t q = ((uint64_t)((uint32_t)fm6_freq(x) << 8) * fq) >> 16;
             f = q > OPX_FCMAX ? OPX_FCMAX : (uint32_t)q;
         } else if (d) {                              /* (FIXED: its frequency moved; below 0.45 of the sample rate) */
             uint64_t q = ((uint64_t)f * (uint32_t)fm6_exp2(clamp(d, -20 << 24, 5 << 24) - (9 << 24))) >> 15;

@@ -1047,6 +1047,16 @@ static void test_m4(void)
     engine_render(69, 127, y, FS / 4, 0, 0);
     check("  .. COARSE: whole steps to the nearest: 100 % at 127 ratio 11, 50 % at 64 ratio 4",
           fabs(freq_at(y, FS / 8, FS / 8) / f0 / 11 - 1) < 0.005 && fabs(hi / f0 / 4 - 1) < 0.005);
+    P.op[0].coarse = 8, P.op[0].pm_dest = 0;         /* (COARSE 2: the addition goes on the final ratio, 2 + 10) */
+    setup(&P, 0);
+    engine_render(69, 127, y, FS / 4, 0, 0);
+    a = freq_at(y, FS / 8, FS / 8);
+    P.op[0].coarse = 6, P.op[0].fine = 500, P.op[0].pm_vel = 50;   /* (1/2 x 0.50 = 0.25, + 50 % x 10 = 5.25) */
+    setup(&P, 0);
+    engine_render(69, 127, y, FS / 4, 0, 0);
+    b = freq_at(y, FS / 8, FS / 8);
+    check("  .. on the final ratio (COARSE x FINE): COARSE 2 at 127 ratio 12 (opsix: G6 from C3); 1/2 x 0.50 at 50 % 5.25",
+          fabs(a / f0 / 12 - 1) < 0.005 && fabs(b / f0 / 5.25 - 1) < 0.005);
 
     /* the LFO shapes: bounds, the bipolar ones -1 .. +1, the "+" and GTR 0 .. +1; S/H held over a cycle */
     {

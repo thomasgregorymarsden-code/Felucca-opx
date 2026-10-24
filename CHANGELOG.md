@@ -5,8 +5,9 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
-- **P MOD VEL measured on an opsix:** INT % × velocity/127 × 10 is added to the ratio (100 % at velocity 127 takes
-  ratio 1 to 11; it was ratio 2 for FINE and 9 for COARSE): FINE continuously, COARSE in whole steps to the nearest.
+- **P MOD VEL measured on an opsix:** INT % × velocity/127 × 10 is added to the final ratio, COARSE × FINE (100 % at
+  velocity 127 takes ratio 1 to 11 and COARSE 2 to 12; it was ratio 2 for FINE and 9 for COARSE): FINE as it is,
+  COARSE to the nearest whole number.
 - **LFO1 TEMPO note values are the opsix's:** 24 of them, 1/48 to 4/1, in its knob's order (each length's triplet,
   dotted, straight: 1/48 3/128 1/32 … 3/2 2/1 8/3 3/1 4/1), read off an opsix. They were 20 guessed ones. A patch
   saved with TEMPO on before this plays a nearby value: re-pick it.
