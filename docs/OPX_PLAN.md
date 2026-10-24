@@ -73,9 +73,11 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
 - **EG1** is an envelope like the operators' (ATK DEC SUS REL CURVE), one a note, from 0 to 1. **P MOD EG1 INT** moves
   the operator's pitch by INT semitones at EG1's peak (±144.00).
 - **LFO1** runs per part (KSYNC OFF and COMMON: one for the part, COMMON reset by the first note from no keys held) or
-  per note (KSYNC VOICE), stepped once a 32-sample block. SPEED is 0.01–100 Hz (0.01 × 10000^(c/1023)), or with
+  per note (KSYNC VOICE), stepped once a 32-sample block. SPEED is 0.01–100 Hz (0.01 × 10000^(c/1023); both ends read on an opsix), or with
   TEMPO on a note value at the song's tempo (MIDI clock's when it follows one). PHASE is where a reset starts it (RND:
-  anywhere); FADE fades it in after the note-on (only with KSYNC on, as the manual says). The 23 waves are the manual's
+  anywhere); FADE (0–9.900 s, both ends read on an opsix) fades it in after the note-on (only with KSYNC on, as the manual says).
+  The opsix's SPEED knob is not a log scale (6.00 Hz at its centre, where OPX's code puts 1.00 Hz); OPX keeps its log
+  code, since a stored speed plays the same either way and only the knob travel differs. The 23 waves are the manual's
   list (p.56): the bipolar ones −1 to +1, GTR and the "+" ones 0 to +1.
 - **P MOD LFO1 INT** and **PROG PITCH LFO1 INT** move the pitch by INT semitones at the LFO's +1; **LMOD LFO1 INT**
   dips the operator's level, never above its own: at +100 % a bipolar LFO goes from full (its −1) to silent (its +1),
