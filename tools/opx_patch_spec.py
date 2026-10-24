@@ -213,20 +213,23 @@ DEFAULTS = {"version": FORMAT_VERSION, "algorithm": None}
 for _o in range(1, 7):
     DEFAULTS.update({f"op{_o}.coarse": 7, f"op{_o}.fine": 1000, f"op{_o}.fixed_freq": 44000,
                      f"op{_o}.level": 100 if _o == 1 else 0,   # (the opsix's INIT: OP1 alone heard, its LEVEL sliders)
-                     f"op{_o}.eg_sus": 60, f"op{_o}.eg_curve": 6,   # (the opsix INIT: SUS 60, CURVE 6)
+                     f"op{_o}.eg_sus": 60, f"op{_o}.eg_curve": 6,   # (the opsix INIT, read on OP1: ATK 0,
+                     f"op{_o}.eg_dec": 620, f"op{_o}.eg_rel": 414,  #  DEC 1.000 s (code 620: 1.002 s), SUS 60,
+                     #                                                 REL 100 ms (code 414: 100.5 ms), CURVE 6)
                      f"op{_o}.ktrk_center": 60, f"op{_o}.fm_width": 0,
                      # the modes' values ready to be heard when a mode is picked: the ring and the oscillator mixes full
                      f"op{_o}.ring_depth": 100, f"op{_o}.flt_oscmix": 100, f"op{_o}.fold_oscmix": 100,
                      f"op{_o}.fx_oscmix": 100, f"op{_o}.fx_e": 500, f"op{_o}.fx_f": 180})   # (PEAK EQ: 0 st, 0 dB)
 for _e in range(1, 4):
-    DEFAULTS[f"eg{_e}.sus"] = 0                                    # (the opsix INIT's EG1..3: SUS 0, CURVE LIN)
+    DEFAULTS.update({f"eg{_e}.dec": 620, f"eg{_e}.rel": 414,     # (the opsix INIT's EG1, read: ATK 0, DEC 1.000 s,
+                     f"eg{_e}.sus": 0})                          #  REL 100 ms, SUS 0, CURVE LIN; EG2, EG3 drawn alike)
 for _l in range(1, 4):
     DEFAULTS.update({f"lfo{_l}.speed": 711 if _l == 1 else 589,   # (the opsix INIT, read: LFO1 6.00 Hz, LFO2 and
                      f"lfo{_l}.sync": 11,                            #  LFO3 2.00 Hz; nearest codes 6.03, 2.01 Hz)
                      f"lfo{_l}.ksync": 1})                           # (sync 11: 1/4; KSYNC CMN on all three)
 DEFAULTS.update({"x.glide_time": 500, "x.uni_detune": 10, "x.uni_spread": 100})   # (the opsix INIT's VOICE page)
-DEFAULTS.update({"flt.cutoff": 1023, "flt.ktrk_center": 60, "prog.bend_up": 2, "prog.bend_down": -2,
-                 "x.arp_gate": 75, "x.arp_oct": 1, "x.seq_tempo": 12000, "x.seq_len": 16})
+DEFAULTS.update({"flt.cutoff": 1023, "flt.ktrk_center": 60, "prog.level": -60, "prog.bend_up": 2, "prog.bend_down": -2,
+                 "x.arp_gate": 80, "x.arp_oct": 1, "x.seq_tempo": 12000, "x.seq_len": 16})
 for _i in range(16):
     DEFAULTS[f"prog.name{_i}"] = ord("INIT"[_i]) if _i < 4 else 32
 del DEFAULTS["algorithm"]

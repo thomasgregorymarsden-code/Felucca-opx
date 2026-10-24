@@ -17,7 +17,9 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 - **SLOT INIT** (OPX, the ALGO page's SLOT after OWN): loads the INIT patch, now the opsix's INITIALIZE: OP1 alone at
   LEVEL 100 (OPX's INIT had all six at 100), algorithm 1, ratio 1, no modulation. The web editor's "Init patch" is
   the same. Its LFOs start at KSYNC COMMON, as an initialised opsix program shows. From the opsix INIT's screens: the
-  operator EGs at SUS 60 and CURVE 6 (were 100 and 0), EG1..3 at SUS 0 (were 100), LFO1 at 6.00 Hz (was 1.00 Hz),
+  operator EGs at ATK 0, DECAY 1.000 s, SUS 60, REL 100 ms, CURVE 6 (were DECAY and REL 0, SUS 100, CURVE 0),
+  EG1..3 at ATK 0, DECAY 1.000 s, SUS 0, REL 100 ms (were SUS 100, times 0), PROG LEVEL -6.0 dB (stored),
+  ARP GATE 80 (was 75), LFO1 at 6.00 Hz (was 1.00 Hz),
   LFO2 and LFO3 at 2.00 Hz, and the stored VOICE values GLIDE TIME 0.500 s, UNISON DETUNE 10, SPREAD 100. The
   test patches start from it, so their sustain is now 60 as on an opsix built from INIT.
 - **The web editor's OPX tab: "Put the test patches in empty user presets"** writes the 16 opsix comparison patches
