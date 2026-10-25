@@ -772,8 +772,8 @@ typedef struct {                 /* a sounding note: 540 bytes */
     opx_eg_t eg1;                /* M4: EG1 */
     opx_lfo_t lfo;               /* M4: LFO1, KSYNC VOICE (else the part's: opx_lfoc) */
     int32_t lfade;               /* M4: LFO1 FADE's level, Q24 */
-    uint16_t vfa[OPX_NOP];       /* M4: P MOD VEL, DEST FINE: what this note adds to the final ratio (Q12; up to 10.000) */
-    uint8_t vci[OPX_NOP];        /* .. DEST COARSE: the whole steps it adds to COARSE (before FINE) */
+    uint32_t vfq[OPX_NOP];       /* M4: P MOD VEL: what this note adds to FINE (Q16, over COARSE), worked out at the
+                                  * note-on so the render has no divide (FINE / COARSE turned during the note: kept) */
 } opx_note_t;
 ENG_MEM_FITS("OPX", (sizeof(opx_note_t) + OPX_DLY * sizeof(int16_t)) * OPX_POLY);
 
@@ -878,8 +878,15 @@ static void opx_note_on(track_t *t, voice_t *v)
          * nearest whole number added to COARSE, FINE then multiplying (COARSE 2, FINE 0.50, 55 % at 127: (2 + 6) x 0.5
          * = 4). DEST FINE: added to the final ratio as it is (100 % at 127: 1 -> 11, COARSE 2 -> 12; at 64: 1 -> 6.04;
          * with FINE away from 1.00 not yet measured) */
-        n->vfa[k] = (uint16_t)(r->pmd[k] ? 0 : r->pmv[k] * clamp(vel, 0, 127) * 40960 / 12700);
-        n->vci[k] = (uint8_t)(r->pmd[k] ? (r->pmv[k] * clamp(vel, 0, 127) * 10 + 6350) / 12700 : 0);
+        {
+            uint32_t a = (uint32_t)(r->pmv[k] * clamp(vel, 0, 127));
+            if (!a || !r->crq7[k])                   /* (VEL 0, velocity 0, or no patch built yet) */
+                n->vfq[k] = 0;
+            else if (r->pmd[k])                           /* (COARSE + n, then x FINE: FINE x n / COARSE; <= 2^28) */
+                n->vfq[k] = r->fine[k] * ((a * 10u + 6350u) / 12700u) * 128u / r->crq7[k];
+            else                                     /* (+ the addition on the final ratio, Q12 -> Q16 over COARSE) */
+                n->vfq[k] = ((a * 40960u / 12700u) << 11) / r->crq7[k];
+        }
     }
     /* M4: EG1 as the operators' envelopes; LFO1 from its PHASE (KSYNC VOICE: this note's; COMMON: the part's, when
      * no other key is down; OFF: free), its FADE from 0 (not with KSYNC OFF) */
@@ -1607,11 +1614,7 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
         uint32_t f = r->finc[k];
         if (!f) {
             int32_t x = lf + r->lg[k] + d;
-            uint32_t fq = r->fine[k];                /* (Q16; x has COARSE: P MOD VEL's additions over COARSE) */
-            if (n->vci[k])                           /* (COARSE + n, then x FINE) */
-                fq += (uint32_t)(((uint64_t)r->fine[k] * n->vci[k] << 7) / r->crq7[k]);
-            if (n->vfa[k])                           /* (+ the addition on the final ratio) */
-                fq += ((uint32_t)n->vfa[k] << 11) / r->crq7[k];
+            uint32_t fq = r->fine[k] + n->vfq[k];    /* (Q16; x has COARSE: P MOD VEL's addition over COARSE) */
             uint64_t q = ((uint64_t)((uint32_t)fm6_freq(x) << 8) * fq) >> 16;
             f = q > OPX_FCMAX ? OPX_FCMAX : (uint32_t)q;
         } else if (d) {                              /* (FIXED: its frequency moved; below 0.45 of the sample rate) */
