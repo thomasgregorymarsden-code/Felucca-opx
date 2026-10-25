@@ -9093,38 +9093,35 @@ static int test_opx_ops(void)
     bad += check("OPX ops: the track's patch is F1 (E.PIANO), the audio plays the decoded copy", ok);
 
     go_title("OPERATORS"); frame();
+    memset(xop_slis, 0, sizeof xop_slis), memset(xop_stops, 0, sizeof xop_stops), xop_sec = XS_MODE;
     xo_set(EN_K3, 0, 30);
-    ok = xop_row() == 0u && xop_top == 0u && xop_sec_of(0) == XS_MODE && xop_kind(0) == XR_MODE && xop_n() == 62u;
-    turn(EN_K2, 1);
-    ok &= xop_row() == xop_find(XR_FREQ) && xop_sec_of(xop_row()) == XS_PITCH;   /* (FM: MODE WAVE FB WIDTH, then PITCH) */
-    turn(EN_K2, 1);
-    ok &= xop_row() == xop_find(XR_LVL) && xop_sec_of(xop_row()) == XS_EG;
-    turn(EN_K2, 1);
-    ok &= xop_row() == xop_find(XR_KLOW) && xop_sec_of(xop_row()) == XS_KTRK;
-    turn(EN_K2, 1);
-    ok &= xop_row() == xop_find(XR_TO0) && xop_sec_of(xop_row()) == XS_USER;
-    turn(EN_K2, 1);
-    ok &= xop_row() == xop_find(XR_ALG) && xop_sec_of(xop_row()) == XS_ALGO;
-    turn(EN_K2, 1);
-    ok &= xop_row() == xop_find(XR_E1A) && xop_sec_of(xop_row()) == XS_EG1;   /* (M4: EG1, LFO1, PROG PITCH) */
-    turn(EN_K2, 1);
-    ok &= xop_row() == xop_find(XR_LW) && xop_sec_of(xop_row()) == XS_LFO1;
-    turn(EN_K2, 1);
-    ok &= xop_row() == xop_find(XR_GL) && xop_sec_of(xop_row()) == XS_PROG;
+    ok = xop_row() == 0u && xop_top == 0u && xop_kind(0) == XR_MODE && xop_n() == 4u;   /* (FM: MODE WAVE FB WIDTH) */
+    {
+        static const uint8_t FIRST[XS_N] = {XR_MODE, XR_FREQ, XR_LVL, XR_KLOW, XR_TO0, XR_ALG, XR_E1A, XR_LW, XR_GL, XR_V0};
+        static const uint8_t N[XS_N] = {4, 11, 9, 5, 7, 2, 5, 6, 4, 9};
+        uint32_t sc, k;
+        for (sc = 1; sc < XS_N; sc++) {              /* (each section its own list, from its first row) */
+            turn(EN_K2, 1);
+            ok &= xop_sec == sc && xop_row() == 0u && xop_kind(0) == FIRST[sc] && xop_n() == N[sc];
+            for (k = 0; k < xop_n(); k++)
+                ok &= xop_sec_of(k) == sc;
+        }
+    }
     turn(EN_K2, 5);
-    ok &= xop_row() == xop_find(XR_V0) && xop_sec_of(xop_row()) == XS_VOICE;   /* (the last: no wrap) */
+    ok &= xop_sec == XS_VOICE;                       /* (the last: no wrap) */
     turn(EN_K2, -1);
-    ok &= xop_row() == xop_find(XR_GL);
-    turn(EN_K3, 1);
+    ok &= xop_sec == XS_PROG && xop_kind(xop_row()) == XR_GL;
+    turn(EN_K3, 2);
+    ok &= xop_kind(xop_row()) == XR_GT;
     turn(EN_K2, -1);
-    ok &= xop_row() == xop_find(XR_GL);              /* (left: this section's first row, then the one before) */
-    turn(EN_K2, -1);
-    ok &= xop_row() == xop_find(XR_LW);
-    turn(EN_K2, -3);
-    ok &= xop_row() == xop_find(XR_TO0);
-    turn(EN_K2, -9);
-    ok &= xop_row() == 0u;
-    bad += check("OPX ops: one list (MODE PITCH EG KTRK USER ALGO EG1 LFO1 PROG VOICE); KNOB 2 a section a detent (its first row; left: this one's, then the previous)", ok);
+    ok &= xop_sec == XS_LFO1 && xop_kind(xop_row()) == XR_LW;
+    turn(EN_K2, 1);
+    ok &= xop_sec == XS_PROG && xop_kind(xop_row()) == XR_GT;   /* (each section keeps its row) */
+    turn(EN_K3, 9);
+    ok &= xop_kind(xop_row()) == XR_GO;              /* (KNOB 3 stays in the section) */
+    turn(EN_K2, -20);
+    ok &= xop_sec == XS_MODE && xop_row() == 0u;
+    bad += check("OPX ops: each section its own list (MODE PITCH EG KTRK USER ALGO EG1 LFO1 PROG VOICE); KNOB 2 (PAGE) a section a detent, each keeping its row; KNOB 3 within it", ok);
 
     /* VOICE: the track's VOICE pages' parameters (TSEL->p), shown and turned as there; no operator */
     {
@@ -9302,15 +9299,21 @@ static int test_opx_ops(void)
 
     ok = 1;                                          /* every operator and row: KNOB 4 writes that field only */
     for (opn = 0; opn < 6u; opn++)
-        for (row = 0; row < 53u; row++) {           /* (FM's list: 53 rows before VOICE) */
+        for (row = 0; row < 53u; row++) {           /* (FM's sections before VOICE: 53 rows, MODE 4 PITCH 11 EG 9 KTRK 5
+                                                     *  USER 7 ALGO 2 EG1 5 LFO1 6 PROG 4) */
+            static const uint8_t SN[XS_VOICE] = {4, 11, 9, 5, 7, 2, 5, 6, 4};
+            uint32_t sc = 0, rs = row;
             int32_t x, hi, lo;
             go_title("OPERATORS"); frame();
             xo_set(EN_K1, (int32_t)opn, 10);
-            if ((opn && xop_sec_of(row) >= XS_ALGO) || xop_kind(row) == XR_OUT)
+            for (; rs >= SN[sc]; rs -= SN[sc], sc++)
+                ;
+            xop_sec = (uint8_t)sc;                   /* (that row's section, row rs in it) */
+            if ((opn && sc >= XS_ALGO) || xop_kind(rs) == XR_OUT)
                 continue;                            /* (ALGO's rows on: the patch's, once; OUT: a level, below) */
-            xo_set(EN_K3, (int32_t)row, 80);
+            xo_set(EN_K3, (int32_t)rs, 80);
             opx_edit(tr, OPXF_OP(opn, OPXF_OP1_FREQ_FIXED), 0);   /* (RATIO / FINE: the ratio fields) */
-            xop_rowf(row, tr, &f);
+            xop_rowf(rs, tr, &f);
             hi = OPX_FIELDS[f].hi;
             lo = OPX_FIELDS[f].lo;
             memcpy(v, opx_pk[tr], OPX_PK_BYTES);
@@ -9318,7 +9321,7 @@ static int test_opx_ops(void)
             frames(1600);
             turn(EN_K4, x < hi ? 1 : -1);
             if (opx_fields_diff(v, opx_pk[tr], &at) != 1 || at != f) {
-                printf("ui: OPX ops: %s OP %u row %u: field %u, not %u\n", XS_NAME[xop_sec_of(row)], opn + 1u, row + 1u, at, f);
+                printf("ui: OPX ops: %s OP %u row %u: field %u, not %u\n", XS_NAME[sc], opn + 1u, rs + 1u, at, f);
                 ok = 0;
             }
             turn(EN_K4, 3000);
@@ -9388,11 +9391,12 @@ static int test_opx_ops(void)
         go_title("OPERATORS"); frame();
         xo_set(EN_K1, 3, 10);                        /* OP 4 */
         ok = 1;
+        xop_sec = XS_MODE;
         for (m = 0; m < NELEM(MR); m++) {
             opx_edit(tr, OPXF_OP(3, OPXF_OP1_MODE), MR[m].md);
             for (i = 0; i < 6u && MR[m].rows[i] != XR_FREQ; i++)
                 ok &= xop_kind(i) == MR[m].rows[i];
-            ok &= xop_kind(i) == XR_FREQ && xop_n() == i + 58u;
+            ok &= xop_n() == i;                      /* (MODE: its section alone) */
             xop_rowtext(0, &lb, val, &u, &r);
             ok &= str_eq(lb, "MODE") && str_eq(val, N_OPX_MODE[MR[m].md]);
         }
@@ -9408,6 +9412,7 @@ static int test_opx_ops(void)
         ok &= str_eq(lb, "CENTER") && str_eq(val, "C4");
         xop_rowtext(xop_find(XR_KLC), &lb, val, &u, &r);
         ok &= str_eq(lb, "L CRV") && str_eq(val, "LIN");
+        xop_sec = XS_MODE;
         xo_set(EN_K3, 0, 40);                        /* MODE: one a detent, the section follows */
         frames(1600);
         turn(EN_K4, 2);
@@ -9447,8 +9452,8 @@ static int test_opx_ops(void)
         int32_t r;
         uint32_t ic;
         go_title("OPERATORS"); frame();
-        ok = xop_kind(xop_find(XR_TO0) + 6u) == XR_OUT && xop_kind(xop_find(XR_TO0) - 1u) == XR_KHC;
-        bad += check("OPX ops: the list's USER rows after KTRK, OUT after TO OP6", ok);
+        ok = xop_find(XR_TO0) == 0u && xop_kind(6) == XR_OUT && xop_n() == 7u && xop_sec == XS_USER;
+        bad += check("OPX ops: USER's list: TO OP1 .. TO OP6, then OUT", ok);
         xo_set(EN_K1, 2, 10);                        /* OP 3 */
         TSEL->p[P_E0] = 0;                           /* (PAT: E.PIANO's algorithm 5) */
         opx_edit(tr, opxf_ua(2, 0), 37);             /* OP 3 -> OP 1: 37 */

@@ -5,6 +5,11 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPERATORS: one list per section.** KNOB 2 (PAGE) shows one section at a time (MODE, PITCH, EG, KTRK, USER,
+  ALGO, EG1, LFO1, PROG, VOICE) instead of jumping through one long list; KNOB 3 picks a row within it, and each
+  section keeps the row it was left on.
+- **Fix: P MOD VEL's arithmetic moved to the note-on.** It had put two divides per operator into the render, over the
+  processor budget the tests hold it to; the render is now 15 % under it.
 - **P MOD VEL measured on an opsix:** INT % × velocity/127 × 10 is added to the final ratio, COARSE × FINE (100 % at
   velocity 127 takes ratio 1 to 11 and COARSE 2 to 12; it was ratio 2 for FINE and 9 for COARSE): FINE as it is;
   COARSE to the nearest whole number, added to COARSE before FINE multiplies.

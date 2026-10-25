@@ -472,8 +472,8 @@ static const page_t PAGES[] = {
     {"OP ENV", FAM_EDIT, SC_TRACK, GR_FMENV, {0xFF, 0xFF, 0xFF, 0xFF}},     /* bytes of the track's patch (ui_fm6op.c): */
     {"OPERATOR 2", FAM_EDIT, SC_TRACK, GR_FMOP2, {0xFF, 0xFF, 0xFF, 0xFF}}, /* CRS FINE LEVEL / STG RATE LEVEL / MODE DTUN VEL */
 #if FELUCCA_OPX
-    {"OPERATORS", FAM_EDIT, SC_TRACK, GR_OPXL, {0xFF, 0xFF, 0xFF, 0xFF}},   /* OPX only (OPX fork): KNOB 1 the section, 2 the */
-                                                                             /* operator, 3 the row, 4 its value (ui_fm6op.c) */
+    {"OPERATORS", FAM_EDIT, SC_TRACK, GR_OPXL, {0xFF, 0xFF, 0xFF, 0xFF}},   /* OPX only (OPX fork): KNOB 1 the operator, 2 */
+                                                                             /* the section (PAGE), 3 its row, 4 the value */
     {"ENVELOPE", FAM_EDIT, SC_TRACK, GR_OPXE, {0xFF, 0xFF, 0xFF, 0xFF}},    /* .. the operator's EG drawn, ATK DEC SUS REL */
     {"OP LEVELS", FAM_EDIT, SC_TRACK, GR_OPXV, {0xFF, 0xFF, 0xFF, 0xFF}},      /* .. the six operators' LEVEL */
     {"EG1", FAM_EDIT, SC_TRACK, GR_OPXP, {0xFF, 0xFF, 0xFF, 0xFF}},          /* .. M4: EG1 (pitch) drawn, its rows */

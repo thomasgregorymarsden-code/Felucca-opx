@@ -208,10 +208,11 @@ static int fop_card(uint32_t slot, const char **label, char *val, const char **u
  *   VOICE  the track's VOICE pages (VOICE GLIDE GLIDE MODE PRIORITY, ALLOC DETUNE PAN MUTE, SPREAD): Felucca's own
  *          parameters (TSEL->p, as those pages edit them: motion, MIDI LEARN), which an OPX track shows here only (ui.c
  *          page_visible)
- * The list is the picked operator's: its MODE section follows its mode (xop_list).
+ * Each section is its own list, one on show at a time (xop_sec); the picked operator's: its MODE section follows its
+ * mode (xop_list). Each section keeps its own picked row.
  *   KNOB 1  the operator (OP 1..6; shared with FM6's pages: fop_op)
- *   KNOB 2  a section at a time (to the first row of the next / previous one)
- *   KNOB 3  the row
+ *   KNOB 2  PAGE: the section (MODE .. VOICE; no wrap)
+ *   KNOB 3  the row, within the section
  *   KNOB 4  the row's value (a list's value: one a detent)
  * The panel rolls: 8 rows on show (the right half; the algorithm or the matrix in the left, ui_graph.c), a row of
  * "..." at the bottom (top) while more are below (above); the picked row moves down to the last whole row, then the
@@ -261,15 +262,26 @@ static uint32_t xop_view(void)
 }
 static int xop_noop(void) { return xop_view() == XV_EG1 || xop_view() == XV_LFO; }   /* (no operator to pick) */
 static uint8_t xop_lis[6], xop_tops[6];
-#define xop_li xop_lis[xop_view()]                   /* KNOB 3: the picked row */
-#define xop_top xop_tops[xop_view()]                 /* the first row on show */
+static uint8_t xop_sec, xop_slis[XS_N], xop_stops[XS_N];   /* OPERATORS: the section on show (KNOB 2), each one's row and
+                                                         * first row on show */
+static uint8_t *xop_lip(void) { return xop_view() == XV_ALL ? &xop_slis[xop_sec % XS_N] : &xop_lis[xop_view()]; }
+static uint8_t *xop_topp(void) { return xop_view() == XV_ALL ? &xop_stops[xop_sec % XS_N] : &xop_tops[xop_view()]; }
+#define xop_li (*xop_lip())                          /* KNOB 3: the picked row */
+#define xop_top (*xop_topp())                        /* the first row on show */
 
 static int xop_ok(void) { return TSEL->eng_req % NENGINES == ENGI_OPX; }
 static int32_t xop_get(uint32_t tr, uint32_t f1) { return opx_get(opx_pk[tr % NTRK], OPXF_OP(fop_op % 6u, f1)); }
 static uint32_t xop_mode(uint32_t tr) { return (uint32_t)xop_get(tr, OPXF_OP1_MODE) % OPX_NMODE; }
 static int32_t xop_wave(uint32_t tr) { return xop_get(tr, OPXF_OP1_WAVE); }
 static int xop_fixed(uint32_t tr) { return xop_get(tr, OPXF_OP1_FREQ_FIXED) != 0; }
-/* the picked operator's list (its kinds, XR_*): its MODE section by its mode, then the rest. Returns the count */
+static uint32_t xop_sec_k(uint32_t k)               /* a kind's section */
+{
+    return k < XR_FREQ ? XS_MODE : k < XR_LVL ? XS_PITCH : k < XR_KLOW ? XS_EG : k < XR_TO0 ? XS_KTRK :
+           k <= XR_OUT ? XS_USER : k < XR_E1A ? XS_ALGO : k < XR_LW ? XS_EG1 : k < XR_GL ? XS_LFO1 : k < XR_V0 ? XS_PROG :
+           XS_VOICE;
+}
+/* the picked operator's list (its kinds, XR_*): OPERATORS the section on show (MODE by the operator's mode); the
+ * other views their own rows. Returns the count */
 static uint32_t xop_list(uint8_t *rw)
 {
     static const uint8_t MODE_ROWS[OPX_NMODE][5] = {
@@ -291,13 +303,17 @@ static uint32_t xop_list(uint8_t *rw)
             rw[k] = XR_LVL;
         return 6;
     }
-    rw[n++] = XR_MODE;
-    if (md != OPX_M_BYPASS && md != OPX_M_MUTE)
-        rw[n++] = XR_WAVE;
-    for (k = 0; k < 5u && MODE_ROWS[md][k]; k++)
-        rw[n++] = MODE_ROWS[md][k];
+    if (xop_sec % XS_N == XS_MODE) {
+        rw[n++] = XR_MODE;
+        if (md != OPX_M_BYPASS && md != OPX_M_MUTE)
+            rw[n++] = XR_WAVE;
+        for (k = 0; k < 5u && MODE_ROWS[md][k]; k++)
+            rw[n++] = MODE_ROWS[md][k];
+        return n;
+    }
     for (k = XR_FREQ; k < XR_N; k++)
-        rw[n++] = (uint8_t)k;
+        if (xop_sec_k(k) == xop_sec % XS_N)
+            rw[n++] = (uint8_t)k;
     return n;
 }
 static uint32_t xop_n(void) { uint8_t rw[XL_MAX]; return xop_list(rw); }
@@ -309,21 +325,19 @@ static uint32_t xop_row(void)
     return xop_li < n ? xop_li : n - 1u;
 }
 static uint32_t xop_kind(uint32_t i) { uint8_t rw[XL_MAX]; uint32_t n = xop_list(rw); return rw[i < n ? i : n - 1u]; }
-static uint32_t xop_find(uint32_t kind)              /* the row of a kind (tests, the sections); none: the count */
+static uint32_t xop_find(uint32_t kind)              /* the row of a kind; on OPERATORS its section put on show
+                                                     * (tests). None: the count */
 {
     uint8_t rw[XL_MAX];
-    uint32_t n = xop_list(rw), i;
+    uint32_t n, i;
+    if (xop_view() == XV_ALL)
+        xop_sec = (uint8_t)xop_sec_k(kind);
+    n = xop_list(rw);
     for (i = 0; i < n && rw[i] != kind; i++)
         ;
     return i;
 }
-static uint32_t xop_sec_of(uint32_t i)
-{
-    uint32_t k = xop_kind(i);
-    return k < XR_FREQ ? XS_MODE : k < XR_LVL ? XS_PITCH : k < XR_KLOW ? XS_EG : k < XR_TO0 ? XS_KTRK :
-           k <= XR_OUT ? XS_USER : k < XR_E1A ? XS_ALGO : k < XR_LW ? XS_EG1 : k < XR_GL ? XS_LFO1 : k < XR_V0 ? XS_PROG :
-           XS_VOICE;
-}
+static uint32_t xop_sec_of(uint32_t i) { return xop_sec_k(xop_kind(i)); }
 /* row i's kind (XR_*) and its field (XR_TO*: the amount the picked operator sends to that one; its own: its self
  * feedback. XR_OUT: its OUT bit, though the row shows and sets xop_out) */
 static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
@@ -509,18 +523,9 @@ static void xop_knob(uint32_t slot, int32_t steps)
         fop_op = (uint8_t)clamp((int32_t)fop_op + steps, 0, 5);
         return;
     }
-    if (slot == 1u) {                                /* a section a detent: to its first row (left: this one's first) */
-        for (; steps; steps += steps > 0 ? -1 : 1) {
-            uint32_t sc = xop_sec_of(xop_row()), i;
-            if (steps > 0)
-                sc = sc + 1u < XS_N ? sc + 1u : sc;
-            for (i = 0; i < n && xop_sec_of(i) != sc; i++)
-                ;
-            if (steps < 0 && xop_row() == i && sc > 0u)
-                for (sc--, i = 0; i < n && xop_sec_of(i) != sc; i++)
-                    ;
-            xop_li = (uint8_t)i;
-        }
+    if (slot == 1u) {                                /* PAGE: a section a detent, at the row it was left on */
+        xop_sec = (uint8_t)clamp((int32_t)xop_sec + steps, 0, XS_N - 1);
+        xop_li = (uint8_t)xop_row();                 /* (MODE: the operator may have changed since) */
         xop_scroll();
         return;
     }
@@ -966,7 +971,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         of[0] = '/';
         fmt_int(of + 1, (int32_t)n);
         *unit = of;
-        *ratio = (int32_t)(xop_row() * 1000u / (n - 1u));
+        *ratio = n > 1u ? (int32_t)(xop_row() * 1000u / (n - 1u)) : 0;   /* (MODE of BYPASS / MUTE: one row) */
         *icon = ICON_STEPS;
         return 1;
     }

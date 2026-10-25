@@ -1428,7 +1428,8 @@ static uint32_t graph_signature(void)
 #if FELUCCA_OPX
     if ((pg->scope == SC_ENGINE || fop_page(pg->graph)) && t->eng_req % NENGINES == ENGI_OPX)   /* (OPX fork) */
         h ^= (opx_pgen[(t - trk) % NTRK] + 1u) * 2246822519u + (fop_op + 1u) * 40503u + (uint32_t)t->p[P_E0] * 7919u +
-             (xop_top + 1u) * 104729u + (xop_row() + 1u) * 1299709u + (xmat_row + 1u) * 15485863u + (xmat_col + 1u) * 3571u;
+             (xop_top + 1u) * 104729u + (xop_row() + 1u) * 1299709u + (xmat_row + 1u) * 15485863u + (xmat_col + 1u) * 3571u +
+             (xop_sec + 1u) * 2654435761u;
 #endif
     if (pg->scope == SC_ENGINE && ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE) h ^= sample_wave.pos * 13u + sample_wave.key;
     if (pg->graph == GR_ROLL) {

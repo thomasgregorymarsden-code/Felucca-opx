@@ -103,15 +103,16 @@ its general modulation routes into the engine (FLT and SHP: ENV DEST, LFO DEST a
 not part of the opsix and are switched off on OPX; their cards are dimmed on an OPX track. PIT (pitch: bend, glide,
 vibrato) works as on every engine.
 
-**OPERATORS** lists the selected operator's parameters in the right half, in the opsix's page order, then the
-patch's own; the selected operator is highlighted in the chart. The list moves up under the selection; "…" marks
-rows hidden above or below.
+**OPERATORS** shows one section of the selected operator's parameters at a time in the right half, as the opsix's
+pages do, then the patch's own sections; KNOB 2 (PAGE) turns the section, and each section keeps the row it was left
+on. The selected operator is highlighted in the chart. A long section moves up under the selection; "…" marks rows
+hidden above or below.
 
 | Knob | Selects |
 |---|---|
 | 1 | the operator, 1–6 |
-| 2 | a section per click: MODE, PITCH, EG, KTRK, USER, ALGO, EG1, LFO1, PROG, VOICE |
-| 3 | the row |
+| 2 | PAGE, the section, one per click: MODE, PITCH, EG, KTRK, USER, ALGO, EG1, LFO1, PROG, VOICE |
+| 3 | the row, within the section |
 | 4 | the row's value (a list such as MODE, TYPE or FX: one step per click) |
 
 | Section | Rows |
