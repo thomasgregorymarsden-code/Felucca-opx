@@ -169,38 +169,40 @@ drops a voice above 85 % (`audio.c`).
 The percentages are above the idle mix (six notes, all six operators on the wave; "one" is one note). Measured on a
 device, 0.0.2-dev:
 
-| | 2026-10-16: one loop, every wave inline | 2026-10-19: an operator at a time, tables | One note, now |
-|---|---|---|---|
-| Idle (the mix, effects, no voice) | 12.3 % | 12.4 % | |
-| FM6, F1 | 26.8 % | 26.6 % | 4.4 % |
-| OPX, SIN | 56.7 % | 38.4 % | 6.4 % |
-| OPX, SIN 12BIT / 8BIT | 100.5 % | 40.6 % | 6.7 % |
-| OPX, TRI / SAW / SAW HD | 87.2 / 101.0 / 135.2 % | 41.6 / 43.5 / 43.6 % | 6.9 / 7.2 % |
-| OPX, SQR / SQR HD (two table reads) | 116.5 / 165.5 % | 53.3 / 53.4 % | 8.8 % |
-| OPX, ADTV (all eleven) | 104.5–125.7 % | 41.8 % | 6.9 % |
-| OPX, NOISE S/H / WHITE | 99.1 / 94.7 % | 39.5 / 37.0 % | 6.5 / 6.1 % |
-| OPX, NOISE PINK / BLUE | 128.7 % | 57.6 / 57.2 % | 9.6 % |
+| | 2026-10-16: one loop, every wave inline | 2026-10-19: an operator at a time, tables | 2026-10-25: M4 (c31ae67) | One note, M4 |
+|---|---|---|---|---|
+| Idle (the mix, effects, no voice) | 12.3 % | 12.4 % | 12.3 % | |
+| FM6, F1 | 26.8 % | 26.6 % | 26.7 % | 4.4 % |
+| OPX, SIN | 56.7 % | 38.4 % | 43.4 % | 7.2 % |
+| OPX, SIN 12BIT / 8BIT | 100.5 % | 40.6 % | 46.6 % | 7.7 % |
+| OPX, TRI / SAW / SAW HD | 87.2 / 101.0 / 135.2 % | 41.6 / 43.5 / 43.6 % | 47.6 / 49.4 / 49.2 % | 7.9 / 8.2 % |
+| OPX, SQR / SQR HD (two table reads) | 116.5 / 165.5 % | 53.3 / 53.4 % | 58.4 / 58.5 % | 9.7 % |
+| OPX, ADTV (all eleven) | 104.5–125.7 % | 41.8 % | 47.8 % | 7.9 % |
+| OPX, NOISE S/H / WHITE | 99.1 / 94.7 % | 39.5 / 37.0 % | 44.8 / 42.3 % | 7.4 / 7.0 % |
+| OPX, NOISE PINK / BLUE | 128.7 % | 57.6 / 57.2 % | 63.0 / 62.4 % | 10.5 % |
 
-So six OPX notes with every operator on any wave take at most ~70 % in all with the idle mix, under the 85 % where
-the audio drops a voice. A patch with a loop back to a lower operator (below) still costs about the old SIN figure,
+So six OPX notes with every operator on any wave take at most ~75 % in all with the idle mix (NOISE PINK: 12.3 +
+63.0 %), under the 85 % where the audio drops a voice. M4 (EG1, LFO1, the P MOD / LMOD / CTRL work each block) added
+about 3.3 points to every row over M2b (SIN 40.1 to 43.4 %) with no modulation in use: work done whether or not a
+route is on, to be skipped when its INT is 0. A patch with a loop back to a lower operator (below) still costs about the old SIN figure,
 ~57 %. M2b–M5 spend the rest.
 
-**The modes** (2026-10-19, the mode on all six operators of six notes, SIN, the values typical; the third column the
-cost of one operator in that mode over a sine operator, on six notes):
+**The modes** (the mode on all six operators of six notes, SIN, the values typical; "one operator" the cost of one
+operator in that mode over a sine operator, on six notes):
 
-| Mode | Six notes | One operator in it |
-|---|---|---|
-| RING MOD | 56.5 % | +2.7 % |
-| WAVE FOLDER | 58.3 % | +3.0 % |
-| FX COMB | 81.6 % | +6.9 % |
-| FX PEAK EQ | 99.5 % | +9.9 % |
-| FILTER LPF (state-variable) | 132.9 % | +15.5 % |
-| FX PHASER | 136.4 % | +16.1 % |
-| FILTER MG24 (ladder) | 141.8 % | +17.0 % |
-| FILTER FM | 185.8 % | +24.3 % |
+| Mode | Six notes, 2026-10-19 | One operator | Six notes, 2026-10-25 (M4) | One operator |
+|---|---|---|---|---|
+| RING MOD | 56.5 % | +2.7 % | 60.5 % | +2.9 % |
+| WAVE FOLDER | 58.3 % | +3.0 % | 64.0 % | +3.4 % |
+| FX COMB | 81.6 % | +6.9 % | 83.3 % | +6.7 % |
+| FX PEAK EQ | 99.5 % | +9.9 % | 101.1 % | +9.6 % |
+| FILTER LPF (state-variable) | 132.9 % | +15.5 % | 139.1 % | +16.0 % |
+| FX PHASER | 136.4 % | +16.1 % | 144.7 % | +16.9 % |
+| FILTER MG24 (ladder) | 141.8 % | +17.0 % | 146.6 % | +17.2 % |
+| FILTER FM | 185.8 % | +24.3 % | 191.2 % | +24.6 % |
 
-A patch has room for about two operators in a filter mode; two in FILTER FM (~89 % with the idle mix) go over the
-85 %. FILTER FM recomputes the filter's coefficients every sample (an exp2, a tangent table and a divide); the
+With M4 a patch has room for one operator in FILTER FM (12.3 + 43.4 + 24.6 = 80.3 %) or one or two in another filter
+mode; two in FILTER FM (~105 %) go over the 85 %. FILTER FM recomputes the filter's coefficients every sample (an exp2, a tangent table and a divide); the
 state-variable filter uses 64-bit products (52.7 ns against 33.3 ns a multiply-add). Both are to be made cheaper
 once the features are complete: coefficients every 2-4 samples for FILTER FM, 32-bit arithmetic for the filters.
 The waves' rows rose ~2 points with M2b (SIN 38.4 to 40.1 %), probably the per-operator mode checks (not confirmed).
