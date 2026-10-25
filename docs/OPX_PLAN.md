@@ -201,8 +201,8 @@ operator in that mode over a sine operator, on six notes):
 | FILTER MG24 (ladder) | 141.8 % | +17.0 % | 146.6 % | +17.2 % |
 | FILTER FM | 185.8 % | +24.3 % | 191.2 % | +24.6 % |
 
-With M4 a patch has room for one operator in FILTER FM (12.3 + 43.4 + 24.6 = 80.3 %) or one or two in another filter
-mode; two in FILTER FM (~105 %) go over the 85 %. FILTER FM recomputes the filter's coefficients every sample (an exp2, a tangent table and a divide); the
+With M4 a patch on six notes has room for one operator in a filter mode (FILTER FM: 12.3 + 43.4 + 24.6 = 80.3 %);
+two (LPF ~88 %, FILTER FM ~105 %) go over the 85 %. Before M4 two LPF operators fitted (~84 %). FILTER FM recomputes the filter's coefficients every sample (an exp2, a tangent table and a divide); the
 state-variable filter uses 64-bit products (52.7 ns against 33.3 ns a multiply-add). Both are to be made cheaper
 once the features are complete: coefficients every 2-4 samples for FILTER FM, 32-bit arithmetic for the filters.
 The waves' rows rose ~2 points with M2b (SIN 38.4 to 40.1 %), probably the per-operator mode checks (not confirmed).
