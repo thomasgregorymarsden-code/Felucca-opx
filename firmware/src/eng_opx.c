@@ -291,6 +291,8 @@ typedef struct {
     uint8_t cpe[OPX_NOP], cpl[OPX_NOP], clm[OPX_NOP], cpg;   /* their CTRL (OPX_C_*; OFF: the INT as it is) */
     int32_t plfo, poff;          /* PROG LFO1 INT (Q24 octaves), TRANS + OCT (Q24 octaves, on the note) */
     uint8_t lw, lks, lrnd, lon;  /* LFO1: wave, KSYNC, PHASE RANDOM; lon: LFO1 reaches something */
+    uint8_t e1on, pmf[OPX_NOP];  /* EG1 reaches something; operator k has a P MOD / LMOD route on (the render skips the
+                                  * rest: most patches use few routes) */
     uint32_t linc, lph0;         /* LFO1: phase per block (Q32), the phase a reset starts it at */
     int32_t lfi;                 /* LFO1 FADE: per block (Q24 of the whole) */
 } opx_rt_t;
@@ -356,6 +358,11 @@ static void opx_build_mod(const opx_patch_t *pt, opx_rt_t *r)
         any |= r->pml[k] != 0 || r->lml[k] != 0 || (r->pme[k] != 0 && r->cpe[k] == OPX_C_LFO1);
     r->lon = (uint8_t)any;
     r->plfo = clamp(pt->prog_lfo1, -14400, 14400) * 13981;
+    for (any = 0, k = 0; k < OPX_NOP; k++) {         /* (EG1: an EG1 INT, or EG1 as a CTRL of an INT that is on) */
+        any |= r->pme[k] != 0 || (r->pml[k] != 0 && r->cpl[k] == OPX_C_EG1) || (r->lml[k] != 0 && r->clm[k] == OPX_C_EG1);
+        r->pmf[k] = (uint8_t)(r->pme[k] != 0 || r->pml[k] != 0 || r->lml[k] != 0 || r->plfo != 0);
+    }
+    r->e1on = (uint8_t)(any || (r->plfo != 0 && r->cpg == OPX_C_EG1));
     r->poff = clamp(pt->prog_trans, -12, 12) * ((1 << 24) / 12) + clamp(pt->prog_oct, -2, 2) * (1 << 24);
     r->lw = (uint8_t)(l->wave < OPX_NLFOW ? l->wave : 0u);
     r->lks = (uint8_t)(l->ksync < 3u ? l->ksync : 0u);
@@ -1584,7 +1591,8 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
         n->down = 0;
     }
     lf = fm6_note_logfreq(m->pitch16, m->fine) + r->poff;   /* (M4: PROG TRANS, OCT on the note: not the FIXED ones) */
-    e1 = opx_eg_step(&n->eg1, r, OPX_NOP);            /* M4: EG1 (Q24), LFO1 (Q15, its FADE in) */
+    e1 = r->e1on ? opx_eg_step(&n->eg1, r, OPX_NOP) : 0;   /* M4: EG1 (Q24; while something takes it), LFO1 (Q15,
+                                                     * its FADE in) */
     if (r->lon) {
         lv = r->lks == 2u ? opx_lfo_step(&n->lfo, r) : opx_lfov[(uint32_t)(t - trk) % NTRK];
         if (n->lfade < 1 << 24) {
@@ -1603,14 +1611,21 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     for (k = 0; k < OPX_NOP; k++) {
         int32_t lvl = opx_eg_step(&n->eg[k], r, (uint32_t)k), g2;
         /* M4: P MOD (EG1, LFO1 and PROG LFO1 INT: Q24 octaves), VEL's FINE / COARSE (this note's) */
-        int32_t pe = r->pme[k], pl = r->pml[k], lm = r->lml[k], d;
-        if (r->cpe[k] && pe)                         /* (CTRL: the source x the INT) */
-            pe = OPX_CQ(pe, opx_ctl(t, v, r->cpe[k], e1, lv));
-        if (r->cpl[k] && pl)
-            pl = OPX_CQ(pl, opx_ctl(t, v, r->cpl[k], e1, lv));
-        if (r->clm[k] && lm)
-            lm = OPX_CQ(lm, opx_ctl(t, v, r->clm[k], e1, lv));
-        d = (int32_t)(((int64_t)pe * e1) >> 24) + (int32_t)(((int64_t)(pl + pg) * lv) >> 15);
+        int32_t lm = 0, d = 0;
+        if (r->pmf[k]) {                             /* (no route on: none of it) */
+            int32_t pe = r->pme[k], pl = r->pml[k];
+            lm = r->lml[k];
+            if (r->cpe[k] && pe)                     /* (CTRL: the source x the INT) */
+                pe = OPX_CQ(pe, opx_ctl(t, v, r->cpe[k], e1, lv));
+            if (r->cpl[k] && pl)
+                pl = OPX_CQ(pl, opx_ctl(t, v, r->cpl[k], e1, lv));
+            if (r->clm[k] && lm)
+                lm = OPX_CQ(lm, opx_ctl(t, v, r->clm[k], e1, lv));
+            if (pe && e1)
+                d = (int32_t)(((int64_t)pe * e1) >> 24);
+            if (pl + pg && lv)
+                d += (int32_t)(((int64_t)(pl + pg) * lv) >> 15);
+        }
         uint32_t f = r->finc[k];
         if (!f) {
             int32_t x = lf + r->lg[k] + d;

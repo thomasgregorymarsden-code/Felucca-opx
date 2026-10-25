@@ -5,6 +5,8 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPX's processor load:** a voice no longer runs EG1 or the pitch / level modulation arithmetic when no route uses
+  them (every INT at 0, as in INIT), which M4 had added to every voice whether used or not.
 - **OPERATORS: one list per section.** KNOB 2 (PAGE) shows one section at a time (MODE, PITCH, EG, KTRK, USER,
   ALGO, EG1, LFO1, PROG, VOICE) instead of jumping through one long list; KNOB 3 picks a row within it, and each
   section keeps the row it was left on.

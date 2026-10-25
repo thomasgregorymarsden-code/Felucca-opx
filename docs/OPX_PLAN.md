@@ -184,7 +184,10 @@ device, 0.0.2-dev:
 So six OPX notes with every operator on any wave take at most ~75 % in all with the idle mix (NOISE PINK: 12.3 +
 63.0 %), under the 85 % where the audio drops a voice. M4 (EG1, LFO1, the P MOD / LMOD / CTRL work each block) added
 about 3.3 points to every row over M2b (SIN 40.1 to 43.4 %) with no modulation in use: work done whether or not a
-route is on, to be skipped when its INT is 0. A patch with a loop back to a lower operator (below) still costs about the old SIN figure,
+route is on. Since then the render skips it when no route needs it: EG1 runs only while an EG1 INT (or a CTRL set to
+EG1 on an INT that is on) takes it, and an operator with no P MOD / LMOD INT on (and PROG PITCH LFO1 at 0) skips its
+modulation arithmetic (on the host: 1.3 % fewer instructions in the render; on the device not yet measured). EG1
+switched on during a held note starts from the note's start, not where it would have been. A patch with a loop back to a lower operator (below) still costs about the old SIN figure,
 ~57 %. M2b–M5 spend the rest.
 
 **The modes** (the mode on all six operators of six notes, SIN, the values typical; "one operator" the cost of one
