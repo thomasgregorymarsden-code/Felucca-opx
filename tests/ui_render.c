@@ -1277,7 +1277,7 @@ static void setup(int s)
         opx_edit(song.sel, OPXF_FX3_B, 735); opx_edit(song.sel, OPXF_FX3_C, 13); opx_edit(song.sel, OPXF_FX3_E, 80);
         opx_edit(song.sel, OPXF_FX3_F, 850 - 600); go_title("OPERATORS"); XO_AT(xop_find(XR_FK0 + 1)); break;
     case S_OPX_PFXD: eng(ENGI_OPX); opx_poll(); xop_fxs = 0; opx_edit(song.sel, OPXF_FX1_TYPE, 24); opx_edit(song.sel, OPXF_FX1_ENABLE, 1);
-        opx_edit(song.sel, OPXF_FX1_E, 23); opx_edit(song.sel, OPXF_FX1_F, 19980); go_title("OPERATORS"); XO_AT(xop_find(XR_FK0 + 3)); break;
+        opx_edit(song.sel, OPXF_FX1_E, 23); opx_edit(song.sel, OPXF_FX1_F, 19980); go_title("OPERATORS"); XO_AT(xop_find(XR_FNA)); break;
     case S_OPX_PROG: eng(ENGI_OPX); opx_poll(); go_title("OPERATORS"); XO_AT(xop_find(XR_GT)); break;
     case S_OPX_ROUTE: eng(ENGI_OPX); opx_poll(); opx_edit(song.sel, OPXF_ALGO, 40); fop_op = 0;
         opx_edit(song.sel, opxf_ua(0, 5), 60); go_title("OPERATORS"); XO_AT(xop_find(XR_TO0 + 5)); break;

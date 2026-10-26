@@ -147,9 +147,10 @@ following the key, ±INF), LFO2 and its CTRL. INIT has LPF 12 on and wide open, 
 **FX1-3** (OPERATORS' section after FILTER): the program's three effects in series after the voices, as the opsix's
 EFFECT page: the first row picks FX1–3, then TYPE (the opsix's 30, named as on its list, the BPM ones without the
 space: PHABPM …), ENABLE, and the type's own knobs (B C E F) in its units. A new TYPE starts at its knobs' defaults.
-OPX plays PHA, PHABPM, PAN, PANBPM, A.WAH, EXC, FLTR, 3EQ, DIST, G.AMP, DEC, LIMIT and COMP; the other types are
-kept in the patch, shown dimmed, and pass the sound unchanged for now (chorus, flanger, ensemble, rotary and enhancer
-need a buffer; the delays, reverbs and GRAIN a long one, see docs/OPX_PLAN.md). PAN makes the part stereo. INIT has
+Felucca-OPX plays PHA, PHABPM, PAN, PANBPM, A.WAH, EXC, FLTR, 3EQ, DIST, G.AMP, DEC, LIMIT and COMP. The other 17
+(chorus, flanger, ensemble, rotary, enhancer; the delays, reverbs and GRAIN) need more memory than this firmware has:
+they read **NOT AVAILABLE**, dimmed, their knobs kept in the patch and the sound passed unchanged. They are for the
+planned OPX-only firmware (one part, no other engines), so a patch moves between the two unchanged. PAN makes the part stereo. INIT has
 the opsix's FX1 CHORUS, FX2 3-BAND EQ (flat: skipped) and FX3 REVERB, all ON.
 
 **V.PATCH** (OPERATORS' section after FX1-3): the first row picks the virtual patch (1–12), then SRC and SOURCE (the

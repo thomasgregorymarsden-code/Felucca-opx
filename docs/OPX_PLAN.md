@@ -159,7 +159,11 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
   flash 21.6 KB. The chain's state takes 1.3 KB of the pool (12 slots). Kind 1 needs its buffers from a part's
   engine memory (the voices' SHORT DELAY lines would shrink); kind 2 more than the FM-1 has free: the opsix's
   delays reach 2.73 s stereo (~480 KB). The way open: borrow Felucca's own delay (128 KB, 1.49 s mono) and reverb
-  buffers, one part at a time, silencing the bus it borrows. To decide.
+  buffers, one part at a time, silencing the bus it borrows.
+- **Decided (2026-10-26): two builds.** Felucca-OPX (this firmware: four parts, every engine) keeps the 13; the
+  other 17 read NOT AVAILABLE and keep their knobs. An OPX-only firmware (one part, Felucca's other engines, effects
+  and sequencer left out) plays all 30 (OPX_FX_ALL); a patch moves between the two unchanged. Its base: to decide
+  (this tree as a build configuration, or the fm1-base platform on felucca-bsp).
 
 ## The device pages (M1.5): where the code is
 

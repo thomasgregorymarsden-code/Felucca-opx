@@ -234,7 +234,7 @@ enum { XR_MODE, XR_WAVE, XR_FB, XR_WIDTH, XR_RDEPTH, XR_RSHAPE, XR_FTYPE, XR_FMI
        XR_ESEL, XR_LSEL,                                                                   /* M5: which EG, LFO */
        XR_VSEL, XR_VSS, XR_VSI, XR_VINT, XR_VCTL, XR_VDS, XR_VDI,                          /* M5: V.PATCH */
        XR_MFT, XR_MFE, XR_MFC, XR_MFR, XR_MFE2, XR_MFE2C, XR_MFKL, XR_MFKC, XR_MFKH, XR_MFL2, XR_MFL2C,   /* M5b: FILTER */
-       XR_FSEL, XR_FXT, XR_FXON, XR_FK0, XR_FK3 = XR_FK0 + 3,                                  /* M5c: FX1-3 */
+       XR_FSEL, XR_FXT, XR_FXON, XR_FK0, XR_FK3 = XR_FK0 + 3, XR_FNA,                          /* M5c: FX1-3 */
        XR_N };
 static const char *const XS_NAME[XS_N] = {"MODE", "PITCH", "EG", "KTRK", "ROUTE", "ALGO", "EG1-3", "LFO1-3",
                                           "P.PITCH", "FILTER", "FX1-3", "V.PATCH", "VOICE"};   /* (ROUTE: the USER algorithm's
@@ -338,6 +338,8 @@ static uint32_t xop_list(uint8_t *rw)
         uint32_t t = (uint32_t)opx_get(opx_pk[song.sel % NTRK], OPXF_FX1_TYPE + (uint32_t)(xop_fxs % 3u) *
                                        (OPXF_FX2_TYPE - OPXF_FX1_TYPE));
         rw[n++] = XR_FSEL, rw[n++] = XR_FXT, rw[n++] = XR_FXON;
+        if (t && !opx_fx_played(t))                  /* (a type this build does not play: said so, its knobs kept) */
+            rw[n++] = XR_FNA;
         for (k = 0; k < OPX_FXT[t < OPX_NFXT ? t : 0u].nk; k++)
             rw[n++] = (uint8_t)(XR_FK0 + k);
         return n;
@@ -389,7 +391,7 @@ static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
         *field = opxf_ua(op, k - XR_TO0);
     else if (k == XR_OUT)
         *field = OPXF_UA_OUT(op);
-    else if (xop_voice(k) || k == XR_ESEL || k == XR_LSEL || k == XR_VSEL || k == XR_FSEL)
+    else if (xop_voice(k) || k == XR_ESEL || k == XR_LSEL || k == XR_VSEL || k == XR_FSEL || k == XR_FNA)
         *field = 0;                                  /* (VOICE: the track's parameter XV_ID, not the patch's; M5: which
                                                       * EG, LFO, V.PATCH the rows show) */
     else if (k > XR_FSEL)                            /* M5c: FX n's TYPE, ENABLE, B C E F */
@@ -650,6 +652,8 @@ static void xop_knob(uint32_t slot, int32_t steps)
         xop_out_turn(tr, fop_op % 6u, steps);
         return;
     }
+    if (k == XR_FNA)                                 /* (M5c: NOT AVAILABLE: no value) */
+        return;
     if (k >= XR_FK0 && k <= XR_FK3) {                /* M5c: an effect's knob, in its type's steps */
         uint32_t t = (uint32_t)opx_get(opx_pk[tr], f - (k - XR_FXT)) % OPX_NFXT;
         const opx_fxk_t *q = &OPX_FXT[t].k[k - XR_FK0];
@@ -865,7 +869,7 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
         "VOICE", "GLIDE", "GLIDE MODE", "PRIORITY", "ALLOC", "DETUNE", "PAN", "MUTE", "SPREAD",
         "EG", "LFO", "V.PATCH", "SRC", "SOURCE", "INT", "CTRL", "DEST", "TARGET",
         "TYPE", "ENABLE", "CUTOFF", "RESO", "EG2", "CTRL", "LOW", "CENTER", "HIGH", "LFO2", "CTRL",
-        "FX", "TYPE", "ENABLE", "B", "C", "E", "F"};
+        "FX", "TYPE", "ENABLE", "B", "C", "E", "F", "NOT AVAILABLE"};
     static const char NOTE[12][3] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
     uint32_t tr = song.sel % NTRK, f, k = xop_rowf(r, tr, &f);
     int32_t v, lo, hi;
@@ -887,6 +891,11 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
         param_format(d, v, val, unit);
         *ratio = d->fmt == F_ENUM || d->max == d->min ? -1 : (int32_t)((int64_t)(v - d->min) * 1000 / (d->max - d->min));
         return 1;
+    }
+    if (k == XR_FNA) {                               /* M5c: a type this build does not play (the OPX-only build's) */
+        *label = LBL[k], *unit = "", *ratio = -1;
+        val[0] = 0;
+        return 0;
     }
     if (k >= XR_FXT && k <= XR_FK3) {                /* M5c: FX n: its TYPE (DIM until OPX plays it), ENABLE, knobs */
         uint32_t t = (uint32_t)opx_get(opx_pk[tr], f - (k - XR_FXT)) % OPX_NFXT;
@@ -1235,7 +1244,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         ICON_ENV, ICON_LFO_WAVE, ICON_MOD, ICON_MOD, ICON_MOD, ICON_ACCENT, ICON_MOD, ICON_MOD, ICON_MOD,   /* (M5) */
         ICON_CUTOFF, ICON_CUTOFF, ICON_CUTOFF, ICON_RESO, ICON_ENV, ICON_MOD, ICON_KEYTRACK, ICON_KEYTRACK, ICON_KEYTRACK,
         ICON_LFO_WAVE, ICON_MOD,                                                                         /* (M5b) */
-        ICON_CHORUS, ICON_CHORUS, ICON_CHORUS, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD};                  /* (M5c) */
+        ICON_CHORUS, ICON_CHORUS, ICON_CHORUS, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD, ICON_X_WARN};     /* (M5c) */
     uint32_t tr = song.sel % NTRK, f;
     *unit = "";
     *ratio = -1;
@@ -1310,6 +1319,8 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
             *label = "CTRL";                         /* (M4: the opsix's own knob name; the list says whose) */
         else if (k == XR_PMD)
             *label = "DEST";
+        else if (k == XR_FNA)                        /* (M5c: "NOT AVAILABLE" in the list) */
+            *label = "FX", str_cpy(val, "N/A", 12);
         if (k == XR_WAVE) {                          /* (the card is narrow: the list has the manual's full names) */
             static const char *const SHORT[OPX_NWAVE] = {"SIN", "SIN12", "SIN8", "TRI", "SAW", "SAWHD", "SQR", "SQRHD",
                 "SAW3", "SQR3", "TRI3", "12345", "1+2", "1+3", "1+4", "1+5", "1+6", "1+7", "1+8", "S/H", "WHITE", "PINK",
@@ -1324,7 +1335,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         return on;
     }
 }
-_Static_assert(XR_N == 102, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
+_Static_assert(XR_N == 103, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
 #endif
 
 /* the dispatch: FM6's pages, or OPX's OPERATORS (OPX fork) */

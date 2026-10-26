@@ -9692,10 +9692,11 @@ static int test_opx_ops(void)
         xo_set(EN_K3, 1, 20);
         frames(1600);
         turn(EN_K4, 1);                              /* (CHO) */
-        ok &= opx_get(opx_pk[tr], OPXF_FX2_TYPE) == 1 && xop_n() == 7u && !xop_rowtext(1, &lb, val, &u, &r) &&
+        ok &= opx_get(opx_pk[tr], OPXF_FX2_TYPE) == 1 && xop_n() == 8u && !xop_rowtext(1, &lb, val, &u, &r) &&
               str_eq(val, "CHO");
-        ok &= xop_rowtext(3, &lb, val, &u, &r) == 0 && str_eq(lb, "MIX") && str_eq(val, "50");
-        xop_rowtext(5, &lb, val, &u, &r);
+        ok &= xop_rowtext(3, &lb, val, &u, &r) == 0 && str_eq(lb, "NOT AVAILABLE") && !val[0];   /* (this build) */
+        ok &= xop_rowtext(4, &lb, val, &u, &r) == 0 && str_eq(lb, "MIX") && str_eq(val, "50");
+        xop_rowtext(6, &lb, val, &u, &r);
         ok &= str_eq(lb, "SPEED") && str_eq(val, "0.500") && str_eq(u, "HZ");
         turn(EN_K4, 13);                             /* (3EQ: 14) */
         ok &= opx_get(opx_pk[tr], OPXF_FX2_TYPE) == 14 && xop_rowtext(1, &lb, val, &u, &r) && str_eq(val, "3EQ");
@@ -9723,7 +9724,7 @@ static int test_opx_ops(void)
                                    OPX_FXT[t2].k[j].names[q2], (int)text_w(&AF_S, OPX_FXT[t2].k[j].names[q2])), ok = 0;
             }
         }
-        bad += check("OPX M5c: FX1-3 section: which FX, TYPE (its knobs at their defaults; DIM until played), the knobs in their units and steps", ok);
+        bad += check("OPX M5c: FX1-3 section: which FX, TYPE (its knobs at their defaults; a type this build lacks: NOT AVAILABLE, DIM), the knobs in their units and steps", ok);
         go_title("LFO1-3"); frame();                 /* M5: KNOB 1 LFO2: its six rows, no PROG PITCH */
         xop_lfs = 0;
         turn(EN_K1, 1);
