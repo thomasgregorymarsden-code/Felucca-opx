@@ -163,13 +163,13 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
 - **Decided (2026-10-26): two builds.** Felucca-OPX (this firmware: four parts, every engine) keeps the 13; the
   other 17 read NOT AVAILABLE and keep their knobs. An OPX-only firmware (one part, Felucca's other engines, effects
   and sequencer left out) plays all 30 (OPX_FX_ALL); a patch moves between the two unchanged. Its base: this tree,
-  as a build configuration (FELUCCA_OPX_ONLY=1, "-solo"); a move to the fm1-base platform (on felucca-bsp) later,
+  as a build configuration (FELUCCA_OPX_ONLY=1, "Felucca-OPX Solo", felucca-opx-solo); a move to the fm1-base platform (on felucca-bsp) later,
   once its interface settles.
 
 ## The OPX-only firmware (FELUCCA_OPX_ONLY=1)
 
-- **Built by** `FELUCCA_OPX_ONLY=1 ./build.sh`: `build/felucca-solo.fwsc`, version `v…-solo`. CI builds both
-  firmwares; the OPX-only one's installer page is the site's `/solo/`.
+- **Built by** `FELUCCA_OPX_ONLY=1 ./build.sh`: `build/felucca-opx-solo.fwsc`, version `v…-opx-solo`. CI builds both
+  firmwares; the OPX-only one's installer page is the site's `/opx-solo/`.
 - **One part:** track 1 plays OPX; tracks 2–4 and every other engine are a silent reserved row (opx_map.h,
   engines.c eng_part). The other engines' code is then referenced from nowhere that runs, so the compiler drops
   most of it; the stores and the protocol keep four tracks and the engine numbers, so projects and patches load in

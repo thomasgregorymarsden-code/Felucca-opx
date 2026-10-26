@@ -4,7 +4,8 @@
 multi-engine synthesizer firmware by Hügelton Instruments, with one more engine, **OPX**, an altered-FM engine
 after the Korg opsix. Everything Felucca does is here unchanged; OPX is added beside it.
 
-This is an unofficial fork. Please report its problems [here](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues),
+This is an unofficial fork, not affiliated with Hügelton Instruments, M-VAVE or Korg ("opsix" names the instrument
+OPX follows; OPX contains no Korg code or data). Please report its problems [here](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues),
 not to Felucca's authors, who did not write the OPX engine.
 
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
@@ -16,8 +17,8 @@ not to Felucca's authors, who did not write the OPX engine.
   first. The installer's **Return to official V15** goes back to M-VAVE's firmware.
 - **Try it first:** [Felucca-OPX in your browser](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/try/),
   the same firmware compiled to WebAssembly, with the panel on screen (mouse, touch, computer keyboard, Web MIDI in).
-- **Editor:** [web editor](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/editor/) (Felucca's; it has
-  no page for OPX's operators yet).
+- **Editor:** [web editor](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/editor/): Felucca's, with an
+  OPX tab for the whole OPX patch (operators, EGs, LFOs, filter, effects, virtual patches).
 - **Releases:** [Releases](https://github.com/thomasgregorymarsden-code/Felucca-opx/releases) (packages and
   checksums), [CHANGELOG.md](CHANGELOG.md).
 - **Build:** [BUILDING.md](BUILDING.md). Every push is built and tested by GitHub Actions.

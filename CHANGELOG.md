@@ -5,10 +5,10 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
-- **The OPX-only firmware (first step).** A second firmware from the same source, `felucca-solo.fwsc` (version
-  "…-solo"): track 1 plays OPX, the other tracks and engines are silent and cannot be picked, and all 30 effect types
+- **The OPX-only firmware (first step).** A second firmware from the same source, `felucca-opx-solo.fwsc`
+  (version "…-opx-solo"): track 1 plays OPX, the other tracks and engines are silent and cannot be picked, and all 30 effect types
   are enabled (the 17 buffered ones pass the sound until they are built). Projects and patches move between it and
-  Felucca-OPX unchanged. CI builds both; the OPX-only one's installer page is the site's /solo/.
+  Felucca-OPX unchanged. CI builds both; the OPX-only one's installer page is the site's /opx-solo/.
 - **OPX M5c, part 1: the program effects FX1–3.** Three effects in series on each OPX part after its voices, in a
   new **FX1-3** section of OPERATORS and the web editor's OPX tab: TYPE (the opsix's 30), ENABLE and the type's four
   knobs in its own units. 13 types play: PHA, PHABPM, PAN, PANBPM (the part in stereo), A.WAH, EXC, FLTR, 3EQ, DIST,

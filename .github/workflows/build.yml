@@ -64,8 +64,8 @@ jobs:
             b --release "$ver"
             echo "REL=$ver" >> "$GITHUB_ENV"
           fi
-          export FELUCCA_OPX_ONLY=1; b; unset FELUCCA_OPX_ONLY   # (the OPX-only firmware first: build/felucca-solo.fwsc, kept aside)
-          mkdir -p solo && cp build/felucca-solo.fwsc solo/
+          export FELUCCA_OPX_ONLY=1; b; unset FELUCCA_OPX_ONLY   # (the OPX-only firmware first: build/felucca-opx-solo.fwsc, kept aside)
+          mkdir -p solo && cp build/felucca-opx-solo.fwsc solo/
           grep -a -E "  ok +image " build.log | tail -1 | sed 's/^/::notice::size (OPX-only): /' || true
           b                                            # (the development build: build/felucca.fwsc)
           grep -a -E "^app |^package |  ok +image " build.log | tail -3 | sed 's/^/::notice::size: /' || true   # (the app's room: 0x8DFBC = 581564 B, firmware/app.ld XIP)
@@ -93,7 +93,7 @@ jobs:
             python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site
           fi
           python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site/dev   # this build's, always
-          python3 web/make_site.py solo/felucca-solo.fwsc "solo-${GITHUB_SHA::7}" _site/solo   # the OPX-only firmware's
+          python3 web/make_site.py solo/felucca-opx-solo.fwsc "opx-solo-${GITHUB_SHA::7}" _site/opx-solo   # the OPX-only firmware's
           python3 tools/dis_funcs.py build/felucca.dis opx_render opx_op_in opx_op_sine opx_op_tab opx_op_sqr opx_op_gen opx_noise_block opx_op_noise opx_op_mode opx_osc_block opx_mix opx_loop_sine opx_table \
               bench_callee bench_math > _site/dev/disasm.txt || true   # (the compiled render loops, readable without the toolchain)
           mkdir -p _site/opx && cp web/opx/*.html _site/opx/
@@ -108,8 +108,8 @@ jobs:
 
       - uses: actions/upload-artifact@v6
         with:
-          name: firmware-solo
-          path: solo/felucca-solo.fwsc
+          name: firmware-opx-solo
+          path: solo/felucca-opx-solo.fwsc
 
       - if: env.REL != ''
         uses: actions/upload-artifact@v6

@@ -33,7 +33,7 @@
 #endif
 #ifndef FELUCCA_VERSION
 #ifndef FELUCCA_ONLY_TAG
-#define FELUCCA_ONLY_TAG ""             /* (the OPX-only firmware: build.py adds "-solo", the version says which) */
+#define FELUCCA_ONLY_TAG ""             /* (the OPX-only firmware: build.py adds "-opx-solo", the version says which) */
 #endif
 #ifndef FELUCCA_CPU_TAG
 #define FELUCCA_CPU_TAG ""              /* (OPX fork: build.py FELUCCA_CPU=r3 adds "-r3": the version says which core) */
