@@ -162,6 +162,12 @@ typedef struct {
     uint16_t cutoff, reso;
     int16_t eg2, lfo2;
 } opx_mflt_t;
+/* M5c: a program effect (EFFECT FX1..3 p.61, the list p.91-94): its type (OPX_FXT, 0 OFF), ENABLE, knobs B C E F as
+ * values (the field less the type's lo added back) */
+typedef struct {
+    uint8_t type, on;
+    int16_t v[4];
+} opx_fxp_t;
 
 typedef struct {
     const char *name;
@@ -177,6 +183,7 @@ typedef struct {
     uint8_t prog_lfo1_ctrl;      /* M4: its CTRL */
     opx_vpp_t vp[OPX_NVP];       /* M5: V.PATCH 1..12 */
     opx_mflt_t flt;              /* M5b: the main filter (FILTER, FLTR MOD p.58-60) */
+    opx_fxp_t fx[3];             /* M5c: FX1..3, in series after the voices */
 } opx_patch_t;
 
 /* ---------------------------------------------------------- algorithms --- */
@@ -2167,6 +2174,8 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     }
 }
 
+#include "opx_fx.c"               /* M5c: the program effects FX1..3 (the engine's post) */
+
 /* engine 14 (OPX fork, ENGI_ROW14): reserved, as DIGITAL's 1 is: never selectable (eng_ok), no presets, silent. Its
  * favourites row (favorites.factory[14]) is the MIDI LEARN map, which is why OPX is 15. */
 static void row14_note_on(struct track *t, voice_t *v) { (void)t; (void)v; }
@@ -2228,4 +2237,5 @@ static const engine_t ENG_OPX = {
     .ownenv = 1,
     .done = opx_done,
     .mem = (sizeof(opx_note_t) + OPX_DLY * sizeof(int16_t)) * OPX_POLY,   /* (the notes, the delay lines) */
+    .post = opx_post,
 };

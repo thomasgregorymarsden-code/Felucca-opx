@@ -229,6 +229,10 @@ typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c 
      * in, 0 = none: a part plays one engine at a time, so they share one region; on a switch to the engine
      * (after the old one's fade) the region is zeroed when another engine had it (eng_mem_claim) */
     uint16_t mem;
+    /* optional (OPX fork, M5c): after the voices, the part's block (out; with SPREAD, sp != 0, left the left voices'
+     * of it) through the engine's effects; nr the voices rendered. Returns bit 0: it still sounds (a tail: the
+     * part is mixed with no voice), bit 1: it made two channels (left the left one, out both: mixed at full width) */
+    uint32_t (*post)(struct track *t, int32_t *out, int32_t *left, uint32_t n, uint32_t sp, uint32_t nr);
 } engine_t;
 
 /* ------------------------------------------------- tracks, the song --- */

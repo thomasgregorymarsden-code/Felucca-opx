@@ -52,9 +52,11 @@ static void setup(const opx_patch_t *p, const int16_t *e)
 
 static int32_t opx_t_cut, opx_t_shape;          /* (Felucca's FLT / SHP routes: test_macros_off) */
 /* the engine alone, one voice: note at vel, n samples, gate released at rel (0: held). y: the render's out[] */
+static double *opx_t_right;                         /* M5c: the right channel, when the effects make two (else y) */
+static uint32_t opx_t_wide;                         /* .. they did */
 static void engine_render(uint32_t note, uint32_t vel, double *y, uint32_t n, uint32_t rel, int *ended)
 {
-    static int32_t b[CTL];
+    static int32_t b[CTL], lb[CTL];
     track_t *t = &trk[0];
     voice_t *v = &t->v[0];
     vmod_t m;
@@ -81,6 +83,16 @@ static void engine_render(uint32_t note, uint32_t vel, double *y, uint32_t n, ui
             *ended = (int)(i + 1u);
         memset(b, 0, sizeof b);
         opx_render(t, v, b, CTL, &m);
+        {                                            /* M5c: the part's effects (the post voice.c runs) */
+            uint32_t f = opx_post(t, b, lb, CTL, 0, 1);
+            opx_t_wide |= f >> 1 & 1u;
+            for (k = 0; k < CTL && i + k < n; k++) {
+                if (opx_t_right)
+                    opx_t_right[i + k] = f & 2u ? b[k] - lb[k] : b[k];
+                if (f & 2u)
+                    b[k] = lb[k];
+            }
+        }
         for (k = 0; k < CTL && i + k < n; k++)
             y[i + k] = b[k];
     }
@@ -1355,6 +1367,131 @@ static void test_m5b(void)
     memset(&P, 0, sizeof P);
 }
 
+/* M5c: a program effect on the SAW at A2: type t, knobs v (values) in slot k */
+static void m5c_fx(uint32_t k, uint32_t t, int b, int c, int e, int f)
+{
+    P.fx[k].type = (uint8_t)t, P.fx[k].on = 1;
+    P.fx[k].v[0] = (int16_t)b, P.fx[k].v[1] = (int16_t)c, P.fx[k].v[2] = (int16_t)e, P.fx[k].v[3] = (int16_t)f;
+}
+static double m5c_rms(const double *y, uint32_t from, uint32_t n)
+{
+    double a = 0;
+    for (uint32_t i = from; i < from + n; i++)
+        a += y[i] * y[i];
+    return 10 * log10(a / n + 1e-9);
+}
+static void test_m5c(void)
+{
+    static double y[FS], z[FS], r[FS];
+    uint8_t pk[OPX_PK_BYTES];
+    opx_patch_t d;
+    double d1, d2, d3, lo, hi;
+    uint32_t i, t;
+    int ok = 1;
+    opx_defaults(pk);                                /* the INIT: FX1 CHO, FX2 3EQ, FX3 REVERB, all ON (as an opsix's) */
+    memset(&d, 0, sizeof d);
+    opx_decode(pk, &d);
+    check("M5c FX: INIT has FX1 CHORUS, FX2 3-BAND EQ (flat), FX3 REVERB HALL, all ON; the 13 cheap types play, CHO and the reverbs not yet",
+          d.fx[0].type == 1u && d.fx[1].type == 14u && d.fx[2].type == 28u && d.fx[0].on && d.fx[1].on && d.fx[2].on &&
+          d.fx[1].v[0] == 0 && d.fx[1].v[3] == 1000 && !opx_fx_played(1) && opx_fx_played(14) && !opx_fx_played(28));
+    m5b_saw(OPX_MF_LPF12, 23680, 0);                 /* the SAW alone */
+    P.flt.on = 0;
+    setup(&P, 0);
+    engine_render(45, 127, z, FS / 2, 0, 0);
+    m5c_fx(1, 14, 0, 0, 0, 1000);                    /* 3EQ flat: as it was */
+    setup(&P, 0);
+    engine_render(45, 127, y, FS / 2, 0, 0);
+    d1 = 0;
+    for (i = FS / 4; i < FS / 2; i++)
+        d1 = fabs(y[i] - z[i]) > d1 ? fabs(y[i] - z[i]) : d1;
+    check("M5c 3EQ flat (the INIT's FX2): skipped, the sound exactly as it was", d1 == 0 && !opx_fx_live(&P.fx[1]));
+    m5c_fx(1, 14, 120, -120, 120, 1000);              /* LOW +12, HIGH -12, MID +12 at 1 kHz */
+    setup(&P, 0);
+    engine_render(45, 127, y, FS / 2, 0, 0);
+    d1 = harm_db(y, FS / 4, 8192, 110) - harm_db(z, FS / 4, 8192, 110);
+    d2 = harm_db(y, FS / 4, 8192, 990) - harm_db(z, FS / 4, 8192, 990);
+    d3 = harm_db(y, FS / 4, 8192, 7040) - harm_db(z, FS / 4, 8192, 7040);
+    printf("opx: 3EQ LOW +12 HIGH -12 MID +12 @1k: 110 Hz %+.1f, 990 Hz %+.1f, 7.0 kHz %+.1f dB\n", d1, d2, d3);
+    check("M5c 3EQ: LOW +12 lifts 110 Hz (+10 dB or more), MID +12 at 1 kHz lifts 990 Hz (+9), HIGH -12 cuts 7 kHz (-3: first-order shelves)",
+          d1 > 10 && d2 > 9 && d3 < -3);
+    memset(P.fx, 0, sizeof P.fx);
+    m5c_fx(0, 13, 10, 0, 0, 1000);                   /* FLTR CUTOFF 10 % (~40 Hz), no LFO */
+    setup(&P, 0);
+    engine_render(45, 127, y, FS / 2, 0, 0);
+    d1 = harm_db(y, FS / 4, 8192, 2200) - harm_db(z, FS / 4, 8192, 2200);
+    check("M5c FLTR: CUTOFF low takes the top off (2.2 kHz -30 dB or more)", d1 < -30);
+    m5c_fx(0, 5, 100, 0, 1000, 500);                 /* PAN DEPTH 100 TRI 1 Hz PHASE 50 %: two channels, opposite */
+    opx_t_right = r, opx_t_wide = 0;
+    setup(&P, 0);
+    engine_render(45, 127, y, FS, 0, 0);
+    opx_t_right = 0;
+    d1 = m5c_rms(y, FS / 8, FS / 8) - m5c_rms(r, FS / 8, FS / 8);   /* (a quarter cycle apart) */
+    d2 = m5c_rms(y, 5 * FS / 8, FS / 8) - m5c_rms(r, 5 * FS / 8, FS / 8);
+    printf("opx: PAN: left - right %+.1f dB, then %+.1f dB\n", d1, d2);
+    check("M5c PAN: two channels (the mix at full width), the louder side moving across", opx_t_wide && fabs(d1) > 3 &&
+          fabs(d2) > 3 && d1 * d2 < 0);
+    m5c_fx(0, 19, -200, -60, 2000, 0);               /* LIMIT THRE -20 CEIL -6: never past -6 dBFS */
+    setup(&P, 0);
+    engine_render(45, 127, y, FS / 2, 0, 0);
+    hi = 0;
+    for (i = 0; i < FS / 2; i++)
+        hi = fabs(y[i]) > hi ? fabs(y[i]) : hi;
+    printf("opx: LIMIT -20 / -6: peak %.0f (-6 dBFS: %.0f)\n", hi, OPX_FXFS * 0.501);
+    check("M5c LIMIT: the peak at CEIL (-6 dBFS) at most, and near it", hi <= OPX_FXFS * 0.502 && hi > OPX_FXFS * 0.4);
+    m5c_fx(0, 15, 0, -850, 1000, 0);                 /* DIST LEVEL -Inf: silent */
+    setup(&P, 0);
+    engine_render(45, 127, y, FS / 4, 0, 0);
+    hi = 0;
+    for (i = 0; i < FS / 4; i++)
+        hi = fabs(y[i]) > hi ? fabs(y[i]) : hi;
+    check("M5c DIST LEVEL -Inf: silent", hi == 0);
+    m4_patch();                                      /* a sine: DIST DRIVE 100 makes harmonics */
+    setup(&P, 0);
+    engine_render(57, 127, z, FS / 2, 0, 0);
+    m5c_fx(0, 15, 100, 0, 1000, 0);
+    setup(&P, 0);
+    engine_render(57, 127, y, FS / 2, 0, 0);
+    d1 = harm_db(y, FS / 4, 8192, 660) - harm_db(y, FS / 4, 8192, 220);
+    d2 = harm_db(z, FS / 4, 8192, 660) - harm_db(z, FS / 4, 8192, 220);
+    check("M5c DIST DRIVE 100: the third harmonic of a sine up from nothing (-30 dB of the first or more)", d1 > -30 && d2 < -60);
+    m5c_fx(0, 17, 100, 1200, 40, 0);                 /* DEC 12 kHz, 4 bits: few levels */
+    setup(&P, 0);
+    engine_render(57, 127, y, FS / 2, 0, 0);
+    {
+        double lv[64];
+        uint32_t nl = 0, j;
+        for (i = FS / 4; i < FS / 2 && nl < 64u; i++) {
+            for (j = 0; j < nl && lv[j] != y[i]; j++)
+                ;
+            if (j == nl)
+                lv[nl++] = y[i];
+        }
+        check("M5c DEC BIT 4.0: 16 levels or fewer", nl <= 17u);
+    }
+    for (t = 1; t < OPX_NFXT; t++) {                 /* every type, its knobs at both ends: finite, bounded */
+        uint32_t end;
+        for (end = 0; end < 2u; end++) {
+            const opx_fxt_t *x = &OPX_FXT[t];
+            m5b_saw(OPX_MF_LPF12, 23680, 0);
+            P.flt.on = 0;
+            P.fx[0].type = (uint8_t)t, P.fx[0].on = 1;
+            for (i = 0; i < x->nk; i++)
+                P.fx[0].v[i] = end ? x->k[i].hi : x->k[i].lo;
+            m5c_fx(1, 5, 100, 0, 5000, 300);         /* (then PAN: two channels into FX3) */
+            P.fx[2] = P.fx[0];
+            setup(&P, 0);
+            engine_render(45, 127, y, FS / 4, 0, 0);
+            lo = 1e12, hi = -1e12;
+            for (i = 0; i < FS / 4; i++)
+                lo = y[i] < lo ? y[i] : lo, hi = y[i] > hi ? y[i] : hi;
+            if (!(hi < (1 << 23) && lo > -(1 << 23)))
+                printf("opx: FX %s at its %s: %.0f .. %.0f\n", x->name, end ? "highs" : "lows", lo, hi), ok = 0;
+        }
+    }
+    check("M5c FX: every type, its knobs at both ends, mono and after PAN: inside the states' bounds", ok);
+    memset(&P, 0, sizeof P);
+}
+
 static void test_factory(void)
 {
     static double y[FS], z[FS];
@@ -1546,6 +1683,7 @@ int main(int argc, char **argv)
     test_m4();
     test_m5();
     test_m5b();
+    test_m5c();
     test_user_empty();
     test_waves();
     test_factory();

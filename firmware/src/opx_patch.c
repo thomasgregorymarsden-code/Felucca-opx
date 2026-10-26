@@ -161,6 +161,15 @@ static void opx_decode(const uint8_t *pk, opx_patch_t *p)
     p->flt.kh = (int8_t)opx_get(pk, OPXF_FLT_KTRK_HIGH);
     p->flt.lfo2 = (int16_t)opx_get(pk, OPXF_FLT_LFO2);
     p->flt.lfo2_ctrl = (uint8_t)opx_get(pk, OPXF_FLT_LFO2_CTRL);
+    for (k = 0; k < 3u; k++) {                         /* (M5c: FX1..3: the knobs as their type's values) */
+        uint32_t f = k * (OPXF_FX2_TYPE - OPXF_FX1_TYPE), t = (uint32_t)opx_get(pk, OPXF_FX1_TYPE + f), j;
+        const opx_fxt_t *x = &OPX_FXT[t < OPX_NFXT ? t : 0u];
+        p->fx[k].type = (uint8_t)(t < OPX_NFXT ? t : 0u);
+        p->fx[k].on = (uint8_t)opx_get(pk, OPXF_FX1_ENABLE + f);
+        for (j = 0; j < 4u; j++)
+            p->fx[k].v[j] = (int16_t)(j < x->nk ? clamp(opx_get(pk, OPXF_FX1_B + f + j) + x->k[j].lo, x->k[j].lo,
+                                                        x->k[j].hi) : 0);
+    }
     p->prog_lfo1 = (int16_t)opx_get(pk, OPXF_PROG_LFO1);
     p->prog_trans = (int8_t)opx_get(pk, OPXF_PROG_TRANS);
     p->prog_oct = (int8_t)opx_get(pk, OPXF_PROG_OCT);
@@ -220,6 +229,13 @@ static void opx_encode(const opx_patch_t *p, uint8_t *pk)
         for (j = 0; j < OPX_NOP; j++)
             opx_put(pk, opxf_ua(k, j), p->ua[k][j]);
         opx_put(pk, OPXF_UA_OUT(k), (int32_t)((p->ua_out >> k) & 1u));
+    }
+    for (k = 0; k < 3u; k++) {                        /* (M5c: a factory patch's effects: OFF unless it sets them) */
+        uint32_t f = k * (OPXF_FX2_TYPE - OPXF_FX1_TYPE), t = p->fx[k].type < OPX_NFXT ? p->fx[k].type : 0u;
+        opx_put(pk, OPXF_FX1_TYPE + f, (int32_t)t);
+        opx_put(pk, OPXF_FX1_ENABLE + f, p->fx[k].on);
+        for (j = 0; j < OPX_FXT[t].nk; j++)
+            opx_put(pk, OPXF_FX1_B + f + j, p->fx[k].v[j] - OPX_FXT[t].k[j].lo);
     }
     for (i = 0; i < 16u; i++)                         /* the name, padded with spaces */
         opx_put(pk, OPXF_PROG_NAME0 + i, p->name && i < str_len(p->name) ? p->name[i] : ' ');

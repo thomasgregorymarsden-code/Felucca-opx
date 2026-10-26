@@ -580,6 +580,7 @@ static int32_t env_tick(track_t *t, voice_t *v)
  * voices of side 0 into spread_buf and the others into out, then adds spread_buf to out: out is every voice, as always
  * (the engines add into either the same way), spread_buf the left ones. A cost per block, none per voice */
 static uint8_t spread_on;
+static uint8_t spread_wide;                     /* OPX fork: the engine's effects made two channels: full width */
 static int32_t spread_buf[CTL];
 static __attribute__((noinline)) void spread_clear(void)
 {
@@ -690,6 +691,13 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     }
     if (spread_on)
         spread_sum(out);                                /* out: every voice; spread_buf: the left ones */
+    if (e->post) {                                      /* OPX fork: the engine's effects on the part */
+        uint32_t f = e->post(t, out, spread_buf, n, spread_on, nr);
+        if (f & 2u)
+            spread_on = 1, spread_wide = 1;             /* (two channels made: spread_buf the left, at full width) */
+        if ((f & 1u) && !nr)
+            nr = 1;                                     /* (its tail: mixed on) */
+    }
     if (fade) {
         for (i = 0; i < 8u; i++)
             t->p[P_E0 + i] = pe_new[i];

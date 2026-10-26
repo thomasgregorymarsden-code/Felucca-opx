@@ -46,6 +46,94 @@ NVP_DST = 293          # V.Patch destinations p.89-90 in the list's order: OFF 0
 
 FIELDS = []            # (section, name, bits, lo, hi, note)
 
+# M5c: the program effects (Effect Parameter List p.91-94), in the list's order, OFF first. Each type: its display
+# name, its full name, a kind (0 every OPX build plays it; 1 a buffer of a few KB; 2 a long buffer: experimental),
+# and its four knobs B C E F: (label, lo, hi, decimals, unit, default, names). A knob's field stores its value in
+# steps of 10^-decimals (-1: steps of 10), less lo (so every type's range sits in the field's 0..32767); names: a list (lo 0).
+# The defaults are chosen (the opsix's per-type defaults are not published) except where noted.
+SYNC_NAMES = ["1/48", "3/128", "1/32", "1/24", "3/64", "1/16", "1/12", "3/32", "1/8", "1/6", "3/16", "1/4", "1/3",
+              "3/8", "1/2", "2/3", "3/4", "1/1", "4/3", "3/2", "2/1", "8/3", "3/1", "4/1"]
+_MIX = ("MIX", 0, 100, 0, "", 50, None)
+_SPD = ("SPEED", 20, 20000, 3, "HZ", 500, None)        # 0.020 .. 20.000 Hz
+_SPDS = ("SPEED", 0, 23, 0, "", 11, SYNC_NAMES)        # 1/48 .. 4/1 (BPM)
+_DB18 = lambda lab, d=0: (lab, -180, 180, 1, "DB", d, None)
+_LVLDB = lambda lab, hi, d: (lab, -850, hi, 1, "DB", d, None)   # -Inf (the lowest), -84.9 .. hi dB
+FX_TYPES = [
+    ("OFF", "Off", 0, []),
+    ("CHO", "Chorus", 1, [_MIX, ("DEPTH", 0, 100, 0, "%", 50, None), _SPD, ("PHASE", 0, 1000, 1, "%", 500, None)]),
+    ("U.ENS", "Unison Ensemble", 1, [_MIX, ("DEPTH", 0, 100, 0, "%", 50, None), ("RATE", 0, 100, 0, "%", 30, None),
+                                     ("VOICE", 2, 8, 0, "", 4, None)]),
+    ("PHA", "Phaser", 0, [_MIX, ("DEPTH", 0, 100, 0, "%", 60, None), _SPD, ("RESO", 0, 1000, 1, "%", 300, None)]),
+    ("PHA BPM", "Phaser (BPM)", 0, [_MIX, ("DEPTH", 0, 100, 0, "%", 60, None), _SPDS,
+                                    ("RESO", 0, 1000, 1, "%", 300, None)]),
+    ("PAN", "Auto Pan", 0, [("DEPTH", 0, 100, 0, "%", 80, None),
+                            ("TYPE", 0, 5, 0, "", 0, ["TRIANGLE", "SINE", "VINTAGE", "UP", "DOWN", "SQUARE"]), _SPD,
+                            ("PHASE", 0, 1000, 1, "%", 500, None)]),
+    ("PAN BPM", "Auto Pan (BPM)", 0, [("DEPTH", 0, 100, 0, "%", 80, None),
+                                      ("TYPE", 0, 5, 0, "", 0, ["TRIANGLE", "SINE", "VINTAGE", "UP", "DOWN", "SQUARE"]),
+                                      _SPDS, ("PHASE", 0, 1000, 1, "%", 500, None)]),
+    ("FLNG", "Flanger", 1, [_MIX, ("DEPTH", 0, 100, 0, "%", 60, None), _SPD, ("FDBK", -100, 100, 0, "%", 50, None)]),
+    ("FLN BPM", "Flanger (BPM)", 1, [_MIX, ("DEPTH", 0, 100, 0, "%", 60, None), _SPDS,
+                                     ("FDBK", -100, 100, 0, "%", 50, None)]),
+    ("RTRY", "Rotary Speaker", 1, [("BAL", 0, 100, 0, "%", 50, None), ("SPD SW", 0, 1, 0, "", 0, ["SLOW", "FAST"]),
+                                   ("SPEED", -1000, 1000, 1, "%", 0, None),
+                                   ("SPKR", 0, 6, 0, "", 0, ["NATURAL", "NAT+DIR", "RESONANT", "RES+DIR", "BRIGHT",
+                                                             "BRT+DIR", "CX-3"])]),
+    ("A.WAH", "Auto Wah", 0, [_MIX, ("SENS", 0, 1000, 1, "%", 500, None), ("SHAPE", -100, 100, 0, "%", 0, None),
+                              ("RESO", 0, 100, 0, "%", 50, None)]),
+    ("EXC", "Exciter", 0, [_MIX, ("FREQ", 3000, 24000, 0, "HZ", 8000, None), ("BLEND", -100, 100, 0, "%", 0, None)]),
+    ("ENH", "Enhancer", 1, [_MIX, ("DEPTH", 0, 100, 0, "%", 50, None), ("DELAY", 0, 1000, 1, "%", 300, None),
+                            ("SPREAD", 0, 1000, 1, "%", 500, None)]),
+    ("FLTR", "LFO Filter", 0, [("CUTOFF", 0, 100, 0, "%", 50, None), ("RESO", 0, 100, 0, "%", 30, None),
+                               ("DEPTH", 0, 100, 0, "%", 50, None), _SPD]),
+    ("3EQ", "3-Band EQ", 0, [_DB18("1 LOW"), _DB18("3 HIGH"), _DB18("2 GAIN"), ("2 FREQ", 20, 20000, 0, "HZ", 1000, None)]),
+    ("DIST", "Distortion", 0, [("DRIVE", 0, 100, 0, "%", 50, None), _LVLDB("LEVEL", 0, -120),
+                               ("EQFREQ", 20, 20000, 0, "HZ", 1000, None), _DB18("EQGAIN")]),
+    ("G.AMP", "Guitar Amp", 0, [("DRIVE", 0, 1000, 1, "%", 500, None),
+                                ("TYPE", 0, 15, 0, "", 0, ["AC15", "AC15TB", "AC30", "AC30TB", "UK BLUES", "UK 70S",
+                                                           "UK 80S", "UK 90S", "UK MODERN", "US MODERN", "US HIGAIN",
+                                                           "BTQ OD", "BTQ CL", "BLACK 2X12", "TWEED 1X12",
+                                                           "TWEED 4X10"]),
+                                ("HEQ", 0, 100, 0, "%", 50, None), _LVLDB("VOLUME", 120, -60)]),
+    ("DEC", "Decimator", 0, [_MIX, ("FREQ", 100, 4800, -1, "HZ", 1200, None), ("BIT", 40, 240, 1, "", 120, None),
+                             ("DAMP", 0, 100, 0, "%", 0, None)]),
+    ("GRAIN", "Grain Shifter", 2, [_MIX, ("TIME", 0, 100, 0, "%", 50, None), ("SPEED", 0, 23, 0, "", 11, SYNC_NAMES),
+                                   ("RETRIG", 0, 7, 0, "", 0, ["OFF", "MOD WHL", "DAMPER", "NOTE ON", "VELOCITY",
+                                                               "LFO1", "LFO2", "LFO3"])]),
+    ("LIMIT", "Master Limiter", 0, [("THRE", -300, 0, 1, "DB", -60, None), ("CEIL", -300, 0, 1, "DB", 0, None),
+                                    ("REL", 13, 20000, 2, "MS", 2000, None)]),   # (REL in 0.05 ms: 0.65 .. 1000.00)
+    ("COMP", "Compressor", 0, [_MIX, ("SENS", 0, 100, 0, "", 50, None), ("ATTACK", 0, 100, 0, "", 50, None),
+                               _LVLDB("LEVEL", 0, 0)]),
+    ("DLY", "Delay", 2, [("LEVEL", 0, 100, 0, "", 40, None), ("FDBK", 0, 100, 0, "%", 40, None),
+                         ("DLY L", 0, 2730, 0, "MS", 300, None), ("DLY R", 0, 2730, 0, "MS", 450, None)]),
+    ("DLY BPM", "Delay (BPM)", 2, [("LEVEL", 0, 100, 0, "", 40, None), ("FDBK", 0, 100, 0, "%", 40, None),
+                                   ("DLY L", 0, 23, 0, "", 11, SYNC_NAMES), ("DLY R", 0, 23, 0, "", 13, SYNC_NAMES)]),
+    ("PDLY", "Autopan Delay", 2, [("LEVEL", 0, 100, 0, "", 40, None), ("DEPTH", 0, 100, 0, "%", 80, None),
+                                  ("DLY", 0, 1360, 0, "MS", 300, None), _SPD]),
+    ("PDL BPM", "Autopan Delay (BPM)", 2, [("LEVEL", 0, 100, 0, "", 40, None), ("DEPTH", 0, 100, 0, "%", 80, None),
+                                           ("DLY", 0, 23, 0, "", 11, SYNC_NAMES), _SPDS]),
+    ("TDLY", "Tape Echo", 2, [("LEVEL", 0, 100, 0, "", 40, None), ("FDBK", 0, 100, 0, "%", 40, None),
+                              ("DLY", 0, 2700, 0, "MS", 300, None), ("DAMP", -1000, 1000, 1, "%", 0, None)]),
+    ("TDL BPM", "Tape Echo (BPM)", 2, [("LEVEL", 0, 100, 0, "", 40, None), ("FDBK", 0, 100, 0, "%", 40, None),
+                                       ("DLY", 0, 23, 0, "", 11, SYNC_NAMES), ("DAMP", -1000, 1000, 1, "%", 0, None)]),
+    ("REF", "Early Reflection", 2, [("LEVEL", 0, 100, 0, "", 30, None),
+                                    ("TYPE", 0, 3, 0, "", 0, ["SHARP", "LOOSE", "MODULATED", "REVERSE"]),
+                                    ("TIME", 10, 1600, 0, "MS", 300, None), ("HEQ", -150, 150, 1, "DB", 0, None)]),
+    ("REVERB", "Reverb", 2, [("LEVEL", 0, 100, 0, "", 30, None),
+                             ("TYPE", 0, 7, 0, "", 0, ["HALL", "LARGE HALL", "SMOOTH HALL", "CHAMBER", "PLATE", "ROOM",
+                                                       "WET ROOM", "SPACE"]),
+                             ("TIME", 200, 10000, 0, "MS", 2500, None), ("TONE", 500, 20000, 0, "HZ", 8000, None)]),
+    ("SHVERB", "Shimmer Reverb", 2, [("LEVEL", 0, 100, 0, "", 30, None),
+                                     ("TYPE", 0, 3, 0, "", 0, ["CLEAR", "RISER", "SUBMARINE", "HORROR"]),
+                                     ("TIME", 0, 100, 0, "%", 50, None), ("TONE", 0, 100, 0, "%", 50, None)]),
+    ("SPRING", "Spring Reverb", 2, [("LEVEL", 0, 100, 0, "", 30, None), ("LENGTH", 0, 100, 0, "%", 50, None),
+                                    ("TIME", 49, 4000, 0, "MS", 1500, None), ("CHIRP", 0, 100, 0, "%", 50, None)]),
+]
+assert len(FX_TYPES) == 31 and all(len(t[3]) in (0, 3, 4) for t in FX_TYPES)
+_bad = [(t[0], k[0]) for t in FX_TYPES for k in t[3] if not (k[2] - k[1] <= 32767 and k[1] <= k[5] <= k[2])]
+assert not _bad, _bad
+FX_INIT = ((1, 1), (14, 1), (28, 1))   # (the opsix INIT: FX1 CHORUS, FX2 3-BAND EQ, FX3 REVERB HALL, all ON)
+
 
 def bits_for(lo, hi):
     return max(1, (hi - lo).bit_length())
@@ -233,6 +321,10 @@ DEFAULTS.update({"x.glide_time": 500, "x.uni_detune": 10, "x.uni_spread": 100}) 
 DEFAULTS.update({"flt.enable": 1, "flt.cutoff": 1023,   # (the opsix INIT: LPF 12 ON, open; OPX skips it so)
                   "flt.ktrk_center": 60, "prog.level": -60, "prog.bend_up": 2, "prog.bend_down": -2,
                  "x.arp_gate": 80, "x.arp_oct": 1, "x.seq_tempo": 12000, "x.seq_len": 16})
+for _x, (_t, _on) in enumerate(FX_INIT, 1):
+    DEFAULTS.update({f"fx{_x}.type": _t, f"fx{_x}.enable": _on})
+    for _k, _q in zip("bcef", FX_TYPES[_t][3]):
+        DEFAULTS[f"fx{_x}.{_k}"] = _q[5] - _q[1]
 for _i in range(16):
     DEFAULTS[f"prog.name{_i}"] = ord("INIT"[_i]) if _i < 4 else 32
 del DEFAULTS["algorithm"]
@@ -269,12 +361,53 @@ def emit_c(path):
            "enum {", *ids, "    OPXF_COUNT", "};",
            "typedef struct { uint16_t off; uint8_t bits; int32_t lo, hi, def; } opx_field_t;",
            "static const opx_field_t OPX_FIELDS[OPXF_COUNT] = {", *rows, "};",
+           *fx_c(),
            "#ifdef OPX_FIELD_NAMES                 /* (tests: tests/opx_test.c --dump, checked by --check-c) */",
            "static const char *const OPX_FIELD_NAME[OPXF_COUNT] = {",
            *[f'    "{name}",' for _, name, _, _, _, _ in FIELDS], "};", "#endif", "#endif", ""]
     with open(path, "w") as f:
         f.write("\n".join(out))
     print(f"opx fields: {len(FIELDS)} fields, {(off + 7) // 8} bytes -> {path}")
+
+
+def fx_units():
+    return sorted({q[4] for t in FX_TYPES for q in t[3]})
+
+
+def fx_c():
+    """M5c: the effect types for the firmware: OPX_FXT[type] {name, kind, knobs, {label, lo, hi, decimals, default, unit,
+    names}} (a knob's field holds value - lo)"""
+    units, out, lists = fx_units(), [], []
+    for i, t in enumerate(FX_TYPES):
+        for j, q in enumerate(t[3]):
+            if q[6]:
+                lists.append(f"static const char *const OPX_FXN_{i}_{j}[{len(q[6])}] = {{" +
+                             ", ".join(f'"{x}"' for x in q[6]) + "};")
+    out += ["/* M5c: the program effects (tools/opx_patch_spec.py FX_TYPES): kind 0 every build, 1 a short buffer, 2 a "
+            "long one (experimental) */",
+            f"#define OPX_NFXT {len(FX_TYPES)}u",
+            "typedef struct { const char *label; int16_t lo, hi; int8_t dp; uint8_t unit; int16_t def; "
+            "const char *const *names; } opx_fxk_t;",
+            "typedef struct { const char *name, *full; uint8_t kind, nk; opx_fxk_t k[4]; } opx_fxt_t;",
+            "static const char *const OPX_FXU[" + str(len(units)) + "] = {" + ", ".join(f'"{u}"' for u in units) + "};",
+            *lists, "static const opx_fxt_t OPX_FXT[OPX_NFXT] = {"]
+    for i, t in enumerate(FX_TYPES):
+        ks = ", ".join(f'{{"{q[0]}", {q[1]}, {q[2]}, {q[3]}, {units.index(q[4])}u, {q[5]}, '
+                       f'{f"OPX_FXN_{i}_{j}" if q[6] else "0"}}}' for j, q in enumerate(t[3]))
+        out.append(f'    {{"{t[0]}", "{t[1]}", {t[2]}u, {len(t[3])}u, {{{ks or "{0}"}}}}},')
+    out.append("};")
+    return out
+
+
+def fx_js():
+    rows = []
+    for t in FX_TYPES:
+        ks = ", ".join(f'["{q[0]}", {q[1]}, {q[2]}, {q[3]}, "{q[4]}", {q[5]}, ' +
+                       (("[" + ", ".join(f'"{x}"' for x in q[6]) + "]") if q[6] else "null") + "]" for q in t[3])
+        rows.append(f'  ["{t[0]}", "{t[1]}", {t[2]}, [{ks}]],')
+    return ["// M5c: the effect types: [name, full name, kind (0 every build, 1 short buffer, 2 experimental), knobs B C E F "
+            "[label, lo, hi, decimals, unit, default, names]]; a knob's field holds value - lo",
+            "export const OPX_FX_TYPES = [", *rows, "];"]
 
 
 def js_text():
@@ -289,7 +422,7 @@ def js_text():
         "// OPX patch fields: [name, bit offset, bits, lo, hi, default]; a value is stored as value - lo, LSB first",
         f"export const OPX_FORMAT_VERSION = {FORMAT_VERSION};",
         f"export const OPX_PK_BYTES = {(off + 7) // 8};",
-        "export const OPX_FIELDS = [", *rows, "];", ""])
+        "export const OPX_FIELDS = [", *rows, "];", *fx_js(), ""])
 
 
 def total_bits():
