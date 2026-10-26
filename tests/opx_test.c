@@ -1430,7 +1430,7 @@ static void test_m5c(void)
     printf("opx: PAN: left - right %+.1f dB, then %+.1f dB\n", d1, d2);
     check("M5c PAN: two channels (the mix at full width), the louder side moving across", opx_t_wide && fabs(d1) > 3 &&
           fabs(d2) > 3 && d1 * d2 < 0);
-    m5c_fx(0, 19, -200, -60, 2000, 0);               /* LIMIT THRE -20 CEIL -6: never past -6 dBFS */
+    m5c_fx(0, 19, -200, -60, 1000, 0);               /* LIMIT THRE -20 CEIL -6: never past -6 dBFS */
     setup(&P, 0);
     engine_render(45, 127, y, FS / 2, 0, 0);
     hi = 0;

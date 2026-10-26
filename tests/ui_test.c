@@ -9098,8 +9098,8 @@ static int test_opx_ops(void)
     ok = xop_row() == 0u && xop_top == 0u && xop_kind(0) == XR_MODE && xop_n() == 4u;   /* (FM: MODE WAVE FB WIDTH) */
     {
         static const uint8_t FIRST[XS_N] = {XR_MODE, XR_FREQ, XR_LVL, XR_KLOW, XR_TO0, XR_ALG, XR_ESEL, XR_LSEL, XR_GL,
-                                            XR_MFT, XR_VSEL, XR_V0};
-        static const uint8_t N[XS_N] = {4, 11, 9, 5, 7, 2, 6, 7, 4, 11, 7, 9};
+                                            XR_MFT, XR_FSEL, XR_VSEL, XR_V0};
+        static const uint8_t N[XS_N] = {4, 11, 9, 5, 7, 2, 6, 7, 4, 11, 3, 7, 9};   /* (FX1-3: F1's FX1 OFF: no knobs) */
         uint32_t sc, k;
         for (sc = 1; sc < XS_N; sc++) {              /* (each section its own list, from its first row) */
             turn(EN_K2, 1);
@@ -9110,7 +9110,7 @@ static int test_opx_ops(void)
     }
     turn(EN_K2, 5);
     ok &= xop_sec == XS_VOICE;                       /* (the last: no wrap) */
-    turn(EN_K2, -3);
+    turn(EN_K2, -4);
     ok &= xop_sec == XS_PROG && xop_kind(xop_row()) == XR_GL;
     turn(EN_K3, 2);
     ok &= xop_kind(xop_row()) == XR_GT;
@@ -9122,7 +9122,7 @@ static int test_opx_ops(void)
     ok &= xop_kind(xop_row()) == XR_GO;              /* (KNOB 3 stays in the section) */
     turn(EN_K2, -20);
     ok &= xop_sec == XS_MODE && xop_row() == 0u;
-    bad += check("OPX ops: each section its own list (MODE PITCH EG KTRK USER ALGO EG1-3 LFO1-3 PROG FILTER V.PATCH VOICE); KNOB 2 (PAGE) a section a detent, each keeping its row; KNOB 3 within it", ok);
+    bad += check("OPX ops: each section its own list (MODE PITCH EG KTRK ROUTE ALGO EG1-3 LFO1-3 P.PITCH FILTER FX1-3 V.PATCH VOICE); KNOB 2 (PAGE) a section a detent, each keeping its row; KNOB 3 within it", ok);
 
     /* VOICE: the track's VOICE pages' parameters (TSEL->p), shown and turned as there; no operator */
     {
@@ -9685,6 +9685,45 @@ static int test_opx_ops(void)
         turn(EN_K4, 2);
         ok &= opx_get(opx_pk[tr], OPXF_FLT_EG2) == 10 && xop_rowtext(4, &lb, val, &u, &r) && str_eq(val, "+0.10");
         bad += check("OPX M5b: FILTER section: TYPE ENABLE CUTOFF (Hz) RESO EG2 CTRL LOW CENTER HIGH LFO2 CTRL", ok);
+        /* M5c: FX1-3: KNOB 3 on TYPE: OFF -> CHO (DIM: not built yet) -> ... 3EQ: its four knobs at their defaults */
+        xop_fxs = 1;
+        xop_find(XR_FXT);
+        ok = xop_sec == XS_FX && xop_n() == 3u;
+        xo_set(EN_K3, 1, 20);
+        frames(1600);
+        turn(EN_K4, 1);                              /* (CHO) */
+        ok &= opx_get(opx_pk[tr], OPXF_FX2_TYPE) == 1 && xop_n() == 7u && !xop_rowtext(1, &lb, val, &u, &r) &&
+              str_eq(val, "CHO");
+        ok &= xop_rowtext(3, &lb, val, &u, &r) == 0 && str_eq(lb, "MIX") && str_eq(val, "50");
+        xop_rowtext(5, &lb, val, &u, &r);
+        ok &= str_eq(lb, "SPEED") && str_eq(val, "0.500") && str_eq(u, "HZ");
+        turn(EN_K4, 13);                             /* (3EQ: 14) */
+        ok &= opx_get(opx_pk[tr], OPXF_FX2_TYPE) == 14 && xop_rowtext(1, &lb, val, &u, &r) && str_eq(val, "3EQ");
+        xop_rowtext(3, &lb, val, &u, &r);
+        ok &= str_eq(lb, "1 LOW") && str_eq(val, "0.0") && str_eq(u, "DB");
+        xo_set(EN_K3, 3, 20);                        /* 1 LOW: 0.5 dB a detent */
+        frames(1600);
+        turn(EN_K4, 3);
+        ok &= xop_rowtext(3, &lb, val, &u, &r) && str_eq(val, "1.5");
+        xo_set(EN_K3, 6, 20);                        /* 2 FREQ 1000 Hz: ~6 % a detent */
+        frames(1600);
+        turn(EN_K4, 1);
+        xop_rowtext(6, &lb, val, &u, &r);
+        ok &= str_eq(lb, "2 FREQ") && str_eq(val, "1058");
+        xop_fxs = 0;
+        {                                            /* (every type's name and its knobs' names fit a card in S) */
+            uint32_t t2, j, q2;
+            for (t2 = 0; t2 < OPX_NFXT; t2++) {
+                if (text_w(&AF_S, OPX_FXT[t2].name) > COL_W - 8)
+                    printf("ui: FX name %s too wide\n", OPX_FXT[t2].name), ok = 0;
+                for (j = 0; j < OPX_FXT[t2].nk; j++)
+                    for (q2 = 0; OPX_FXT[t2].k[j].names && q2 <= (uint32_t)(OPX_FXT[t2].k[j].hi - OPX_FXT[t2].k[j].lo); q2++)
+                        if (text_w(&AF_S, OPX_FXT[t2].k[j].names[q2]) > COL_W - 8)
+                            printf("ui: FX %s %s: %s too wide (%d px)\n", OPX_FXT[t2].name, OPX_FXT[t2].k[j].label,
+                                   OPX_FXT[t2].k[j].names[q2], (int)text_w(&AF_S, OPX_FXT[t2].k[j].names[q2])), ok = 0;
+            }
+        }
+        bad += check("OPX M5c: FX1-3 section: which FX, TYPE (its knobs at their defaults; DIM until played), the knobs in their units and steps", ok);
         go_title("LFO1-3"); frame();                 /* M5: KNOB 1 LFO2: its six rows, no PROG PITCH */
         xop_lfs = 0;
         turn(EN_K1, 1);

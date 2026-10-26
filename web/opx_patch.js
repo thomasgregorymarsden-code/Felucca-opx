@@ -2,9 +2,9 @@
 // OPX fork: an OPX patch as the web editor handles it: the packed record of tools/opx_patch_spec.py (opx_fields.js,
 // 434 bytes, every opsix program field; the firmware's opx_patch.c), its fields read and written by name, checked as
 // the firmware checks one (opx_pk_ok), and the values the device shows (ui_fm6op.c xop_rowtext) as text.
-import { OPX_FIELDS, OPX_PK_BYTES, OPX_FORMAT_VERSION } from "./opx_fields.js";
+import { OPX_FIELDS, OPX_PK_BYTES, OPX_FORMAT_VERSION, OPX_FX_TYPES } from "./opx_fields.js";
 
-export { OPX_PK_BYTES, OPX_FORMAT_VERSION };
+export { OPX_PK_BYTES, OPX_FORMAT_VERSION, OPX_FX_TYPES };
 const BY = new Map(OPX_FIELDS.map((f) => [f[0], f]));
 export const has = (name) => BY.has(name);
 export const range = (name) => { const f = BY.get(name); return [f[3], f[4]]; };
@@ -170,6 +170,21 @@ export const VP_DST = [["OFF", ["---"], 0], ["PROG", VP_PROG, 1],
   ["FILTER", ["CUTOFF", "RESO"], 275], ...[1, 2, 3].map((k) => [`FX${k}`, ["PARAM 1", "PARAM 2", "PARAM 3", "PARAM 4"],
   277 + 4 * (k - 1)]), ["ARP", ["RESO", "GATE", "OCT"], 289], ["SEQ", ["SWING"], 292]];
 // the destinations OPX plays now (eng_opx.c opx_vd_on): the rest are kept and do nothing yet
+// M5c: the program effects. A type OPX plays (kind 0: the rest are kept and pass the sound for now, as the firmware's
+// opx_fx_played); a knob's field (value - lo) as text in its type's units; FX n's type set with its knobs' defaults
+export const fxPlayed = (t) => t > 0 && t < OPX_FX_TYPES.length && OPX_FX_TYPES[t][2] === 0;
+export function pfxText(k, code) {
+  const [, lo, , dp, unit, , names] = k, v = code + lo;
+  if (names) return names[code] ?? "?";
+  if (lo === -850 && v <= -850) return "-INF " + unit;
+  const s = dp < 0 ? String(v * 10) : dp === 0 ? String(v) : (v / 10 ** dp).toFixed(dp);
+  return unit ? `${s} ${unit}` : s;
+}
+export function fxSetType(pk, n, t) {
+  const ty = OPX_FX_TYPES[t] ?? OPX_FX_TYPES[0];
+  put(pk, `fx${n}.type`, t);
+  "bcef".split("").forEach((c, j) => put(pk, `fx${n}.${c}`, j < ty[3].length ? ty[3][j][5] - ty[3][j][1] : 0));
+}
 export function vpPlayed(d) {
   if (d >= 1 && d < 17) return d - 1 <= 8 && d - 1 !== 4;
   if (d >= 17 && d < 251) return (d - 17) % 39 <= 9;

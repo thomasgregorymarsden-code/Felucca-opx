@@ -111,7 +111,7 @@ hidden above or below.
 | Knob | Selects |
 |---|---|
 | 1 | the operator, 1–6 (ALL on the sections that are the patch's: ALGO and after) |
-| 2 | PAGE, the section, one per click: MODE, PITCH, EG, KTRK, ROUTE, ALGO, EG1-3, LFO1-3, P.PITCH, FILTER, V.PATCH, VOICE |
+| 2 | PAGE, the section, one per click: MODE, PITCH, EG, KTRK, ROUTE, ALGO, EG1-3, LFO1-3, P.PITCH, FILTER, FX1-3, V.PATCH, VOICE |
 | 3 | the row, within the section |
 | 4 | the row's value (a list such as MODE, TYPE or FX: one step per click) |
 
@@ -144,7 +144,15 @@ LPF MS-20, LPF POLY6, HPF 12, HPF 24, HPF MS-20, BPF 6, BPF 12, BRF 6, BRF 12), 
 RESO (CUTOFF moves ~2.4 semitones a click: end to end in 60 clicks), EG2 (INT in semitones) and its CTRL, LOW / CENTER / HIGH (key tracking: the slope below and above CENTER, 1.00
 following the key, ±INF), LFO2 and its CTRL. INIT has LPF 12 on and wide open, which costs no processor time.
 
-**V.PATCH** (OPERATORS' section after FILTER): the first row picks the virtual patch (1–12), then SRC and SOURCE (the
+**FX1-3** (OPERATORS' section after FILTER): the program's three effects in series after the voices, as the opsix's
+EFFECT page: the first row picks FX1–3, then TYPE (the opsix's 30, named as on its list, the BPM ones without the
+space: PHABPM …), ENABLE, and the type's own knobs (B C E F) in its units. A new TYPE starts at its knobs' defaults.
+OPX plays PHA, PHABPM, PAN, PANBPM, A.WAH, EXC, FLTR, 3EQ, DIST, G.AMP, DEC, LIMIT and COMP; the other types are
+kept in the patch, shown dimmed, and pass the sound unchanged for now (chorus, flanger, ensemble, rotary and enhancer
+need a buffer; the delays, reverbs and GRAIN a long one, see docs/OPX_PLAN.md). PAN makes the part stereo. INIT has
+the opsix's FX1 CHORUS, FX2 3-BAND EQ (flat: skipped) and FX3 REVERB, all ON.
+
+**V.PATCH** (OPERATORS' section after FX1-3): the first row picks the virtual patch (1–12), then SRC and SOURCE (the
 scope, then the source in it, as the opsix's two knobs: CTRL, KBD, EG/LFO, CC+, CC+/-, MIDI), INT, CTRL, DEST and
 TARGET (the scope, then the destination: PROG, OP1–6, EG1–3, LFO1–3, FILTER, FX1–3, ARP, SEQ). A destination OPX does
 not play yet (the effects and some others) is shown dimmed and kept in the patch. INT moves 0.05 a click

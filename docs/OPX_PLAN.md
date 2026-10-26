@@ -20,7 +20,7 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M4 | EG1 (pitch), LFO1 and their default routes: each operator's P MOD (EG1, LFO1, VEL), LMOD LFO1, PROG PITCH (LFO1, TRANS, OCT); the CTRL sources | done (pages EG1 and LFO1, the rows in OPERATORS, the web editor; not yet compared with an opsix) |
 | M5a | EG2, EG3, LFO2, LFO3; the virtual patch (V.PATCH 1–12) to the destinations OPX has; every CTRL source live | done (pages EG1-3, LFO1-3, OPERATORS' V.PATCH section, the web editor; INT's scale a guess, see [Assumptions](#assumptions-to-check-by-ear)) |
 | M5b | Main filter (EG2, LFO2, key tracking), as far as the processor time allows | done: one a voice (OPERATORS' FILTER section, the web editor; V.PATCH FILTER CUTOFF and RESO played; device cost to measure: the benchmark's MAIN rows) |
-| M5c | Effects 1–3 | next: all 30 types, the ones that need much memory marked experimental |
+| M5c | Effects 1–3 | part 1 done: the chain, the 13 types with no buffer (OPERATORS' FX1-3 section, the web editor); next: the buffered types (memory: see [How M5c works](#how-m5c-works)) |
 
 Confirmed on a device so far: it installs and runs, and six OPX voices at once do not overload the processor. Not
 yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-by-ear)).
@@ -140,6 +140,26 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
   as FILTER FM's), so on the device expect roughly what one operator in FILTER mode adds, +16 to +17 points on six
   notes. Not measured yet; if it is too much, a cheaper filter (32-bit arithmetic, or one shared by the part) is the
   fallback. The benchmark has three rows for it (MAIN LPF12, LPF24, MS-20; SIN, EG2 moving it).
+
+## How M5c works
+
+- **Where:** after a part's voices (the engine's `post`, called by voice.c track_render), FX1 → FX2 → FX3 on the
+  part's block, before Felucca's mix (level, pan, sends). One chain a part (the opsix's is the program's).
+- **Stereo:** a part is mono (or, with SPREAD, two sides). The chain runs on one channel until an effect makes two
+  (PAN), then on both; a part made stereo goes to the mix at full width through SPREAD's path (fx.c mix_spread).
+- **The types** (tools/opx_patch_spec.py FX_TYPES): the manual's 30 with their four knobs, ranges and units. Each
+  knob's field holds the value less the knob's lowest. Names fit the device's card: some are shortened (the BPM
+  types without the space, CHAMBR, W.ROOM, TW 1X12 …). The defaults when a type is picked are chosen, not read.
+- **Played now (kind 0, no buffer):** PHA, PHABPM, PAN, PANBPM, A.WAH, EXC, FLTR, 3EQ, DIST, G.AMP, DEC, LIMIT, COMP;
+  the designs and their assumptions are listed at the top of firmware/src/opx_fx.c (first-order shelves at 250 Hz
+  and 4 kHz for 3EQ, as the operators' SHELV EQ; G.AMP's 16 types as gains and cabinet corners, not models; ...).
+- **Not yet (kept, the sound passed):** kind 1, a buffer of a few KB each: CHO, U.ENS, FLNG, FLNBPM, RTRY, ENH; kind 2
+  (experimental), long buffers: DLY, DLYBPM, PDLY, PDLBPM, TDLY, TDLBPM, REF, REVERB, SHVERB, SPRING, GRAIN.
+- **Memory** (the M5b build): the pool had 10.6 KB free with 8 KB kept spare by build.py, RAM 8.5 KB with 4 KB kept,
+  flash 21.6 KB. The chain's state takes 1.3 KB of the pool (12 slots). Kind 1 needs its buffers from a part's
+  engine memory (the voices' SHORT DELAY lines would shrink); kind 2 more than the FM-1 has free: the opsix's
+  delays reach 2.73 s stereo (~480 KB). The way open: borrow Felucca's own delay (128 KB, 1.49 s mono) and reverb
+  buffers, one part at a time, silencing the bus it borrows. To decide.
 
 ## The device pages (M1.5): where the code is
 

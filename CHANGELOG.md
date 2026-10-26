@@ -5,6 +5,11 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPX M5c, part 1: the program effects FX1–3.** Three effects in series on each OPX part after its voices, in a
+  new **FX1-3** section of OPERATORS and the web editor's OPX tab: TYPE (the opsix's 30), ENABLE and the type's four
+  knobs in its own units. 13 types play: PHA, PHABPM, PAN, PANBPM (the part in stereo), A.WAH, EXC, FLTR, 3EQ, DIST,
+  G.AMP, DEC, LIMIT, COMP. The other 17 are kept in the patch and pass the sound for now. INIT carries the opsix's
+  FX1 CHORUS, FX2 3-BAND EQ, FX3 REVERB, all ON (the flat EQ costs nothing); factory patches keep their effects off.
 - **OPERATORS:** the USER section is now **ROUTE** (it holds what the operator sends to each operator in the USER
   algorithm) and PROG is **P.PITCH** (the opsix's PROG PITCH). On the ROUTE section the matrix highlights the row
   the list is on (TO OP6: the 6 on the left) as well as the operator's column, and frames their cell. KNOB 1 reads

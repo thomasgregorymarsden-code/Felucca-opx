@@ -63,7 +63,7 @@ static uint32_t opx_fxhz(uint32_t hz)
 /* base Hz x 2^(oct, Q24) as a step */
 static uint32_t opx_fxoct(uint32_t base, int32_t oct)
 {
-    uint64_t f = ((uint64_t)(uint32_t)fm6_exp2(clamp(oct, -12 << 24, 5 << 24) - (8 << 24)) * opx_fxhz(base)) >> 16;
+    uint64_t f = ((uint64_t)(uint32_t)fm6_exp2(clamp(oct, -(12 << 24), 5 << 24) - (8 << 24)) * opx_fxhz(base)) >> 16;
     return f > OPX_FCMAX ? OPX_FCMAX : f < 4096u ? 4096u : (uint32_t)f;
 }
 /* an LFO's step a sample: SPEED in mHz, or (sync) a note value at the song's tempo */
@@ -109,16 +109,17 @@ static inline int32_t opx_fxsvf(int32_t *st, const opx_fc_t *c, int32_t x, int32
     *bp = v1;
     return v2;
 }
-/* a peaking EQ (RBJ, Q 1) at f (step) and dB x0.1 into c[5] (Q14) */
+/* a peaking EQ (RBJ, Q 1) at f (step) and dB x0.1 (+-18) into c[5] (Q14). 32-bit divides only (the audio code may
+ * call no library routine: a 64-bit divide is one): every product under 2^31 */
 static void opx_fxpeq(int32_t *c, uint32_t f, int32_t db10)
 {
-    int32_t sn = sine_i(f), cs = sine_i(f + 0x40000000u), A = opx_db40(db10), al = sn >> 1;
-    int32_t aa = (int32_t)(((int64_t)al * A) >> 15), ai = (al << 15) / (A ? A : 1), a0 = 32768 + ai;
-    c[0] = (int32_t)((((int64_t)32768 + aa) << 14) / a0);
-    c[1] = (int32_t)(((int64_t)(-2 * cs) << 14) / a0);
-    c[2] = (int32_t)((((int64_t)32768 - aa) << 14) / a0);
+    int32_t sn = sine_i(f), cs = sine_i(f + 0x40000000u), A = opx_db40(clamp(db10, -180, 180)), al = sn >> 1;
+    int32_t aa = (al * A) >> 15, ai = (al << 15) / (A ? A : 1), a0 = 32768 + ai;
+    c[0] = (32768 + aa) * 16384 / a0;
+    c[1] = -2 * cs * 16384 / a0;
+    c[2] = (32768 - aa) * 16384 / a0;
     c[3] = c[1];
-    c[4] = (int32_t)((((int64_t)32768 - ai) << 14) / a0);
+    c[4] = (32768 - ai) * 16384 / a0;
 }
 static inline int32_t opx_fxbq(int32_t *st, const int32_t *c, int32_t x)   /* st: x1 x2 y1 y2 */
 {
@@ -128,16 +129,13 @@ static inline int32_t opx_fxbq(int32_t *st, const int32_t *c, int32_t x)   /* st
     st[1] = st[0], st[0] = x, st[3] = st[2], st[2] = y;
     return y;
 }
-/* a cubic soft clip at l: x - x^3 / (3 l^2) up to |x| = l, 2 l / 3 beyond */
-static inline int32_t opx_fxsat(int32_t x, int32_t l)
+/* a cubic soft clip at l: x - x^3 / (3 l^2) up to |x| = l, 2 l / 3 beyond. il: 2^30 / l (a block's: no divide a
+ * sample) */
+static inline int32_t opx_fxsat(int32_t x, int32_t l, int32_t il)
 {
-    int64_t q;
-    if (x >= l)
-        return 2 * l / 3;
-    if (x <= -l)
-        return -2 * l / 3;
-    q = (int64_t)x * x / l;
-    return x - (int32_t)(q * x / (3 * (int64_t)l));
+    int32_t u = (int32_t)clamp((int32_t)(((int64_t)x * il) >> 15), -32768, 32768), u3;   /* (x / l, Q15) */
+    u3 = (int32_t)(((int64_t)u * u >> 15) * u >> 15);
+    return (int32_t)(((int64_t)(u - ((u3 * 10923) >> 15)) * l) >> 15);
 }
 /* log2 of x > 0, Q24 (the top bit and a line between: within 0.09 octave) */
 static int32_t opx_fxlog2(uint32_t x)
@@ -168,7 +166,7 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
     case 3: case 4: {                                /* PHA, PHA BPM */
         int32_t u = opx_fxwave(0, s->ph), a, fb = clamp(v[3], 0, 1000) * 29491 / 1000;
         s->ph += opx_fxlfo(v[2], t == 4u) * CTL;
-        a = 2 * opx_fxg1(opx_fxoct(200, (int32_t)(((int64_t)u * clamp(v[1], 0, 100) * 5 * (1 << 24) / 100) >> 15))) - 16384;
+        a = 2 * opx_fxg1(opx_fxoct(200, (int32_t)(((int64_t)u * clamp(v[1], 0, 100) * 838861) >> 15))) - 16384;   /* (5 oct) */
         for (ch = 0; ch < nch; ch++) {
             int32_t *b = ch ? r : l, *q = s->st[ch];
             for (i = 0; i < CTL; i++) {
@@ -201,8 +199,7 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
         return 1;
     }
     case 10: {                                       /* A.WAH */
-        int32_t e = (int32_t)clamp((int32_t)((int64_t)s->env * clamp(v[1], 0, 1000) * 32767 / (1000LL * (OPX_FXFS / 4))),
-                                   0, 32767), sh = clamp(v[2], -100, 100), a = sh < 0 ? -sh : sh;
+        int32_t e = (int32_t)clamp((int32_t)(((int64_t)s->env * clamp(v[1], 0, 1000) * 2863) >> 20), 0, 32767), sh = clamp(v[2], -100, 100), a = sh < 0 ? -sh : sh;
         if (sh < 0)
             e = 32767 - e;
         e += a * (((e * e) >> 15) - e) / 100;
@@ -223,10 +220,11 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
     }
     case 11: {                                       /* EXC */
         int32_t g = opx_fxg1(opx_fxhz((uint32_t)clamp(v[1], 3000, 24000))), bl = (clamp(v[2], -100, 100) + 100) * 32767 / 200;
+        int32_t il = (1 << 30) / (OPX_FXFS / 2);
         for (ch = 0; ch < nch; ch++) {
             int32_t *b = ch ? r : l, *q = s->st[ch];
             for (i = 0; i < CTL; i++) {
-                int32_t x = b[i], h = x - opx_fxlp(&q[0], x, g), z = opx_fxsat(clamp(4 * h, -OPX_FXLIM, OPX_FXLIM), OPX_FXFS / 2);
+                int32_t x = b[i], h = x - opx_fxlp(&q[0], x, g), z = opx_fxsat(clamp(4 * h, -OPX_FXLIM, OPX_FXLIM), OPX_FXFS / 2, il);
                 int32_t e = h + (int32_t)(((int64_t)(z - h) * bl) >> 15);
                 b[i] = x + (int32_t)(((int64_t)e * mq) >> 15);
             }
@@ -235,7 +233,7 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
     }
     case 13: {                                       /* FLTR: CUTOFF RESO DEPTH SPEED */
         int32_t u = opx_fxwave(0, s->ph) - 16384;     /* (-1 .. +1, Q14) */
-        int32_t oct = (int32_t)((int64_t)clamp(v[0], 0, 100) * (10 << 24) / 100) + (int32_t)(((int64_t)u * clamp(v[2], 0, 100) * (4 << 24) / 100) >> 14);
+        int32_t oct = clamp(v[0], 0, 100) * 1677722 + (int32_t)(((int64_t)u * clamp(v[2], 0, 100) * 671089) >> 14);   /* (10, 4 oct) */
         s->ph += opx_fxlfo(v[3], 0) * CTL;
         c.k = 131072 - clamp(v[1], 0, 100) * 1245;
         opx_svf_coef(&c, opx_fxoct(20, oct));
@@ -247,7 +245,7 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
         return st;
     }
     case 14: case 15: {                              /* 3EQ: 1 LOW, 3 HIGH, 2 GAIN, 2 FREQ; DIST: DRIVE LEVEL EQFREQ EQGAIN */
-        int32_t gl = 0, gh = 0, dr = 256, lv = 32768;
+        int32_t gl = 0, gh = 0, dr = 256, lv = 32768, il = (1 << 30) / OPX_FXFS;
         if (s->key[0] != v[0] || s->key[1] != v[1] || s->key[2] != v[2] || s->key[3] != v[3]) {
             if (t == 14u)
                 opx_fxpeq(s->c, opx_fxhz((uint32_t)clamp(v[3], 20, 20000)), v[2]);
@@ -268,7 +266,7 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
                     y += (int32_t)(((int64_t)gh * (x - opx_fxlp(&q[5], x, OPX_G4K))) >> 15);
                     y = opx_fxbq(q, s->c, clamp(y, -OPX_FXLIM, OPX_FXLIM));
                 } else {
-                    y = opx_fxsat(clamp((int32_t)(((int64_t)x * dr) >> 8), -OPX_FXLIM, OPX_FXLIM), OPX_FXFS);
+                    y = opx_fxsat(clamp((int32_t)(((int64_t)x * dr) >> 8), -OPX_FXLIM, OPX_FXLIM), OPX_FXFS, il);
                     y = opx_fxbq(q, s->c, y * 3 / 2);
                     y = (int32_t)(((int64_t)y * lv) >> 15);
                 }
@@ -282,6 +280,7 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
         int32_t dr = opx_fxdb(OPX_GAMP[ty].gain + clamp(v[0], 0, 1000) * 400 / 1000 - 240);   /* (Q15 of x16) */
         int32_t gh = opx_fxdb((clamp(v[2], 0, 100) - 50) * 240 / 100) - 32768, vol = opx_fxdb(v[3]);
         int32_t ghp = opx_fxg1(opx_fxhz(100)), g3k = opx_fxg1(opx_fxhz(3000)), lneg = OPX_FXFS * OPX_GAMP[ty].neg / 32;
+        int32_t il = (1 << 30) / OPX_FXFS, iln = (1 << 30) / lneg;
         c.k = 92682;                                 /* (Q 0.71) */
         opx_svf_coef(&c, opx_fxhz((uint32_t)OPX_GAMP[ty].cab));
         for (ch = 0; ch < nch; ch++) {
@@ -289,7 +288,7 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
             for (i = 0; i < CTL; i++) {
                 int32_t x = b[i] - opx_fxlp(&q[0], b[i], ghp), y;
                 y = clamp((int32_t)(((int64_t)x * dr) >> 11), -OPX_FXLIM, OPX_FXLIM);
-                y = y >= 0 ? opx_fxsat(y, OPX_FXFS) : opx_fxsat(y, lneg);
+                y = y >= 0 ? opx_fxsat(y, OPX_FXFS, il) : opx_fxsat(y, lneg, iln);
                 y += (int32_t)(((int64_t)gh * (y - opx_fxlp(&q[1], y, g3k))) >> 15);
                 y = opx_fxsvf(&q[2], &c, y, &bp);
                 b[i] = (int32_t)(((int64_t)y * vol) >> 15);
@@ -302,7 +301,7 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
         uint32_t inc = hz >= 44100u ? 0u : (uint32_t)(hz * 97392u);
         int32_t stp = (int32_t)(((int64_t)fm6_exp2(-clamp(v[2], 40, 240) * 1677722) * (2 * OPX_FXFS)) >> 24);
         uint32_t inv = stp > 1 ? 0xFFFFFFFFu / (uint32_t)stp : 0u;
-        int32_t gd = opx_fxg1(opx_fxoct(20000, (int32_t)(-(int64_t)clamp(v[3], 0, 100) * (43 << 24) / 1000)));
+        int32_t gd = opx_fxg1(opx_fxoct(20000, -clamp(v[3], 0, 100) * 721420));   /* (4.3 oct) */
         for (ch = 0; ch < nch; ch++) {
             int32_t *b = ch ? r : l, *q = s->st[ch];
             uint32_t ph = s->ph;
@@ -327,7 +326,7 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
     case 19: case 20: {                              /* LIMIT: THRE CEIL REL; COMP: MIX SENS ATTACK LEVEL */
         int32_t pk = 0, g0 = s->g ? s->g : 4096, g1, dg, ceil = 0, ra, rr;
         if (t == 19u)
-            ra = 65536, rr = (int32_t)(65536u * 20u / (uint32_t)(clamp(v[2], 13, 20000) * 441 / 10 + 20));   /* (REL: 0.05 ms) */
+            ra = 65536, rr = (int32_t)(6553600u / (uint32_t)(clamp(v[2], 6, 10000) * 441 + 100));   /* (REL: 0.1 ms) */
         else
             ra = (int32_t)(65536 / (22 + clamp(v[2], 0, 100) * 22)), rr = 65536 / 6615;   /* (0.5 .. 50 ms; 150 ms) */
         for (i = 0; i < CTL; i++) {                   /* the level, both channels */
@@ -341,12 +340,12 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
         if (t == 19u) {                              /* min(CEIL / THRE, CEIL / level), Q12 */
             int32_t th = (int32_t)(((int64_t)opx_fxdb(v[0]) * OPX_FXFS) >> 15);
             ceil = (int32_t)(((int64_t)opx_fxdb(v[1]) * OPX_FXFS) >> 15);
-            g1 = (int32_t)(((int64_t)ceil << 12) / (pk > th ? pk : th > 0 ? th : 1));
+            g1 = (ceil << 12) / (pk > th ? pk : th > 0 ? th : 1);   /* (ceil << 12 under 2^28) */
         } else {                                     /* 4:1 above the threshold, in octaves of level */
             int32_t sn = clamp(v[1], 0, 100), th = opx_fxlog2(OPX_FXFS) - sn * 1114619;   /* (-0.4 dB a step, Q24 octaves) */
             int32_t over = opx_fxlog2((uint32_t)(pk > 1 ? pk : 1)) - th, gl = over > 0 ? -over * 3 / 4 : 0;
             gl += sn * 835964;                           /* (made up: +0.3 dB a step) */
-            g1 = (int32_t)(((int64_t)fm6_exp2(clamp(gl, -20 << 24, 4 << 24) - (12 << 24)) * opx_fxdb(v[3])) >> 15);
+            g1 = (int32_t)(((int64_t)fm6_exp2(clamp(gl, -(20 << 24), 4 << 24) - (12 << 24)) * opx_fxdb(v[3])) >> 15);
         }
         g1 = clamp(g1, 0, 32 << 12);
         dg = (g1 - g0) / (int32_t)CTL;

@@ -2647,6 +2647,7 @@ const TEXT = {
     opxTestsConfirm: "テスト音色 {m} 個のうち {n} 個を空きユーザープリセットに書き込みます。よろしいですか？", opxTestsNeedOpx: "FM-1 で OPX のトラックを選んでください",
     opxTestsNoRoom: "空きユーザープリセットがありません（OPX は 16 個まで）", opxTestsProgress: "テスト音色を書き込み中", opxTestsDone: "テスト音色を書き込みました", opxTestsLeft: "は空きがなく書き込めませんでした",
     opxEg1: "EG1（ピッチ）・EG2（フィルター）・EG3", opxLfo1: "LFO1（オペレーター）・LFO2（フィルター）・LFO3",
+    opxFx: "エフェクト FX1–3", opxFxHelp: "直列に FX1 → FX2 → FX3。* の付いたタイプはパッチに保存されますが、まだ音を通すだけです（コーラス、ディレイ、リバーブなど）。数値はそのタイプの単位（入力欄は内部の値、右に表示値）。",
     opxFlt: "フィルター", opxFltHelp: "ボイスごとに1基。LPF 12 が全開・RESO 0・モジュレーションなし（INIT）のときは処理を省きます。KTRK の傾き: 1.00 で1半音につき1半音。",
     opxVp: "バーチャル・パッチ 1–12", opxVpHelp: "* の付いたデスティネーションはパッチに保存されますが、まだ効きません（エフェクトなど）。INT の単位はデスティネーションの全範囲に対する割合です（PITCH は半音）。", opxProg: "プログラム ピッチ", opxMod: "モジュレーション（P MOD・L MOD、INT は 0.01 半音単位）",
     opxLfoHelp: "FADE は KSYNC が OFF のときは効きません。CTRL は選んだソースの値を INT に掛けます（OFF: INT のまま）。",
@@ -2769,6 +2770,7 @@ const TEXT = {
     opxTestsConfirm: "Write {n} of the {m} test patches into empty user presets?", opxTestsNeedOpx: "Select an OPX track on the FM-1 first",
     opxTestsNoRoom: "No room: no empty user preset, or 16 OPX user presets already", opxTestsProgress: "Writing the test patches", opxTestsDone: "Test patches written", opxTestsLeft: "did not fit",
     opxEg1: "EG1 (pitch), EG2 (filter), EG3", opxLfo1: "LFO1 (operators), LFO2 (filter), LFO3",
+    opxFx: "Effects FX1–3", opxFxHelp: "In series, FX1 → FX2 → FX3. Types marked * are kept in the patch but pass the sound unchanged for now (chorus, the delays, the reverbs and others). The box holds the stored step; the value in the type's units is beside it.",
     opxFlt: "Filter", opxFltHelp: "One per voice. An LPF 12 wide open, RESO 0, with nothing moving it (the INIT) costs nothing. KTRK slopes: 1.00 moves the cutoff one semitone per semitone.",
     opxVp: "Virtual patch 1–12", opxVpHelp: "Destinations marked * are kept in the patch but do nothing yet (the effects and others). INT is a share of the destination's whole range (PITCH: semitones).", opxProg: "Program pitch", opxMod: "Modulation (P MOD, L MOD; INT in 0.01 semitones)",
     opxLfoHelp: "FADE has no effect with KSYNC OFF. CTRL multiplies the INT by the chosen source (OFF: the INT as it is).",
@@ -5292,6 +5294,24 @@ function renderOpxPatch() {
     el("td", {}, opxNum("flt.ktrk_center", { text: () => OX.noteName(OX.get(opxPk, "flt.ktrk_center")) })),
     el("td", {}, opxNum("flt.ktrk_high", { text: () => OX.ktrkText(OX.get(opxPk, "flt.ktrk_high")) })),
     el("td", {}, opxNum("flt.lfo2", { scale: 100, wide: true, text: () => "ST" })), el("td", {}, opxSel("flt.lfo2_ctrl", OX.CTRLS)))]);
+  const fx = opxTable(["FX", "TYPE", "ON", "B", "C", "E", "F"], [1, 2, 3].map((n) => {   /* (M5c) */
+    const t = OX.get(opxPk, `fx${n}.type`), ty = OX.OPX_FX_TYPES[t] ?? OX.OPX_FX_TYPES[0];
+    const type = el("select", { title: `fx${n}.type`, onchange: (e) => { OX.fxSetType(opxPk, n, +e.target.value); opxChanged(true); } },
+      ...OX.OPX_FX_TYPES.map((x, k) => el("option", { value: k, text: (k ? `${x[0]} (${x[1]})` : "OFF") + (k && !OX.fxPlayed(k) ? " *" : "") })));
+    type.value = t;
+    const knob = (j) => {
+      const k = ty[3][j];
+      if (!k) return el("td", {});
+      const f = `fx${n}.${"bcef"[j]}`;
+      const w = k[6] ? el("select", { title: f, onchange: (e) => { OX.put(opxPk, f, +e.target.value); opxChanged(false); } },
+        ...k[6].map((x, q) => el("option", { value: q, text: x })))
+        : opxNum(f, { lo: 0, hi: k[2] - k[1], wide: true, text: () => OX.pfxText(k, OX.get(opxPk, f)) });
+      if (k[6]) w.value = OX.get(opxPk, f);
+      return el("td", {}, el("span", { class: "dim", text: k[0] + " " }), w);
+    };
+    return el("tr", {}, el("th", { text: `FX${n}` }), el("td", {}, type), el("td", {}, opxSel(`fx${n}.enable`, ["OFF", "ON"])),
+      knob(0), knob(1), knob(2), knob(3));
+  }));
   const prog = opxTable(["LFO1", "CTRL", "TRANS", "OCT"], [el("tr", {},
     el("td", {}, opxNum("prog.lfo1", { scale: 100, wide: true, text: () => "ST" })), el("td", {}, opxSel("prog.lfo1_ctrl", OX.CTRLS)),
     el("td", {}, opxNum("prog.trans", { text: () => "ST" })), el("td", {}, opxNum("prog.oct", { text: () => "OCT" })))]);
@@ -5299,6 +5319,7 @@ function renderOpxPatch() {
     row(t("opxAlgFb"), opxNum("prog.alg_fb", { text: () => "%" }))),
     el("h3", { text: t("opxEg1") }), eg1, el("h3", { text: t("opxLfo1") }), lfo1, el("p", { class: "dim", text: t("opxLfoHelp") }),
     el("h3", { text: t("opxProg") }), prog, el("h3", { text: t("opxFlt") }), flt, el("p", { class: "dim", text: t("opxFltHelp") }),
+    el("h3", { text: t("opxFx") }), fx, el("p", { class: "dim", text: t("opxFxHelp") }),
     el("h3", { text: t("opxVp") }), vp, el("p", { class: "dim", text: t("opxVpHelp") }));
 }
 function renderOpxOps() {
