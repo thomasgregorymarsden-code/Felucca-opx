@@ -111,7 +111,7 @@ hidden above or below.
 | Knob | Selects |
 |---|---|
 | 1 | the operator, 1–6 |
-| 2 | PAGE, the section, one per click: MODE, PITCH, EG, KTRK, USER, ALGO, EG1, LFO1, PROG, VOICE |
+| 2 | PAGE, the section, one per click: MODE, PITCH, EG, KTRK, USER, ALGO, EG1-3, LFO1-3, PROG, FILTER, V.PATCH, VOICE |
 | 3 | the row, within the section |
 | 4 | the row's value (a list such as MODE, TYPE or FX: one step per click) |
 
@@ -139,10 +139,15 @@ level.
 beside its five rows; **LFO1-3** draws two cycles of one LFO's wave beside its rows (LFO1: and PROG PITCH's). KNOB 1
 picks the EG or LFO there. In OPERATORS the same rows are the EG1-3 and LFO1-3 sections, their first row picking which.
 
-**V.PATCH** (OPERATORS' section after PROG): the first row picks the virtual patch (1–12), then SRC and SOURCE (the
+**FILTER** (OPERATORS' section after PROG): the main filter, one a voice after the operators: TYPE (LPF 12, LPF 24,
+LPF MS-20, LPF POLY6, HPF 12, HPF 24, HPF MS-20, BPF 6, BPF 12, BRF 6, BRF 12), ENABLE, CUTOFF (6.49 Hz – 23.68 kHz),
+RESO, EG2 (INT in semitones) and its CTRL, LOW / CENTER / HIGH (key tracking: the slope below and above CENTER, 1.00
+following the key, ±INF), LFO2 and its CTRL. INIT has LPF 12 on and wide open, which costs no processor time.
+
+**V.PATCH** (OPERATORS' section after FILTER): the first row picks the virtual patch (1–12), then SRC and SOURCE (the
 scope, then the source in it, as the opsix's two knobs: CTRL, KBD, EG/LFO, CC+, CC+/-, MIDI), INT, CTRL, DEST and
 TARGET (the scope, then the destination: PROG, OP1–6, EG1–3, LFO1–3, FILTER, FX1–3, ARP, SEQ). A destination OPX does
-not play yet (the filter, the effects and some others) is shown dimmed and kept in the patch. INT moves 0.05 a click
+not play yet (the effects and some others) is shown dimmed and kept in the patch. INT moves 0.05 a click
 up to 1, 0.25 up to 10, then 1; INT 100.00 at a full source is the destination's whole range (PITCH: 100 semitones),
 a guess until compared with an opsix.
 

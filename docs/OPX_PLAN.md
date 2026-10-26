@@ -19,8 +19,8 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | done: user presets (16), the backup, the storage repacked ([OPX_STORAGE.md](OPX_STORAGE.md)), the web editor's OPX tab |
 | M4 | EG1 (pitch), LFO1 and their default routes: each operator's P MOD (EG1, LFO1, VEL), LMOD LFO1, PROG PITCH (LFO1, TRANS, OCT); the CTRL sources | done (pages EG1 and LFO1, the rows in OPERATORS, the web editor; not yet compared with an opsix) |
 | M5a | EG2, EG3, LFO2, LFO3; the virtual patch (V.PATCH 1–12) to the destinations OPX has; every CTRL source live | done (pages EG1-3, LFO1-3, OPERATORS' V.PATCH section, the web editor; INT's scale a guess, see [Assumptions](#assumptions-to-check-by-ear)) |
-| M5b | Main filter (EG2, LFO2, key tracking), as far as the processor time allows | to decide: per voice or per part |
-| M5c | Effects 1–3 | to decide: the FM-1's memory has room for few of the 30 types |
+| M5b | Main filter (EG2, LFO2, key tracking), as far as the processor time allows | done: one a voice (OPERATORS' FILTER section, the web editor; V.PATCH FILTER CUTOFF and RESO played; device cost to measure: the benchmark's MAIN rows) |
+| M5c | Effects 1–3 | next: all 30 types, the ones that need much memory marked experimental |
 
 Confirmed on a device so far: it installs and runs, and six OPX voices at once do not overload the processor. Not
 yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-by-ear)).
@@ -108,7 +108,7 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
 - **Destinations played:** PROG PITCH, OCT, TRANS, LEVEL, ATK, DECAY, REL, SUS; each operator's PITCH, COARSE, OCT,
   TRANS, LEVEL, ATK, DECAY, REL, SUS, FM FB; EG1..3's ATK, DECAY, REL, SUS; LFO1..3's SPEED (a KSYNC VOICE LFO's only:
   the part's LFO is one for all the notes), PHASE (not the random waves) and FADE. The rest of the list (the modes'
-  values, the filter, the effects, ARP, SEQ, PROG PAN TEMPO ALGO ALGO FB GLIDE UNISON, the LFOs' WAVE) is kept in the
+  values, the effects, ARP, SEQ, PROG PAN TEMPO ALGO ALGO FB GLIDE UNISON, the LFOs' WAVE) is kept in the
   patch, shown dimmed on the device and marked * in the web editor, and does nothing yet.
 - **INT's scale** is a guess (the manual: "depends on destination"): INT 100.00 with the source at full moves the
   destination over its whole range: PITCH 100 semitones (so INT reads in semitones, as P MOD's), OCT 4 octaves, TRANS
@@ -116,6 +116,30 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
   PHASE 360°, FADE 9.9 s, PROG LEVEL ×0 – ×2. To be read off an opsix (INT's display for a few destinations).
 - **Memory:** the three EGs and LFOs took 72 bytes a note, so a voice's delay line (SHORT DELAY, COMB) is 736 samples
   (16.6 ms; was 768).
+
+## How M5b works
+
+- **One filter a voice** (the opsix's per-voice filter, p.58), after the operators' mix and before the effects: TYPE
+  (the 11 of p.38), ENABLE, CUTOFF, RESO, EG2 INT and its CTRL, KTRK LOW / CENTER / HIGH, LFO2 INT and its CTRL. An
+  LPF wide open (CUTOFF code 1000 and up, ~19 kHz and above) with RESO 0 and nothing moving it is skipped, so the INIT (LPF 12 ON at
+  23.68 kHz) costs nothing.
+- **Two structures:** the state-variable filter (LPF 12, HPF 12, BPF 12, BRF 12; LPF / HPF MS-20 the same with the
+  resonance limited inside the loop, a soft-saturating stand-in for the MS-20's) and the four-pole ladder (LPF 24,
+  LPF POLY6, HPF 24, BPF 6, BRF 6), each type an output mix of the structure's points. The voice goes in at half scale
+  and comes out at full, so several carriers at full level stay inside its range.
+- **The coefficients** are computed once a block (32 samples, 0.7 ms): CUTOFF + EG2 × INT + LFO2 × INT + key
+  tracking + V.PATCH, in octaves, then one exp2 for the frequency. EG2 and LFO2 INT are in semitones (±142: the whole
+  range); CUTOFF runs 6.49 Hz – 23.68 kHz over its 1023 codes (the opsix's display ends).
+- **KTRK:** LOW below CENTER, HIGH above it, each a slope c / (128 − |c|) semitones a semitone: 64 is 1.00 (the cutoff
+  follows the key), ±127 ±INF (the end of the range at once). The opsix shows these as numbers without a unit; the
+  mapping is a guess.
+- **V.PATCH** FILTER CUTOFF (INT 100.00: the whole range) and FILTER RESO (INT 100.00: 100 %) are now played.
+- **Memory:** the filter's state (five words a note) took the room, so a voice's delay line (SHORT DELAY, COMB) is 728 samples
+  (16.5 ms; was 736).
+- **Cost:** the loop is the same kind as an operator's FILTER mode (coefficients once a block, not a sample at a time
+  as FILTER FM's), so on the device expect roughly what one operator in FILTER mode adds, +16 to +17 points on six
+  notes. Not measured yet; if it is too much, a cheaper filter (32-bit arithmetic, or one shared by the part) is the
+  fallback. The benchmark has three rows for it (MAIN LPF12, LPF24, MS-20; SIN, EG2 moving it).
 
 ## The device pages (M1.5): where the code is
 

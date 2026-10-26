@@ -757,7 +757,7 @@ enum { S_HOME, S_HOME_IDLE, S_MESSAGE, S_MESSAGE_KEY, S_MESSAGE_NOFILE, S_PRESET
        S_ALG1, S_ALG2, S_ALG3, S_ALG4, S_ALG5, S_ALG6, S_ALG7, S_ALG8, S_OP_LEVEL,
        S_FM6_ALG1, S_FM6_ALG5, S_FM6_ALG22, S_FM6_ALG32, S_FM6_OP, S_FM6_OP_FIXED, S_FM6_OP2, S_FM6_OP_ENV, S_FM6_OP_ENV_REL,
        S_OPX_PITCH, S_OPX_EG, S_OPX_USER, S_OPX_FIXED, S_OPX_ALGO, S_OPX_ALG5, S_OPX_ALG34, S_OPX_ALG36, S_OPX_MATRIX,
-       S_OPX_MATRIX_OUT, S_OPX_MATRIX_E2, S_OPX_SCOPE, S_OPX_USERL, S_OPX_OSC, S_OPX_RING, S_OPX_FILTER, S_OPX_FX, S_OPX_KTRK, S_OPX_VOICE, S_OPX_ENV, S_OPX_LVL, S_OPX_MIX, S_OPX_ENVDEST, S_OPX_EG1, S_OPX_LFO1, S_OPX_LFOR, S_OPX_PMOD, S_OPX_VP, S_OPX_VPD, S_OPX_EG3, S_INFO, S_BENCH_RUN, S_BENCH, S_BENCH_END,
+       S_OPX_MATRIX_OUT, S_OPX_MATRIX_E2, S_OPX_SCOPE, S_OPX_USERL, S_OPX_OSC, S_OPX_RING, S_OPX_FILTER, S_OPX_FX, S_OPX_KTRK, S_OPX_VOICE, S_OPX_ENV, S_OPX_LVL, S_OPX_MIX, S_OPX_ENVDEST, S_OPX_EG1, S_OPX_LFO1, S_OPX_LFOR, S_OPX_PMOD, S_OPX_VP, S_OPX_VPD, S_OPX_EG3, S_OPX_MFLT, S_OPX_MFLTK, S_INFO, S_BENCH_RUN, S_BENCH, S_BENCH_END,
        S_CONFIRM_SEQ, S_CONFIRM_PROJ, S_CONFIRM_USER, S_CONFIRM_PAT, S_CONFIRM_MOTION, S_CONFIRM_ERASE,
        S_MENU, S_MENU_SPEAKER, S_ABOUT, S_ABOUT_REC, S_ABOUT_CREDITS, S_ABOUT_END, S_UBOOT, S_CALIBRATION, S_SPLASH,
        S_BATT0, S_BATT1, S_BATT2, S_BATT3, S_BATT_USB, S_MOTION_REC, S_MOTION_OFF, S_MOTION_CARD, S_SONG_HOME,
@@ -786,7 +786,7 @@ static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "mes
     "voice", "clock", "menu_midi", "edit_analog", FELUCCA_FM4 ? "edit_digital" : "edit_fm6", "op_env", "edit_wheel", "edit_sample",
     "edit_grain", "edit_phys", "alg_1", "alg_2", "alg_3", "alg_4", "alg_5", "alg_6", "alg_7", "alg_8", "op_level", "fm6_alg_01", "fm6_alg_05", "fm6_alg_22", "fm6_alg_32", "fm6_op", "fm6_op_fixed", "fm6_op2", "fm6_op_env", "fm6_op_env_rel",
     "opx_pitch", "opx_eg", "opx_roll", "opx_fixed", "opx_algo", "opx_alg5", "opx_alg34", "opx_alg36", "opx_matrix",
-    "opx_matrix_out", "opx_matrix_e2", "opx_scope", "opx_userl", "opx_osc", "opx_ring", "opx_filter", "opx_fx", "opx_ktrk", "opx_voice", "opx_env", "opx_lvl", "opx_mix", "opx_envdest", "opx_eg1", "opx_lfo1", "opx_lfor", "opx_pmod", "opx_vp", "opx_vpd", "opx_eg3", "info", "bench_run", "bench", "bench_end", "confirm_seq", "confirm_project", "confirm_user", "confirm_pattern",
+    "opx_matrix_out", "opx_matrix_e2", "opx_scope", "opx_userl", "opx_osc", "opx_ring", "opx_filter", "opx_fx", "opx_ktrk", "opx_voice", "opx_env", "opx_lvl", "opx_mix", "opx_envdest", "opx_eg1", "opx_lfo1", "opx_lfor", "opx_pmod", "opx_vp", "opx_vpd", "opx_eg3", "opx_mflt", "opx_mfltk", "info", "bench_run", "bench", "bench_end", "confirm_seq", "confirm_project", "confirm_user", "confirm_pattern",
     "confirm_motion", "confirm_erase", "menu", "menu_speaker", "about", "about_rec", "about_credits", "about_end", "uboot", "calibration", "splash",
     "batt_0", "batt_1", "batt_2", "batt_3", "batt_usb", "motion_rec", "motion_off", "motion_card", "song_home",
     "perform_peek", "perform_held", "perform_wait", "perform_harm", "perform_mod", "perform_assign", "menu_hold", "menu_leds", "menu_end", "menu_system", "menu_slide", "reverb_spring",
@@ -1273,6 +1273,12 @@ static void setup(int s)
     case S_OPX_VPD: eng(ENGI_OPX); opx_poll(); xop_vps = 0; opx_edit(song.sel, OPXF_VP1_SRC, OPX_VS_PAT);
         opx_edit(song.sel, OPXF_VP1_INT, 2525); opx_edit(song.sel, OPXF_VP1_DST, OPX_VD_FX + 11);
         go_title("OPERATORS"); XO_AT(xop_find(XR_VINT)); break;
+    case S_OPX_MFLT: eng(ENGI_OPX); opx_poll(); opx_edit(song.sel, OPXF_FLT_TYPE, 3); opx_edit(song.sel, OPXF_FLT_CUTOFF, 579);
+        opx_edit(song.sel, OPXF_FLT_RESO, 7250); opx_edit(song.sel, OPXF_FLT_EG2, -14200); opx_edit(song.sel, OPXF_FLT_EG2_CTRL, 8);
+        go_title("OPERATORS"); XO_AT(xop_find(XR_MFC)); break;
+    case S_OPX_MFLTK: eng(ENGI_OPX); opx_poll(); opx_edit(song.sel, OPXF_FLT_KTRK_LOW, -127); opx_edit(song.sel, OPXF_FLT_KTRK_HIGH, 100);
+        opx_edit(song.sel, OPXF_FLT_KTRK_CENTER, 127); opx_edit(song.sel, OPXF_FLT_LFO2, 14200); opx_edit(song.sel, OPXF_FLT_LFO2_CTRL, 8);
+        go_title("OPERATORS"); XO_AT(xop_find(XR_MFL2C)); break;
     case S_OPX_EG3: eng(ENGI_OPX); opx_poll(); xop_egs = 2; opx_edit(song.sel, OPXF_EG3_ATK, 900);
         opx_edit(song.sel, OPXF_EG3_SUS, 80); go_title("EG1-3"); XO_AT(0); break;
     case S_OPX_EG1: eng(ENGI_OPX); opx_poll(); xop_egs = 0; opx_edit(song.sel, OPXF_EG1_ATK, 300); opx_edit(song.sel, OPXF_EG1_DEC, 650);

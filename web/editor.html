@@ -2647,7 +2647,8 @@ const TEXT = {
     opxTestsConfirm: "テスト音色 {m} 個のうち {n} 個を空きユーザープリセットに書き込みます。よろしいですか？", opxTestsNeedOpx: "FM-1 で OPX のトラックを選んでください",
     opxTestsNoRoom: "空きユーザープリセットがありません（OPX は 16 個まで）", opxTestsProgress: "テスト音色を書き込み中", opxTestsDone: "テスト音色を書き込みました", opxTestsLeft: "は空きがなく書き込めませんでした",
     opxEg1: "EG1（ピッチ）・EG2（フィルター）・EG3", opxLfo1: "LFO1（オペレーター）・LFO2（フィルター）・LFO3",
-    opxVp: "バーチャル・パッチ 1–12", opxVpHelp: "* の付いたデスティネーションはパッチに保存されますが、まだ効きません（フィルター、エフェクトなど）。INT の単位はデスティネーションの全範囲に対する割合です（PITCH は半音）。", opxProg: "プログラム ピッチ", opxMod: "モジュレーション（P MOD・L MOD、INT は 0.01 半音単位）",
+    opxFlt: "フィルター", opxFltHelp: "ボイスごとに1基。LPF 12 が全開・RESO 0・モジュレーションなし（INIT）のときは処理を省きます。KTRK の傾き: 1.00 で1半音につき1半音。",
+    opxVp: "バーチャル・パッチ 1–12", opxVpHelp: "* の付いたデスティネーションはパッチに保存されますが、まだ効きません（エフェクトなど）。INT の単位はデスティネーションの全範囲に対する割合です（PITCH は半音）。", opxProg: "プログラム ピッチ", opxMod: "モジュレーション（P MOD・L MOD、INT は 0.01 半音単位）",
     opxLfoHelp: "FADE は KSYNC が OFF のときは効きません。CTRL は選んだソースの値を INT に掛けます（OFF: INT のまま）。",
     opxUser: "USER アルゴリズム", opxUserHelp: "行が送り先、列が送り元のオペレーター（対角はセルフフィードバック）。OUT: 直接出力。",
     opxAlg: "アルゴリズム", opxAlgFb: "ALG FB", opxNoise: "ノイズ波形では FB と WIDTH は効きません",
@@ -2768,7 +2769,8 @@ const TEXT = {
     opxTestsConfirm: "Write {n} of the {m} test patches into empty user presets?", opxTestsNeedOpx: "Select an OPX track on the FM-1 first",
     opxTestsNoRoom: "No room: no empty user preset, or 16 OPX user presets already", opxTestsProgress: "Writing the test patches", opxTestsDone: "Test patches written", opxTestsLeft: "did not fit",
     opxEg1: "EG1 (pitch), EG2 (filter), EG3", opxLfo1: "LFO1 (operators), LFO2 (filter), LFO3",
-    opxVp: "Virtual patch 1–12", opxVpHelp: "Destinations marked * are kept in the patch but do nothing yet (the filter, the effects and others). INT is a share of the destination's whole range (PITCH: semitones).", opxProg: "Program pitch", opxMod: "Modulation (P MOD, L MOD; INT in 0.01 semitones)",
+    opxFlt: "Filter", opxFltHelp: "One per voice. An LPF 12 wide open, RESO 0, with nothing moving it (the INIT) costs nothing. KTRK slopes: 1.00 moves the cutoff one semitone per semitone.",
+    opxVp: "Virtual patch 1–12", opxVpHelp: "Destinations marked * are kept in the patch but do nothing yet (the effects and others). INT is a share of the destination's whole range (PITCH: semitones).", opxProg: "Program pitch", opxMod: "Modulation (P MOD, L MOD; INT in 0.01 semitones)",
     opxLfoHelp: "FADE has no effect with KSYNC OFF. CTRL multiplies the INT by the chosen source (OFF: the INT as it is).",
     opxUser: "USER algorithm", opxUserHelp: "Rows: the operator receiving; columns: the operator sending (the diagonal: self feedback). OUT: heard directly.",
     opxAlg: "Algorithm", opxAlgFb: "ALG FB", opxNoise: "FB and WIDTH do nothing on the noise waves",
@@ -5281,13 +5283,23 @@ function renderOpxPatch() {
     el("th", { text: String(i + 1) }), el("td", {}, vpSel(`vp${i + 1}.src`, OX.VP_SRC)),
     el("td", {}, opxNum(`vp${i + 1}.int`, { scale: 100, wide: true })), el("td", {}, opxSel(`vp${i + 1}.ctrl`, OX.CTRLS)),
     el("td", {}, vpSel(`vp${i + 1}.dst`, OX.VP_DST, OX.vpPlayed)))));
+  const flt = opxTable(["TYPE", "ON", "CUTOFF", "RESO", "EG2", "CTRL", "LOW", "CENTER", "HIGH", "LFO2", "CTRL"], [el("tr", {},   /* (M5b) */
+    el("td", {}, opxSel("flt.type", OX.MAIN_FILTERS)), el("td", {}, opxSel("flt.enable", ["OFF", "ON"])),
+    el("td", {}, opxNum("flt.cutoff", { wide: true, text: () => OX.cutText(OX.get(opxPk, "flt.cutoff")) })),
+    el("td", {}, opxNum("flt.reso", { scale: 100, text: () => "%" })),
+    el("td", {}, opxNum("flt.eg2", { scale: 100, wide: true, text: () => "ST" })), el("td", {}, opxSel("flt.eg2_ctrl", OX.CTRLS)),
+    el("td", {}, opxNum("flt.ktrk_low", { text: () => OX.ktrkText(OX.get(opxPk, "flt.ktrk_low")) })),
+    el("td", {}, opxNum("flt.ktrk_center", { text: () => OX.noteName(OX.get(opxPk, "flt.ktrk_center")) })),
+    el("td", {}, opxNum("flt.ktrk_high", { text: () => OX.ktrkText(OX.get(opxPk, "flt.ktrk_high")) })),
+    el("td", {}, opxNum("flt.lfo2", { scale: 100, wide: true, text: () => "ST" })), el("td", {}, opxSel("flt.lfo2_ctrl", OX.CTRLS)))]);
   const prog = opxTable(["LFO1", "CTRL", "TRANS", "OCT"], [el("tr", {},
     el("td", {}, opxNum("prog.lfo1", { scale: 100, wide: true, text: () => "ST" })), el("td", {}, opxSel("prog.lfo1_ctrl", OX.CTRLS)),
     el("td", {}, opxNum("prog.trans", { text: () => "ST" })), el("td", {}, opxNum("prog.oct", { text: () => "OCT" })))]);
   $("opxpatch").replaceChildren(el("table", {}, row(t("name"), nm), row(t("opxAlg"), opxSel("algo", algs)),
     row(t("opxAlgFb"), opxNum("prog.alg_fb", { text: () => "%" }))),
     el("h3", { text: t("opxEg1") }), eg1, el("h3", { text: t("opxLfo1") }), lfo1, el("p", { class: "dim", text: t("opxLfoHelp") }),
-    el("h3", { text: t("opxProg") }), prog, el("h3", { text: t("opxVp") }), vp, el("p", { class: "dim", text: t("opxVpHelp") }));
+    el("h3", { text: t("opxProg") }), prog, el("h3", { text: t("opxFlt") }), flt, el("p", { class: "dim", text: t("opxFltHelp") }),
+    el("h3", { text: t("opxVp") }), vp, el("p", { class: "dim", text: t("opxVpHelp") }));
 }
 function renderOpxOps() {
   const P = (k, f) => `op${k}.${f}`;

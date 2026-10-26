@@ -324,6 +324,21 @@ static int bench_run(void)
         for (k = 0; k < OPX_NOP; k++)
             bench_px.op[k].mode = OPX_M_FM;
     }
+    bench_line(BR_SUB, "OPX SIN, THE MAIN FILTER", 0, 0);   /* (M5b: one a voice; EG2 moving it: the coefficients a block) */
+    {
+        static const struct { uint8_t type; char name[12]; } MF[] = {
+            {OPX_MF_LPF12, "MAIN LPF12"}, {OPX_MF_LPF24, "MAIN LPF24"}, {OPX_MF_LPFMS, "MAIN MS-20"}};
+        for (i = 0; i < NELEM(MF); i++) {
+            bench_px.flt.type = MF[i].type, bench_px.flt.on = 1, bench_px.flt.cutoff = 600, bench_px.flt.reso = 4000;
+            bench_px.flt.eg2 = 2400, bench_px.flt.kc = 60;
+            bench_px.eg[1].sus = 50;
+            bench_track(ENGI_OPX, 0);
+            opx_own[0] = &bench_px;
+            pm = bench_notes(idle);
+            bench_line(BR_PCT, MF[i].name, pm, bench_one(pm));
+        }
+        memset(&bench_px.flt, 0, sizeof bench_px.flt);
+    }
     bench_math();
 
     fm1_irq_off();                                     /* track 1 back as it was */

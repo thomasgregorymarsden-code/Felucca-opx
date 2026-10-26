@@ -35,7 +35,8 @@ NCOARSE = 39           # coarse ratio 1/128, 1/64 .. 1/2, 1 .. 32
 NCTRL = 17             # Control Source List p.85, + OFF
 NLFOWAVES = 23         # LFO Wave List p.55
 NSYNC = 24             # LFO tempo-sync values 1/48 .. 4/1 (read off an opsix: 24; the field has room for 32)
-NMAINFILT = 11         # main filter types p.38
+NMAINFILT = 11         # main filter types p.38: LPF 12, LPF 24, LPF MS-20, LPF POLY6, HPF 12, HPF 24, HPF MS-20,
+                       # BPF 6, BPF 12, BRF 6, BRF 12 (eng_opx.c OPX_MF_*)
 NFX = 31               # 30 effect types + OFF (Effect Parameter List p.91..)
 NALGO = 41             # 40 preset algorithms + USER
 NVP_SRC = 256          # V.Patch sources p.88: OFF 1, CTRL 5, KBD 4, EG/LFO 6, CC+ 119, CC+/- 119, MIDI 2
@@ -229,7 +230,8 @@ for _l in range(1, 4):
                      f"lfo{_l}.sync": 11,                            #  LFO3 2.00 Hz; nearest codes 6.03, 2.01 Hz)
                      f"lfo{_l}.ksync": 1})                           # (sync 11: 1/4; KSYNC CMN on all three)
 DEFAULTS.update({"x.glide_time": 500, "x.uni_detune": 10, "x.uni_spread": 100})   # (the opsix INIT's VOICE page)
-DEFAULTS.update({"flt.cutoff": 1023, "flt.ktrk_center": 60, "prog.level": -60, "prog.bend_up": 2, "prog.bend_down": -2,
+DEFAULTS.update({"flt.enable": 1, "flt.cutoff": 1023,   # (the opsix INIT: LPF 12 ON, open; OPX skips it so)
+                  "flt.ktrk_center": 60, "prog.level": -60, "prog.bend_up": 2, "prog.bend_down": -2,
                  "x.arp_gate": 80, "x.arp_oct": 1, "x.seq_tempo": 12000, "x.seq_len": 16})
 for _i in range(16):
     DEFAULTS[f"prog.name{_i}"] = ord("INIT"[_i]) if _i < 4 else 32

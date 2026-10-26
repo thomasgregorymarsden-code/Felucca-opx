@@ -1266,6 +1266,95 @@ static void test_m5(void)
     memset(&P, 0, sizeof P);
 }
 
+/* M5b: the main filter */
+static int32_t m5b_code(double hz) { return (int32_t)lround(1023.0 * log2(hz / 6.489) / log2(23680.0 / 6.489)); }
+static void m5b_saw(uint32_t type, double hz, uint32_t reso)   /* a SAW at A2 (110 Hz) through the filter */
+{
+    m4_patch();
+    P.op[0].wave = OPX_W_SAW;
+    P.flt.on = 1, P.flt.type = (uint8_t)type, P.flt.cutoff = (uint16_t)m5b_code(hz), P.flt.reso = (uint16_t)reso;
+    P.flt.kc = 60;
+}
+static void test_m5b(void)
+{
+    static double y[FS], z[FS];
+    double lo, hi, d1, d2;
+    uint32_t i;
+    int ok = 1;
+    m4_patch();
+    P.op[0].wave = OPX_W_SAW;
+    setup(&P, 0);
+    engine_render(45, 127, z, FS / 2, 0, 0);         /* (the SAW, no filter) */
+    m5b_saw(OPX_MF_LPF12, 23680, 0);
+    P.flt.cutoff = 1023;
+    setup(&P, 0);
+    check("M5b FILTER: an LPF wide open, RESO 0, nothing moving it (the opsix's INIT) is skipped", opx_rt[0].fon == 0u);
+    m5b_saw(OPX_MF_LPF12, 1000, 0);                  /* LPF12 at 1 kHz: 110 Hz as it was, 4.4 kHz down ~24 dB */
+    setup(&P, 0);
+    engine_render(45, 127, y, FS / 2, 0, 0);
+    d1 = harm_db(y, FS / 4, 8192, 110) - harm_db(z, FS / 4, 8192, 110);
+    d2 = harm_db(y, FS / 4, 8192, 4400) - harm_db(z, FS / 4, 8192, 4400);
+    if (fabs(d1) > 1.5 || d2 > -18 || d2 < -32) printf("opx: LPF12: 110 Hz %+.1f dB, 4.4 kHz %+.1f dB\n", d1, d2), ok = 0;
+    m5b_saw(OPX_MF_LPF24, 1000, 0);                  /* LPF24: twice the slope */
+    setup(&P, 0);
+    engine_render(45, 127, y, FS / 2, 0, 0);
+    d2 = harm_db(y, FS / 4, 8192, 4400) - harm_db(z, FS / 4, 8192, 4400);
+    if (d2 > -38) printf("opx: LPF24: 4.4 kHz %+.1f dB\n", d2), ok = 0;
+    m5b_saw(OPX_MF_HPF12, 1000, 0);                  /* HPF12: the low end down, the top as it was */
+    setup(&P, 0);
+    engine_render(45, 127, y, FS / 2, 0, 0);
+    d1 = harm_db(y, FS / 4, 8192, 110) - harm_db(z, FS / 4, 8192, 110);
+    d2 = harm_db(y, FS / 4, 8192, 3300) - harm_db(z, FS / 4, 8192, 3300);
+    if (d1 > -30 || fabs(d2) > 2) printf("opx: HPF12: 110 Hz %+.1f dB, 3.3 kHz %+.1f dB\n", d1, d2), ok = 0;
+    check("M5b FILTER: LPF12 / LPF24 / HPF12 at 1 kHz: 12 and 24 dB an octave (4.4 kHz -24, -48 dB), the pass band as it was", ok);
+    ok = 1;                                          /* RESO: the harmonic at the cutoff lifted */
+    m5b_saw(OPX_MF_LPF12, 1100, 0);
+    setup(&P, 0);
+    engine_render(45, 127, z, FS / 2, 0, 0);
+    m5b_saw(OPX_MF_LPF12, 1100, 9000);
+    setup(&P, 0);
+    engine_render(45, 127, y, FS / 2, 0, 0);
+    d1 = harm_db(y, FS / 4, 8192, 1100) - harm_db(z, FS / 4, 8192, 1100);
+    check("M5b FILTER: RESO 90 % lifts the harmonic at the cutoff (+10 dB or more)", d1 > 10);
+    for (i = 0; i < OPX_NMF; i++) {                  /* every type: finite, inside full scale, RESO 100 % */
+        m5b_saw(i, 500, 10000);
+        setup(&P, 0);
+        engine_render(45, 127, y, FS / 2, 0, 0);
+        lo = 1e9, hi = -1e9;
+        for (uint32_t j = 0; j < FS / 2; j++)
+            lo = y[j] < lo ? y[j] : lo, hi = y[j] > hi ? y[j] : hi;
+        if (!(hi < 131071 && lo > -131071 && hi - lo > 1000)) printf("opx: FILTER type %u: %.3f .. %.3f\n", i, lo, hi), ok = 0;
+    }
+    check("M5b FILTER: all 11 types at RESO 100 %: sound, inside full scale", ok);
+    m5b_saw(OPX_MF_LPF12, 300, 0);                   /* EG2 +48.00 held at SUS 100: the cutoff 4 octaves up */
+    setup(&P, 0);
+    engine_render(45, 127, z, FS / 2, 0, 0);
+    P.flt.eg2 = 4800, P.eg[1].sus = 100;
+    setup(&P, 0);
+    engine_render(45, 127, y, FS / 2, 0, 0);
+    d1 = harm_db(y, FS / 4, 8192, 2200) - harm_db(z, FS / 4, 8192, 2200);
+    m5b_saw(OPX_MF_LPF12, 300, 0);                   /* KTRK HIGH +64 (1.00): an octave up, the cutoff an octave up */
+    P.flt.kh = 64, P.flt.kc = 45;
+    setup(&P, 0);
+    engine_render(57, 127, y, FS / 2, 0, 0);
+    m5b_saw(OPX_MF_LPF12, 600, 0);
+    P.flt.kc = 45;
+    setup(&P, 0);
+    engine_render(57, 127, z, FS / 2, 0, 0);
+    d2 = harm_db(y, FS / 4, 8192, 2640) - harm_db(z, FS / 4, 8192, 2640);
+    check("M5b FILTER: EG2 INT +48 opens it (2.2 kHz +20 dB or more); KTRK HIGH 1.00 moves it with the key", d1 > 20 && fabs(d2) < 1);
+    m5b_saw(OPX_MF_LPF12, 300, 0);                   /* V.PATCH MOD WHEEL -> FILTER CUTOFF +33.80 (4 octaves at full) */
+    P.vp[0].src = OPX_C_MW, P.vp[0].amt = 3380, P.vp[0].dst = OPX_VD_FLT;
+    setup(&P, 0);
+    engine_render(45, 127, z, FS / 2, 0, 0);
+    trk[0].mw = 127;
+    engine_render(45, 127, y, FS / 2, 0, 0);
+    trk[0].mw = 0;
+    d1 = harm_db(y, FS / 4, 8192, 2200) - harm_db(z, FS / 4, 8192, 2200);
+    check("M5b V.PATCH MOD WHEEL -> FILTER CUTOFF: the wheel opens it", d1 > 20);
+    memset(&P, 0, sizeof P);
+}
+
 static void test_factory(void)
 {
     static double y[FS], z[FS];
@@ -1456,6 +1545,7 @@ int main(int argc, char **argv)
     test_velocity();
     test_m4();
     test_m5();
+    test_m5b();
     test_user_empty();
     test_waves();
     test_factory();

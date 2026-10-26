@@ -5,11 +5,18 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPX M5b: the main filter.** One filter a voice, after the operators and before the effects, as on the opsix:
+  TYPE (LPF 12, LPF 24, LPF MS-20, LPF POLY6, HPF 12, HPF 24, HPF MS-20, BPF 6, BPF 12, BRF 6, BRF 12), ENABLE,
+  CUTOFF (6.49 Hz – 23.68 kHz), RESO, EG2 INT and CTRL, KTRK LOW / CENTER / HIGH, LFO2 INT and CTRL, in a new
+  **FILTER** section of OPERATORS (KNOB 2) and the web editor's OPX tab. The virtual patch's FILTER CUTOFF and RESO
+  now work. INIT is the opsix's (LPF 12 ON, wide open), which OPX skips, so a patch that leaves the filter open costs
+  nothing more. SHORT DELAY now stops at 16.5 ms (was 16.6). The benchmark has three new rows (MAIN LPF12, LPF24,
+  MS-20) to measure what the filter costs on the device.
 - **OPX M5a: EG2, EG3, LFO2, LFO3 and the virtual patch.** The pages EG1 and LFO1 are now **EG1-3** and **LFO1-3**
   (KNOB 1 picks which); OPERATORS has EG1-3 and LFO1-3 sections and a **V.PATCH** section (12 virtual patches: SRC,
   INT, CTRL, DEST as the opsix's scope-then-item knobs). Every CTRL source now works (EG2, EG3, LFO2, LFO3 gave 0).
   V.PATCH plays its destinations in the pitch, level, envelope, feedback and LFO groups; the filter's, the effects' and
-  some others are kept and do nothing yet. INT's scale is a guess. The web editor's OPX tab has all three EGs and LFOs
+  some others are kept and do nothing yet (the filter's: M5b). INT's scale is a guess. The web editor's OPX tab has all three EGs and LFOs
   and the 12 virtual patches. SHORT DELAY now stops at 16.6 ms (was 17.4: the new EGs and LFOs took the memory).
 - **OPX's processor load:** a voice no longer runs EG1 or the pitch / level modulation arithmetic when no route uses
   them (every INT at 0, as in INIT), which M4 had added to every voice whether used or not.

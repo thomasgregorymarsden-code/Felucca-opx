@@ -218,7 +218,7 @@ static int fop_card(uint32_t slot, const char **label, char *val, const char **u
  * "..." at the bottom (top) while more are below (above); the picked row moves down to the last whole row, then the
  * list moves up under it. A detent of KNOB 4 writes one field (opx_edit: the patch becomes the track's own, SLOT OWN),
  * one undo per knob gesture (SAVE held). The user algorithm's matrix is ALGO's too (ui_fm6op.c xmat_*) */
-enum { XS_MODE, XS_PITCH, XS_EG, XS_KTRK, XS_USER, XS_ALGO, XS_EG1, XS_LFO1, XS_PROG, XS_VP, XS_VOICE, XS_N };
+enum { XS_MODE, XS_PITCH, XS_EG, XS_KTRK, XS_USER, XS_ALGO, XS_EG1, XS_LFO1, XS_PROG, XS_FLT, XS_VP, XS_VOICE, XS_N };
 enum { XR_MODE, XR_WAVE, XR_FB, XR_WIDTH, XR_RDEPTH, XR_RSHAPE, XR_FTYPE, XR_FMIX, XR_CUT, XR_RESO, XR_FGAIN, XR_GMIX,
        XR_BIAS, XR_FX, XR_XMIX, XR_FXE, XR_FXF,                                            /* MODE */
        XR_FREQ, XR_RATIO, XR_FINE, XR_DTUN, XR_TRANS,                                      /* PITCH */
@@ -233,9 +233,12 @@ enum { XR_MODE, XR_WAVE, XR_FB, XR_WIDTH, XR_RDEPTH, XR_RSHAPE, XR_FTYPE, XR_FMI
        XR_V0, XR_V8 = XR_V0 + 8,                                                          /* VOICE */
        XR_ESEL, XR_LSEL,                                                                   /* M5: which EG, LFO */
        XR_VSEL, XR_VSS, XR_VSI, XR_VINT, XR_VCTL, XR_VDS, XR_VDI,                          /* M5: V.PATCH */
+       XR_MFT, XR_MFE, XR_MFC, XR_MFR, XR_MFE2, XR_MFE2C, XR_MFKL, XR_MFKC, XR_MFKH, XR_MFL2, XR_MFL2C,   /* M5b: FILTER */
        XR_N };
 static const char *const XS_NAME[XS_N] = {"MODE", "PITCH", "EG", "KTRK", "USER", "ALGO", "EG1-3", "LFO1-3", "PROG",
-                                          "V.PATCH", "VOICE"};
+                                          "FILTER", "V.PATCH", "VOICE"};
+static const char *const N_OPX_MFLT[11] = {"LPF 12", "LPF 24", "LPF MS-20", "LPF POLY6", "HPF 12", "HPF 24", "HPF MS-20",
+                                           "BPF 6", "BPF 12", "BRF 6", "BRF 12"};   /* (M5b: p.38) */
 static uint8_t xop_egs, xop_lfs, xop_vps;   /* M5: the EG (0..2), LFO (0..2), V.PATCH (0..11) the rows show */
 /* M4: the patch's own rows (EG1, LFO1, PROG PITCH): their fields (XR_LS: SPEED, or SYNC with TEMPO on) */
 static const uint16_t XP_F[XR_V0 - XR_E1A] = {OPXF_EG1_ATK, OPXF_EG1_DEC, OPXF_EG1_SUS, OPXF_EG1_REL, OPXF_EG1_CURVE,
@@ -282,7 +285,7 @@ static int xop_fixed(uint32_t tr) { return xop_get(tr, OPXF_OP1_FREQ_FIXED) != 0
 static uint32_t xop_sec_k(uint32_t k)               /* a kind's section */
 {
     if (k >= XR_ESEL)                                /* (M5's rows, after VOICE's in the enum) */
-        return k == XR_ESEL ? XS_EG1 : k == XR_LSEL ? XS_LFO1 : XS_VP;
+        return k == XR_ESEL ? XS_EG1 : k == XR_LSEL ? XS_LFO1 : k >= XR_MFT ? XS_FLT : XS_VP;
     return k < XR_FREQ ? XS_MODE : k < XR_LVL ? XS_PITCH : k < XR_KLOW ? XS_EG : k < XR_TO0 ? XS_KTRK :
            k <= XR_OUT ? XS_USER : k < XR_E1A ? XS_ALGO : k < XR_LW ? XS_EG1 : k < XR_GL ? XS_LFO1 : k < XR_V0 ? XS_PROG :
            XS_VOICE;
@@ -376,6 +379,9 @@ static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
     else if (xop_voice(k) || k == XR_ESEL || k == XR_LSEL || k == XR_VSEL)
         *field = 0;                                  /* (VOICE: the track's parameter XV_ID, not the patch's; M5: which
                                                       * EG, LFO, V.PATCH the rows show) */
+    else if (k >= XR_MFT)                            /* M5b: the main filter (its fields in the list's order) */
+        *field = OPXF_FLT_TYPE + (k == XR_MFT ? 0u : k == XR_MFE ? 1u : k == XR_MFC ? 2u : k == XR_MFR ? 3u : k == XR_MFE2 ? 4u :
+                 k == XR_MFE2C ? 5u : k == XR_MFKL ? 6u : k == XR_MFKC ? 7u : k == XR_MFKH ? 8u : k == XR_MFL2 ? 9u : 10u);
     else if (k > XR_VSEL) {                          /* M5: V.PATCH n's SRC, INT, CTRL, DEST */
         uint32_t b = OPXF_VP1_SRC + (uint32_t)(xop_vps % 12u) * (OPXF_VP2_SRC - OPXF_VP1_SRC);
         *field = k <= XR_VSI ? b : k == XR_VINT ? b + 1u : k == XR_VCTL ? b + 2u : b + 3u;
@@ -484,7 +490,8 @@ static int xop_enum(uint32_t k)
 {
     return k == XR_MODE || k == XR_FTYPE || k == XR_FX || k == XR_KLC || k == XR_KHC || k == XR_FREQ || k == XR_PMEC ||
            k == XR_PMLC || k == XR_PMD || k == XR_LMLC || k == XR_GLC || k == XR_LW || k == XR_LT || k == XR_LK ||
-           k == XR_GO || k == XR_VCTL ||
+           k == XR_GO || k == XR_VCTL || k == XR_MFT || k == XR_MFE || k == XR_MFE2C || k == XR_MFL2C || k == XR_MFKL ||
+           k == XR_MFKH || k == XR_MFKC ||
            (k == XR_LS && opx_get(opx_pk[song.sel % NTRK], OPXF_LFO1_TEMPO + (uint32_t)(xop_lfs % 3u) *
                                   (OPXF_LFO2_WAVE - OPXF_LFO1_WAVE)));
 }
@@ -678,6 +685,10 @@ static void xop_knob(uint32_t slot, int32_t steps)
             v = xop_ladder(v, accel(EN_K4, steps, 100), XFD_LIM, XFD_STP, 3u, hi);
         else if (k == XR_VINT)                       /* (M5: V.PATCH INT x0.01: 0.05 to 1, 0.25 to 10, 1.00 on) */
             v = xop_ladder(v, accel(EN_K4, steps, 100), XVI_LIM, XVI_STP, 3u, hi);
+        else if (k == XR_MFE2 || k == XR_MFL2)       /* (M5b: EG2 / LFO2 INT x0.01 semitone, as P MOD's) */
+            v = xop_ladder(v, accel(EN_K4, steps, 100), XPM_LIM, XPM_STP, 4u, hi);
+        else if (k == XR_MFR)                        /* (RESO x0.01 %: 1 % a detent) */
+            v = (v / 100 + accel(EN_K4, steps, 100)) * 100;
         else if (k == XR_LS && !xop_enum(k))         /* (SPEED: 4 codes a detent, 0.01 .. 100 Hz in 256) */
             v += 4 * accel(EN_K4, steps, 256);
         else if (xop_enum(k))
@@ -775,7 +786,8 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
         "ATK", "DEC", "SUS", "REL", "CURVE", "WAVE", "TEMPO", "SPEED", "KSYNC", "PHASE", "FADE",
         "LFO1", "LFO CTRL", "TRANS", "OCT",
         "VOICE", "GLIDE", "GLIDE MODE", "PRIORITY", "ALLOC", "DETUNE", "PAN", "MUTE", "SPREAD",
-        "EG", "LFO", "V.PATCH", "SRC", "SOURCE", "INT", "CTRL", "DEST", "TARGET"};
+        "EG", "LFO", "V.PATCH", "SRC", "SOURCE", "INT", "CTRL", "DEST", "TARGET",
+        "TYPE", "ENABLE", "CUTOFF", "RESO", "EG2", "CTRL", "LOW", "CENTER", "HIGH", "LFO2", "CTRL"};
     static const char NOTE[12][3] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
     uint32_t tr = song.sel % NTRK, f, k = xop_rowf(r, tr, &f);
     int32_t v, lo, hi;
@@ -923,7 +935,54 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
         break;
     }
     case XR_VCTL:
+    case XR_MFE2C:
+    case XR_MFL2C:
         str_cpy(val, N_OPX_CTRL[clamp(v, 0, OPX_NCTRL - 1)], 12);
+        *ratio = -1;
+        break;
+    /* M5b: the main filter */
+    case XR_MFT:
+        str_cpy(val, N_OPX_MFLT[clamp(v, 0, 10)], 12);
+        *ratio = -1;
+        break;
+    case XR_MFE:
+        str_cpy(val, v ? "ON" : "OFF", 12);
+        *ratio = -1;
+        break;
+    case XR_MFC: {                                   /* CUT10: 6.489 Hz x (23680 / 6.489)^(c / 1023) */
+        uint32_t h = (uint32_t)(((uint64_t)(uint32_t)fm6_exp2(clamp(v, 0, 1023) * 194064 - (8 << 24)) * 6489u) >> 16);
+        h += h < 100000u ? 5u : h < 1000000u ? 500u : 5000u;   /* (h: mHz, rounded; "6.49 HZ", "440 HZ", "23.68 KHZ") */
+        if (h < 100000u)
+            fop_dec(val, h / 1000u, h % 1000u / 10u, 2u), *unit = "HZ";
+        else if (h < 1000000u)
+            fmt_int(val, (int32_t)(h / 1000u)), *unit = "HZ";
+        else
+            fop_dec(val, h / 1000000u, h % 1000000u / 10000u, 2u), *unit = "KHZ";
+        break;
+    }
+    case XR_MFR:
+        fop_dec(val, (uint32_t)v / 100u, (uint32_t)v % 100u / 10u, 1u);
+        *unit = "%";
+        break;
+    case XR_MFE2:
+    case XR_MFL2:
+        val[0] = v > 0 ? '+' : v < 0 ? '-' : 0;
+        fop_dec(val + (val[0] != 0), (uint32_t)(v < 0 ? -v : v) / 100u, (uint32_t)(v < 0 ? -v : v) % 100u, 2u);
+        *unit = "ST";
+        break;
+    case XR_MFKL:
+    case XR_MFKH:                                    /* the slope c / (128 - |c|): 64 = 1.00; 127 INF */
+        if (v >= 127 || v <= -127)
+            str_cpy(val, v > 0 ? "+INF" : "-INF", 12);
+        else {
+            uint32_t a = (uint32_t)(v < 0 ? -v : v) * 100u / (128u - (uint32_t)(v < 0 ? -v : v));
+            val[0] = v > 0 ? '+' : v < 0 ? '-' : 0;
+            fop_dec(val + (val[0] != 0), a / 100u, a % 100u, 2u);
+        }
+        break;
+    case XR_MFKC:                                    /* C-1 .. G9 */
+        str_cpy(val, NOTE[v % 12], 12);
+        fmt_int(val + str_len(val), v / 12 - 1);
         *ratio = -1;
         break;
     case XR_LS:
@@ -1078,7 +1137,9 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         ICON_PHASE, ICON_FADE, ICON_VIBRATO, ICON_MOD, ICON_TRANSPOSE, ICON_OCTAVE,
         ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE,
         ICON_NONE, ICON_NONE, ICON_NONE,                 /* (VOICE: the parameter's own, param_icon) */
-        ICON_ENV, ICON_LFO_WAVE, ICON_MOD, ICON_MOD, ICON_MOD, ICON_ACCENT, ICON_MOD, ICON_MOD, ICON_MOD};   /* (M5) */
+        ICON_ENV, ICON_LFO_WAVE, ICON_MOD, ICON_MOD, ICON_MOD, ICON_ACCENT, ICON_MOD, ICON_MOD, ICON_MOD,   /* (M5) */
+        ICON_CUTOFF, ICON_CUTOFF, ICON_CUTOFF, ICON_RESO, ICON_ENV, ICON_MOD, ICON_KEYTRACK, ICON_KEYTRACK, ICON_KEYTRACK,
+        ICON_LFO_WAVE, ICON_MOD};                                                                        /* (M5b) */
     uint32_t tr = song.sel % NTRK, f;
     *unit = "";
     *ratio = -1;
@@ -1161,7 +1222,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         return on;
     }
 }
-_Static_assert(XR_N == 84, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
+_Static_assert(XR_N == 95, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
 #endif
 
 /* the dispatch: FM6's pages, or OPX's OPERATORS (OPX fork) */

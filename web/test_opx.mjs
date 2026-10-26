@@ -45,8 +45,13 @@ ok(OPX.timeText(TST.timeCode(50)) === "50 MS" && OPX.timeText(TST.timeCode(2000)
   const run = (g) => g.flatMap(([, names, at]) => names.map((_, k) => at + k));
   const src = run(OPX.VP_SRC), dst = run(OPX.VP_DST);
   ok(src.length === 256 && src.every((v, i) => v === i) && dst.length === 293 && dst.every((v, i) => v === i) &&
-     OPX.range("vp1.dst")[1] >= 292 && OPX.vpPlayed(17 + 4) && !OPX.vpPlayed(275) && !OPX.vpPlayed(5),
-     "opx: V.PATCH sources 0..255, destinations 0..292 in order; OP1 LEVEL played, FILTER and PAN not yet");
+     OPX.range("vp1.dst")[1] >= 292 && OPX.vpPlayed(17 + 4) && OPX.vpPlayed(275) && OPX.vpPlayed(276) && !OPX.vpPlayed(277) && !OPX.vpPlayed(5),
+     "opx: V.PATCH sources 0..255, destinations 0..292 in order; OP1 LEVEL and FILTER (M5b) played, FX1 and PAN not yet");
+  const d = OPX.defaults();                         // M5b: the main filter: the opsix INIT, and its texts
+  ok(OPX.get(d, "flt.enable") === 1 && OPX.get(d, "flt.type") === 0 && OPX.get(d, "flt.cutoff") === 1023 &&
+     OPX.MAIN_FILTERS.length === 11 && OPX.cutText(1023) === "23.68 KHZ" && OPX.cutText(0) === "6.49 HZ" &&
+     OPX.cutText(579) === "673 HZ" && OPX.ktrkText(64) === "+1.00" && OPX.ktrkText(-127) === "-INF" && OPX.ktrkText(0) === "0.00",
+     "opx: FILTER: INIT LPF 12 ON, open; CUTOFF 6.49 HZ .. 23.68 KHZ as the device shows it; KTRK slopes");
 }
 console.log(fails ? `OPX WEB TESTS FAILED (${fails})` : "opx web tests passed");
 process.exit(fails ? 1 : 0);

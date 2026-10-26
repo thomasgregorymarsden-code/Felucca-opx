@@ -39,7 +39,7 @@
 #ifndef OPX_FELUCCA_MACROS
 #define OPX_FELUCCA_MACROS 0     /* MLVL FB MRAT DTUN (E3..E6): Felucca's, not the opsix's; off */
 #endif
-#define OPX_DLY 736u             /* M2b (768 since M4, 736 since M5: EG2 EG3 LFO2 LFO3 took 72 bytes a note): a voice's delay line (int16, SHORT DELAY / COMB), after the six notes in its part */
+#define OPX_DLY 728u             /* M2b (768 since M4, 736 M5a: EG2 EG3 LFO2 LFO3 took 72 bytes a note; 728 M5b: the filter 20): a voice's delay line (int16, SHORT DELAY / COMB), after the six notes in its part */
 #define OPX_POLY 6               /* engine_t.poly: as FM6, until the target's cost is measured */
 #define OPX_NOP 6
 #define OPX_NALG 40              /* preset algorithms; 40 = USER */
@@ -76,8 +76,8 @@ enum { OPX_DO_PITCH, OPX_DO_COARSE, OPX_DO_OCT, OPX_DO_TRANS, OPX_DO_LEVEL, OPX_
        OPX_DO_SUS, OPX_DO_FB };
 enum { OPX_DL_WAVE, OPX_DL_SPEED, OPX_DL_PHASE, OPX_DL_FADE };
 /* the destinations OPX plays (M5a): PROG PITCH OCT TRANS LEVEL ATK DECAY REL SUS; each operator's PITCH COARSE OCT TRANS
- * LEVEL ATK DECAY REL SUS FM FB; EG1..3's four; LFO1..3's SPEED PHASE FADE. The others (the modes' values, the filter,
- * the effects, ARP, SEQ, PAN TEMPO ALGO GLIDE UNISON) are kept in the patch and do nothing yet */
+ * LEVEL ATK DECAY REL SUS FM FB; EG1..3's four; LFO1..3's SPEED PHASE FADE; (M5b) FILTER CUTOFF RESO. The others (the
+ * modes' values, the effects, ARP, SEQ, PAN TEMPO ALGO GLIDE UNISON) are kept in the patch and do nothing yet */
 static int opx_vd_on(uint32_t d)
 {
     if (d >= OPX_VD_PROG && d < OPX_VD_OP)
@@ -88,7 +88,7 @@ static int opx_vd_on(uint32_t d)
         return 1;
     if (d >= OPX_VD_LFO && d < OPX_VD_FLT)
         return (d - OPX_VD_LFO) % 4u != OPX_DL_WAVE;
-    return 0;
+    return d >= OPX_VD_FLT && d < OPX_VD_FX;          /* (M5b: the filter's CUTOFF, RESO) */
 }
 static uint8_t opx_cc[NTRK][120];    /* M5: each part's CC 1..119 as last received + 1 (0: none yet; midi_control.c) */
 static int16_t opx_ctl_bend[NTRK];   /* M4: each part's pitch wheel (MIDI, -8192..8191) and damper pedal (midi_control.c) */
@@ -150,6 +150,18 @@ typedef struct {                 /* M4: an LFO (p.55-57): LFO1 the operators' pi
  * (x0.01: its meaning by destination, opx_vp_apply), CTRL (OPX_C_*), DEST (OPX_VD_*: the Destination List, p.89-90) */
 #define OPX_NVP 12
 typedef struct { uint8_t src, ctrl; int16_t amt; uint16_t dst; } opx_vpp_t;
+/* M5b: the main filter (p.58-60): TYPE (OPX_MF_*: the manual's list, p.38), ENABLE, CUTOFF (CUT10: 6.489 Hz x
+ * (23680 / 6.489)^(c / 1023)), RESO (x0.01 %), EG2 and LFO2 INT (x0.01 semitone of the cutoff: 142.00 its whole
+ * range), their CTRLs, KTRK LOW and HIGH (-127..127: the slope c / (128 - |c|): 64 = 1.00, the key's own; 127 ~ Inf;
+ * an assumption) about CENTER (a MIDI note) */
+enum { OPX_MF_LPF12, OPX_MF_LPF24, OPX_MF_LPFMS, OPX_MF_LPFP6, OPX_MF_HPF12, OPX_MF_HPF24, OPX_MF_HPFMS, OPX_MF_BPF6,
+       OPX_MF_BPF12, OPX_MF_BRF6, OPX_MF_BRF12, OPX_NMF };
+typedef struct {
+    uint8_t type, on, eg2_ctrl, lfo2_ctrl, kc;
+    int8_t kl, kh;
+    uint16_t cutoff, reso;
+    int16_t eg2, lfo2;
+} opx_mflt_t;
 
 typedef struct {
     const char *name;
@@ -164,6 +176,7 @@ typedef struct {
     int8_t prog_trans, prog_oct;
     uint8_t prog_lfo1_ctrl;      /* M4: its CTRL */
     opx_vpp_t vp[OPX_NVP];       /* M5: V.PATCH 1..12 */
+    opx_mflt_t flt;              /* M5b: the main filter (FILTER, FLTR MOD p.58-60) */
 } opx_patch_t;
 
 /* ---------------------------------------------------------- algorithms --- */
@@ -344,6 +357,12 @@ typedef struct {
                                   * the rest: most patches use few routes) */
     uint8_t nvp;                 /* M5: the virtual patches that do something, vp[0 .. nvp-1] */
     uint8_t son;                 /* an EG1..3 or LFO1..3 runs (else the render skips them) */
+    /* M5b: the main filter: on (it does something: an LPF wide open, RESO 0, nothing moving it is skipped), its kind
+     * (OPX_MF_*), the cutoff (Q24 octaves above 6.489 Hz), EG2 / LFO2 INT (Q24 octaves at a full source), their
+     * CTRLs, KTRK's slopes (Q12) and CENTER, RESO's SVF damping k (Q16) and ladder feedback (Q15), the outputs' mix */
+    uint8_t fon, fty, fce, fcl, fkc, fms;
+    int32_t fcut, fe2, fl2, fkl, fkh, fk, fkq;
+    int16_t fmix[5];             /* (SVF: x, v1 (band), v2 (low); ladder: u, y1 .. y4) */
     opx_vpr_t vp[OPX_NVP];
 } opx_rt_t;
 static opx_rt_t opx_rt[NTRK];
@@ -425,6 +444,35 @@ static void opx_build_mod(const opx_patch_t *pt, opx_rt_t *r)
             need |= 1u << (OPX_C_EG1 + q->src - OPX_VS_EG1);
         need |= 1u << r->vp[r->nvp].ctrl;
         r->nvp++;
+    }
+    {                                                /* M5b: the main filter */
+        static const int16_t MIX[OPX_NMF][5] = {{0, 0, 1}, {0, 0, 0, 0, 1}, {0, 0, 1}, {0, 0, 0, 0, 1}, {1, -1, -1},
+            {1, -4, 6, -4, 1}, {1, -1, -1}, {0, 2, -2}, {0, 1, 0}, {1, -2, 2}, {1, -1, 0}};
+        static const uint16_t LAD = 1u << OPX_MF_LPF24 | 1u << OPX_MF_LPFP6 | 1u << OPX_MF_HPF24 | 1u << OPX_MF_BPF6 |
+                                   1u << OPX_MF_BRF6;
+        const opx_mflt_t *f = &pt->flt;
+        int32_t rq = clamp(f->reso, 0, 10000) * 32767 / 10000, moved = 0;
+        r->fty = (uint8_t)(f->type < OPX_NMF ? f->type : 0u);
+        r->fms = (uint8_t)((LAD >> r->fty & 1u) ? 2u : r->fty == OPX_MF_LPFMS || r->fty == OPX_MF_HPFMS ? 1u : 0u);
+        r->fcut = clamp(f->cutoff, 0, 1023) * 194064;   /* (Q24 octaves: 142 semitones over the 1023 codes) */
+        r->fe2 = clamp(f->eg2, -14200, 14200) * 13981, r->fl2 = clamp(f->lfo2, -14200, 14200) * 13981;
+        r->fce = (uint8_t)(f->eg2_ctrl < OPX_NCTRL ? f->eg2_ctrl : 0u);
+        r->fcl = (uint8_t)(f->lfo2_ctrl < OPX_NCTRL ? f->lfo2_ctrl : 0u);
+        r->fkl = (int32_t)clamp(f->kl, -127, 127) * 4096 / (128 - (f->kl < 0 ? -f->kl : f->kl));
+        r->fkh = (int32_t)clamp(f->kh, -127, 127) * 4096 / (128 - (f->kh < 0 ? -f->kh : f->kh));
+        r->fkc = f->kc;
+        r->fk = 131072 - (int32_t)((int64_t)rq * 128450 >> 15), r->fkq = (int32_t)((int64_t)rq * 127139 >> 15);
+        for (k = 0; k < 5u; k++)
+            r->fmix[k] = MIX[r->fty][k];
+        for (k = 0; k < r->nvp; k++)
+            moved |= r->vp[k].dst == OPX_VD_FLT || r->vp[k].dst == OPX_VD_FLT + 1u;
+        /* (an LPF open past 19.7 kHz, no RESO, nothing moving it: as good as none, skipped; the opsix's INIT is that) */
+        r->fon = (uint8_t)(f->on && (r->fty > OPX_MF_LPFP6 || f->cutoff < 1000u || rq || f->eg2 || f->lfo2 || f->kl ||
+                                     f->kh || moved));
+        if (r->fon && r->fe2)
+            need |= 1u << OPX_C_EG2 | 1u << r->fce;
+        if (r->fon && r->fl2)
+            need |= 1u << OPX_C_LFO2 | 1u << r->fcl;
     }
     for (i = 0; i < 3u; i++) {                       /* EG1..3 (p.55): built while something takes them */
         const opx_egp_t *e = &pt->eg[i];
@@ -866,6 +914,7 @@ typedef struct {                 /* a sounding note: 540 bytes */
     opx_eg_t egm[3];             /* M4: EG1; M5: EG2, EG3 */
     opx_lfo_t lfo[3];            /* M4: LFO1; M5: LFO2, LFO3: KSYNC VOICE (else the part's: opx_lfoc) */
     int32_t lfade[3];            /* .. FADE's level, Q24 */
+    int32_t fst[5];              /* M5b: the main filter's state */
     uint32_t vfq[OPX_NOP];       /* M4: P MOD VEL: what this note adds to FINE (Q16, over COARSE), worked out at the
                                   * note-on so the render has no divide (FINE / COARSE turned during the note: kept) */
 } opx_note_t;
@@ -1004,6 +1053,7 @@ static void opx_note_on(track_t *t, voice_t *v)
     if (fresh) {
         n->dc = 0;
         n->dw = 0;
+        memset(n->fst, 0, sizeof n->fst);
         memset(opx_dline(t, v), 0, OPX_DLY * sizeof(int16_t));   /* (M2b: no echo of an earlier note) */
     }
     n->live = n->down = 1;
@@ -1702,6 +1752,7 @@ typedef struct {
     int16_t lsp[3], lfd[3];          /* LFO1..3 SPEED (HZ10 codes), FADE (ms) */
     uint32_t lph[3];                 /* .. PHASE (Q32) */
     uint16_t eg;                     /* bit k: envelope k (0..5, 6..8 EG1..3) has a stage moved */
+    int32_t fcut, freso;             /* M5b: FILTER CUTOFF (Q24 octaves), RESO (points) */
 } opx_vm_t;
 /* the INT's scale (an assumption: the manual says only "depends on destination"): INT 100.00 with its source at full
  * moves the destination over its whole range (PITCH: 100 semitones; OCT 4 octaves; TRANS 24 semitones; COARSE 38
@@ -1751,6 +1802,11 @@ static void opx_vp_add(opx_vm_t *vm, const opx_rt_t *r, uint32_t d, int32_t x)
         else
             vm->sd[OPX_NOP + e] = (int16_t)(vm->sd[OPX_NOP + e] + x * 100 / 32767);
         vm->eg |= 1u << (OPX_NOP + e);
+    } else if (d >= OPX_VD_FLT) {                                      /* M5b: FILTER CUTOFF (142 semitones), RESO */
+        if (d == OPX_VD_FLT)
+            vm->fcut += x * 6059;                       /* (11.83 octaves at full, Q24) */
+        else
+            vm->freso += x * 100 / 32767;
     } else {                                                           /* LFO1..3: SPEED PHASE FADE */
         uint32_t l = (d - OPX_VD_LFO) / 4u, j = (d - OPX_VD_LFO) % 4u;
         if (j == OPX_DL_SPEED)
@@ -1800,6 +1856,67 @@ static int32_t __attribute__((noinline)) opx_eg_stepm(opx_eg_t *e, const opx_rt_
     return opx_eg_stepv(e, opx_stage_inc(clamp(r->tc[k][0] + vm->td[k][0], 0, 1023)),
                         opx_stage_inc(clamp(r->tc[k][1] + vm->td[k][1], 0, 1023)),
                         opx_stage_inc(clamp(r->tc[k][2] + vm->td[k][2], 0, 1023)), su, r->curve[k]);
+}
+/* M5b: a voice's block (in, the voice's samples) through the main filter into out. At half scale (a voice of several
+ * carriers stays inside the filters' ranges), back to full after. The SVF (LPF12, HPF12, BPF12, BRF12; MS-20's with
+ * its resonance limited in the loop) or the ladder (LPF24, POLY6, HPF24, BPF6, BRF6), each output a mix of the
+ * filter's points (r->fmix), no branch a sample */
+static void __attribute__((noinline)) opx_mflt(const opx_rt_t *r, const opx_fc_t *c, int32_t *st, const int32_t *in,
+                                               int32_t *out)
+{
+    const int16_t *mx = r->fmix;
+    uint32_t i;
+    if (r->fms == 2u) {                                /* the ladder (opx_filt's) */
+        int32_t g = c->g1 >> 1, kl = c->kl;
+        for (i = 0; i < CTL; i++) {
+            int32_t u = clamp((in[i] >> 1) - (int32_t)(((int64_t)kl * st[4]) >> 15), -65535, 65535), v, y1, y2, y3, y4;
+            v = (g * (u - st[0])) >> 13, y1 = v + st[0], st[0] = clamp(y1 + v, -131071, 131071);
+            v = (g * (y1 - st[1])) >> 13, y2 = v + st[1], st[1] = clamp(y2 + v, -131071, 131071);
+            v = (g * (y2 - st[2])) >> 13, y3 = v + st[2], st[2] = clamp(y3 + v, -131071, 131071);
+            v = (g * (y3 - st[3])) >> 13, y4 = v + st[3], st[3] = clamp(y4 + v, -131071, 131071);
+            st[4] = y4;
+            out[i] += clamp(mx[0] * u + mx[1] * y1 + mx[2] * y2 + mx[3] * y3 + mx[4] * y4, -65535, 65535) * 2;
+        }
+    } else {                                           /* the state-variable filter */
+        int32_t lim = r->fms ? 40000 : 2097152;
+        for (i = 0; i < CTL; i++) {
+            int32_t x = clamp(in[i] >> 1, -65535, 65535), v3 = x - st[1], v1, v2;
+            v1 = (int32_t)(((int64_t)c->a1 * st[0] + (int64_t)c->a2 * v3) >> 16);
+            v2 = st[1] + (int32_t)(((int64_t)c->a2 * st[0] + (int64_t)c->a3 * v3) >> 16);
+            st[0] = clamp(2 * v1 - st[0], -lim, lim);
+            st[1] = clamp(2 * v2 - st[1], -2097152, 2097152);
+            out[i] += clamp(mx[0] * x + mx[1] * (int32_t)(((int64_t)c->k * v1) >> 16) + mx[2] * v2, -65535, 65535) * 2;
+        }
+    }
+}
+/* M5b: the main filter's coefficients for a voice this block: CUTOFF + EG2 x INT + LFO2 x INT (their CTRLs) + KTRK +
+ * V.PATCH, RESO (+ V.PATCH) */
+static void __attribute__((noinline)) opx_mflt_coef(const track_t *t, const voice_t *v, const opx_rt_t *r,
+                                                    const int32_t *ms, const opx_vm_t *vm, opx_fc_t *c)
+{
+    int32_t st = r->fcut + vm->fcut, d = (int32_t)v->note - r->fkc, kq = r->fkq, e;
+    uint64_t f;
+    if (r->fe2)
+        st += (int32_t)(((int64_t)(r->fce ? OPX_CQ(r->fe2, opx_ctl(t, v, r->fce, ms)) : r->fe2) * ms[1]) >> 24);
+    if (r->fl2)
+        st += (int32_t)(((int64_t)(r->fcl ? OPX_CQ(r->fl2, opx_ctl(t, v, r->fcl, ms)) : r->fl2) * ms[4]) >> 15);
+    if (d)                                           /* (KTRK: LOW + raises the cutoff below CENTER, HIGH + above) */
+        {
+            int64_t sh = (int64_t)(d < 0 ? -r->fkl : r->fkh) * d * 1398101 / 4096;   /* (Q24 octaves; +-Inf: past the range) */
+            st += (int32_t)(sh > (20LL << 24) ? 20LL << 24 : sh < -(20LL << 24) ? -(20LL << 24) : sh);
+        }
+    st = clamp(st, -(1 << 24), (25 << 24) / 2);
+    e = fm6_exp2(st - (8 << 24));                    /* 2^(16 + octaves) */
+    f = ((uint64_t)(uint32_t)e * 631958u) >> 16;     /* (6.489 Hz as Q32 of fs: 631958) */
+    c->k = r->fk;
+    if (vm->freso) {
+        kq = clamp(kq + vm->freso * 1271, 0, 127139);
+        c->k = 131072 - (int32_t)((int64_t)kq * 128450 / 127139);
+    }
+    c->type = 0, c->fm = 0;
+    c->fc0 = f > OPX_FCMAX ? OPX_FCMAX : f < 4096u ? 4096u : (uint32_t)f;
+    c->kl = kq;
+    opx_svf_coef(c, c->fc0);
 }
 /* M5: operator k's level as V.PATCH moves it (LEVEL: points; PROG LEVEL: the heard ones x (1 + lev)), Q15 */
 static int32_t __attribute__((noinline)) opx_vp_amp(const opx_rt_t *r, const opx_vm_t *vm, uint32_t k, uint32_t heard)
@@ -1860,6 +1977,7 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     uint32_t inc[OPX_NOP], ph[OPX_NOP], q, nact = 0, ord[OPX_NOP], heard = r->out;
     int32_t g[OPX_NOP], dg[OPX_NOP], y[OPX_NOP], yp[OPX_NOP], fbq[OPX_NOP], lf, k, a, da, dc, vf, mf = 32768, e1, lv, pg;
     int32_t ms[6];                                  /* EG1..3 (Q24), LFO1..3 (Q15) this block */
+    int32_t vb[CTL], *dst = out;                    /* M5b: the voice's block before the main filter */
     const int lup = OPX_L_UNI(r->lf[0].w);   /* (M4: LFO1 0 .. +1) */
     opx_vm_t vm;
     if (!n || !n->live || len != CTL)
@@ -1876,7 +1994,7 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     if (r->nvp)                                     /* M5: V.PATCH, from the sources as they stand */
         opx_vp_eval(t, v, n, r, &vm);
     else
-        vm.eg = 0, vm.pitch = vm.lev = 0;
+        vm.eg = 0, vm.pitch = vm.lev = vm.fcut = vm.freso = 0;
     lf = fm6_note_logfreq(m->pitch16, m->fine) + r->poff;   /* (M4: PROG TRANS, OCT on the note: not the FIXED ones) */
     ms[0] = ms[1] = ms[2] = ms[3] = ms[4] = ms[5] = 0;
     if (r->son)
@@ -1958,6 +2076,8 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     a = mulq15(m->amp0, k);
     da = (mulq15(m->amp1, k) - a) >> CTL_LOG2;
     dc = n->dc;
+    if (r->fon)                                     /* M5b: the voice into its own block, then the main filter */
+        memset(vb, 0, sizeof vb), dst = vb;
     {   /* the samples: operator by operator, unless an operator takes a lower one's output (sample by sample) */
         uint32_t wv = 0, back = 0, act = 0, c, mdx = 0, dly_op = 6u;
         opx_wsel_t tb[OPX_NOP];
@@ -1994,9 +2114,9 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
                 }
             }
         if (back || opx_sample_order) {
-            dc = wv ? opx_loop_wave(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb,
+            dc = wv ? opx_loop_wave(r, dst, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc, tb,
                                     (const int16_t (*)[CTL])nb, (const int32_t (*)[CTL])opx_obuf, n->fs)
-                    : opx_loop_sine(r, out, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc);
+                    : opx_loop_sine(r, dst, ord, nact, ph, inc, g, dg, y, yp, fbq, heard, a, da, dc);
         } else {
             const int32_t *hp[OPX_NOP];
             uint32_t nh = 0;
@@ -2029,10 +2149,15 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
                 if ((heard >> kk) & 1u)
                     hp[nh++] = opx_ybuf[kk];
             }
-            dc = opx_mix(out, hp, nh, a, da, dc);
+            dc = opx_mix(dst, hp, nh, a, da, dc);
         }
     }
     n->dc = dc;
+    if (r->fon) {
+        opx_fc_t fc;
+        opx_mflt_coef(t, v, r, ms, &vm, &fc);
+        opx_mflt(r, &fc, n->fst, vb, out);
+    }
     for (k = 0; k < OPX_NOP; k++) {
         if (r->md[k] == OPX_M_EFFECT && opx_ecb[k].dl && opx_ecb[k].dl == opx_dline(t, v))   /* (the line's next place) */
             n->dw = (uint16_t)opx_ecb[k].dw;

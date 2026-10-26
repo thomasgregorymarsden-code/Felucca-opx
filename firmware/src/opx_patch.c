@@ -150,6 +150,17 @@ static void opx_decode(const uint8_t *pk, opx_patch_t *p)
         p->vp[k].ctrl = (uint8_t)opx_get(pk, OPXF_VP1_CTRL + f);
         p->vp[k].dst = (uint16_t)opx_get(pk, OPXF_VP1_DST + f);
     }
+    p->flt.type = (uint8_t)opx_get(pk, OPXF_FLT_TYPE);   /* (M5b: the main filter) */
+    p->flt.on = (uint8_t)opx_get(pk, OPXF_FLT_ENABLE);
+    p->flt.cutoff = (uint16_t)opx_get(pk, OPXF_FLT_CUTOFF);
+    p->flt.reso = (uint16_t)opx_get(pk, OPXF_FLT_RESO);
+    p->flt.eg2 = (int16_t)opx_get(pk, OPXF_FLT_EG2);
+    p->flt.eg2_ctrl = (uint8_t)opx_get(pk, OPXF_FLT_EG2_CTRL);
+    p->flt.kl = (int8_t)opx_get(pk, OPXF_FLT_KTRK_LOW);
+    p->flt.kc = (uint8_t)opx_get(pk, OPXF_FLT_KTRK_CENTER);
+    p->flt.kh = (int8_t)opx_get(pk, OPXF_FLT_KTRK_HIGH);
+    p->flt.lfo2 = (int16_t)opx_get(pk, OPXF_FLT_LFO2);
+    p->flt.lfo2_ctrl = (uint8_t)opx_get(pk, OPXF_FLT_LFO2_CTRL);
     p->prog_lfo1 = (int16_t)opx_get(pk, OPXF_PROG_LFO1);
     p->prog_trans = (int8_t)opx_get(pk, OPXF_PROG_TRANS);
     p->prog_oct = (int8_t)opx_get(pk, OPXF_PROG_OCT);

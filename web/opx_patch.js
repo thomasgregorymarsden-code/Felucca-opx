@@ -136,6 +136,13 @@ export const CTRLS = ["OFF", "MOD WHEEL", "PITCH WHEEL", "PITCH WHL+", "PITCH WH
 export const SYNC = ["1/48", "3/128", "1/32", "1/24", "3/64", "1/16", "1/12", "3/32", "1/8", "1/6", "3/16", "1/4", "1/3",
   "3/8", "1/2", "2/3", "3/4", "1/1", "4/3", "3/2", "2/1", "8/3", "3/1", "4/1"];
 export const KSYNC = ["OFF", "COMMON", "VOICE"];
+// M5b: the main filter's types (the manual p.38's order) and its CUTOFF code c (CUT10): 6.489 Hz x (23680 / 6.489)^(c / 1023)
+export const MAIN_FILTERS = ["LPF 12", "LPF 24", "LPF MS-20", "LPF POLY6", "HPF 12", "HPF 24", "HPF MS-20", "BPF 6",
+  "BPF 12", "BRF 6", "BRF 12"];
+export const cutText = (c) => { const h = 6.489 * (23680 / 6.489) ** (c / 1023);
+  return h < 100 ? `${h.toFixed(2)} HZ` : h < 1000 ? `${Math.round(h)} HZ` : `${(h / 1000).toFixed(2)} KHZ`; };
+// KTRK LOW / HIGH c: the slope c / (128 - |c|) (64: 1.00; +-127: +-INF)
+export const ktrkText = (c) => Math.abs(c) >= 127 ? (c > 0 ? "+INF" : "-INF") : signed(Math.round(c * 100 / (128 - Math.abs(c))), 2);
 // HZ10 code c (LFO SPEED, TEMPO off): 0.01 Hz x 10000^(c / 1023)
 export const speedText = (c) => `${(0.01 * 10000 ** (c / 1023)).toFixed(2)} HZ`;
 // x0.01 semitone (P MOD, PROG LFO1 INT)
@@ -168,5 +175,6 @@ export function vpPlayed(d) {
   if (d >= 17 && d < 251) return (d - 17) % 39 <= 9;
   if (d >= 251 && d < 263) return true;
   if (d >= 263 && d < 275) return (d - 263) % 4 !== 0;
+  if (d >= 275 && d < 277) return true;               // (M5b: FILTER CUTOFF, RESO)
   return false;
 }

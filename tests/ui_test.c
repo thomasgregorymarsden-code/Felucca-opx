@@ -9023,10 +9023,10 @@ static int test_bench(void)
     frame();
     ok &= ui.menu == 4 && bench_state >= 1u;
     frames(3);
-    ok &= bench_state == 3u && bench_n == 2u + 1u + 1u + 18u + 1u + 8u + 8u + 2u && !bench_mute;
+    ok &= bench_state == 3u && bench_n == 2u + 1u + 1u + 18u + 1u + 8u + 1u + 3u + 8u + 2u && !bench_mute;
     if (!ok)
         printf("ui: bench: menu %u state %u rows %u mute %u\n", ui.menu, bench_state, bench_n, bench_mute);
-    bad += check("bench: INFO, OCT+: RUNNING, then 41 rows (idle, heading, FM6, OPX heading and 18 waves, a heading and 8 modes, 4 branch / call, 4 loads, 2 MAC)", ok);
+    bad += check("bench: INFO, OCT+: RUNNING, then 45 rows (idle, heading, FM6, OPX heading and 18 waves, a heading and 8 modes, a heading and 3 main filters, 4 branch / call, 4 loads, 2 MAC)", ok);
     ok = trk[0].eng_req == before.eng_req && trk[0].engine == before.engine &&
          !memcmp(trk[0].p, before.p, sizeof before.p) && !memcmp(fm6_patch[0], fm6p, sizeof fm6p) && opx_own[0] == own;
     for (i = 0; i < NVOICE; i++)
@@ -9098,8 +9098,8 @@ static int test_opx_ops(void)
     ok = xop_row() == 0u && xop_top == 0u && xop_kind(0) == XR_MODE && xop_n() == 4u;   /* (FM: MODE WAVE FB WIDTH) */
     {
         static const uint8_t FIRST[XS_N] = {XR_MODE, XR_FREQ, XR_LVL, XR_KLOW, XR_TO0, XR_ALG, XR_ESEL, XR_LSEL, XR_GL,
-                                            XR_VSEL, XR_V0};
-        static const uint8_t N[XS_N] = {4, 11, 9, 5, 7, 2, 6, 7, 4, 7, 9};
+                                            XR_MFT, XR_VSEL, XR_V0};
+        static const uint8_t N[XS_N] = {4, 11, 9, 5, 7, 2, 6, 7, 4, 11, 7, 9};
         uint32_t sc, k;
         for (sc = 1; sc < XS_N; sc++) {              /* (each section its own list, from its first row) */
             turn(EN_K2, 1);
@@ -9110,7 +9110,7 @@ static int test_opx_ops(void)
     }
     turn(EN_K2, 5);
     ok &= xop_sec == XS_VOICE;                       /* (the last: no wrap) */
-    turn(EN_K2, -2);
+    turn(EN_K2, -3);
     ok &= xop_sec == XS_PROG && xop_kind(xop_row()) == XR_GL;
     turn(EN_K3, 2);
     ok &= xop_kind(xop_row()) == XR_GT;
@@ -9122,7 +9122,7 @@ static int test_opx_ops(void)
     ok &= xop_kind(xop_row()) == XR_GO;              /* (KNOB 3 stays in the section) */
     turn(EN_K2, -20);
     ok &= xop_sec == XS_MODE && xop_row() == 0u;
-    bad += check("OPX ops: each section its own list (MODE PITCH EG KTRK USER ALGO EG1-3 LFO1-3 PROG V.PATCH VOICE); KNOB 2 (PAGE) a section a detent, each keeping its row; KNOB 3 within it", ok);
+    bad += check("OPX ops: each section its own list (MODE PITCH EG KTRK USER ALGO EG1-3 LFO1-3 PROG FILTER V.PATCH VOICE); KNOB 2 (PAGE) a section a detent, each keeping its row; KNOB 3 within it", ok);
 
     /* VOICE: the track's VOICE pages' parameters (TSEL->p), shown and turned as there; no operator */
     {
@@ -9614,7 +9614,7 @@ static int test_opx_ops(void)
         xop_rowtext(0, &lb, val, &u, &r);
         ok &= str_eq(lb, "ATK") && str_eq(u, "MS") && str_eq(val, "25");   /* (the ladder: 0, 1..9, 10 15 20 25) */
         bad += check("OPX M4, M5: EG1-3 page: KNOB 1 the EG (1..3), ATK DEC SUS REL CURVE of it (the times' ladder)", ok);
-        /* M5: V.PATCH in OPERATORS: slot 3, SRC CTRL > PITCH, INT, DEST OP1 > LEVEL; FILTER's destinations DIM */
+        /* M5: V.PATCH in OPERATORS: slot 3, SRC CTRL > PITCH, INT, DEST OP1 > LEVEL; FX's destinations DIM */
         go_title("OPERATORS"); frame();
         xop_vps = 0;
         xop_find(XR_VSEL);
@@ -9647,9 +9647,44 @@ static int test_opx_ops(void)
         frames(1600);
         turn(EN_K4, 3);
         ok &= opx_get(opx_pk[tr], OPXF_VP3_INT) == 15 && xop_rowtext(3, &lb, val, &u, &r) && str_eq(val, "+0.15");
-        opx_edit(tr, OPXF_VP3_DST, OPX_VD_FLT);      /* (FILTER CUTOFF: not played yet) */
-        ok &= !xop_rowtext(6, &lb, val, &u, &r) && str_eq(val, "CUTOFF") && !xop_rowtext(3, &lb, val, &u, &r);
+        opx_edit(tr, OPXF_VP3_DST, OPX_VD_FLT);      /* (M5b: FILTER CUTOFF played) */
+        ok &= xop_rowtext(6, &lb, val, &u, &r) && str_eq(val, "CUTOFF");
+        opx_edit(tr, OPXF_VP3_DST, OPX_VD_FX);       /* (FX1 PARAM 1: not played yet) */
+        ok &= !xop_rowtext(6, &lb, val, &u, &r) && str_eq(val, "PARAM 1") && !xop_rowtext(3, &lb, val, &u, &r);
         bad += check("OPX M5: V.PATCH section: the slot; SRC and DEST as scope then item; INT 0.05 a detent; DIM where OPX does not play it yet", ok);
+        /* M5b: the FILTER section: TYPE ENABLE CUTOFF RESO EG2 (CTRL) LOW CENTER HIGH LFO2 (CTRL) */
+        xop_find(XR_MFT);
+        ok = xop_sec == XS_FLT && xop_n() == 11u && xop_kind(0) == XR_MFT && xop_kind(10) == XR_MFL2C;
+        ok &= xop_rowtext(0, &lb, val, &u, &r) && str_eq(lb, "TYPE") && str_eq(val, "LPF 12");
+        xop_rowtext(1, &lb, val, &u, &r);
+        ok &= str_eq(val, "ON");                     /* (the opsix INIT: LPF 12 ON, open) */
+        xop_rowtext(2, &lb, val, &u, &r);
+        ok &= str_eq(lb, "CUTOFF") && str_eq(val, "23.68") && str_eq(u, "KHZ");
+        opx_edit(tr, OPXF_FLT_CUTOFF, 0);
+        xop_rowtext(2, &lb, val, &u, &r);
+        ok &= str_eq(val, "6.49") && str_eq(u, "HZ");
+        opx_edit(tr, OPXF_FLT_CUTOFF, 579);          /* (6.489 x 3649^(579/1023): ~678 Hz) */
+        xop_rowtext(2, &lb, val, &u, &r);
+        printf("    FILTER CUTOFF 579: %s %s\n", val, u);
+        ok &= str_eq(u, "HZ") && str_len(val) == 3;
+        xop_rowtext(7, &lb, val, &u, &r);
+        ok &= str_eq(lb, "CENTER") && str_eq(val, "C4");
+        opx_edit(tr, OPXF_FLT_KTRK_HIGH, 64);
+        xop_rowtext(8, &lb, val, &u, &r);
+        ok &= str_eq(lb, "HIGH") && str_eq(val, "+1.00");
+        xo_set(EN_K3, 0, 20);                        /* TYPE: LPF 12 -> HPF 12 */
+        frames(1600);
+        turn(EN_K4, 4);
+        ok &= opx_get(opx_pk[tr], OPXF_FLT_TYPE) == 4;
+        xo_set(EN_K3, 3, 20);                        /* RESO: 1 % a detent */
+        frames(1600);
+        turn(EN_K4, 3);
+        ok &= opx_get(opx_pk[tr], OPXF_FLT_RESO) == 300 && xop_rowtext(3, &lb, val, &u, &r) && str_eq(val, "3.0");
+        xo_set(EN_K3, 4, 20);                        /* EG2 INT: 0.05 a detent near 0 */
+        frames(1600);
+        turn(EN_K4, 2);
+        ok &= opx_get(opx_pk[tr], OPXF_FLT_EG2) == 10 && xop_rowtext(4, &lb, val, &u, &r) && str_eq(val, "+0.10");
+        bad += check("OPX M5b: FILTER section: TYPE ENABLE CUTOFF (Hz) RESO EG2 CTRL LOW CENTER HIGH LFO2 CTRL", ok);
         go_title("LFO1-3"); frame();                 /* M5: KNOB 1 LFO2: its six rows, no PROG PITCH */
         xop_lfs = 0;
         turn(EN_K1, 1);
