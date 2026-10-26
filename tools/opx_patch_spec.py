@@ -39,8 +39,9 @@ NMAINFILT = 11         # main filter types p.38
 NFX = 31               # 30 effect types + OFF (Effect Parameter List p.91..)
 NALGO = 41             # 40 preset algorithms + USER
 NVP_SRC = 256          # V.Patch sources p.88: OFF 1, CTRL 5, KBD 4, EG/LFO 6, CC+ 119, CC+/- 119, MIDI 2
-NVP_DST = 347          # V.Patch destinations p.89-90: OFF, PROG 16, OP1..6 x 48, EG x 3 x 4, LFO x 3 x 4,
-                       # FILTER 2, FX x 3 x 4, ARP 3, SEQ 1 (the count is a reading of the list: room for 512)
+NVP_DST = 293          # V.Patch destinations p.89-90 in the list's order: OFF 0, PROG 1..16, OP1..6 x 39 17..250,
+                       # EG1..3 x 4 251..262, LFO1..3 x 4 263..274, FILTER 275 276, FX1..3 x 4 277..288, ARP 289..291,
+                       # SEQ 292 (the field has room for 512; firmware/src/eng_opx.c OPX_VD_*)
 
 FIELDS = []            # (section, name, bits, lo, hi, note)
 

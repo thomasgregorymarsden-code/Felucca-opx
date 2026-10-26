@@ -83,7 +83,7 @@ them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SA
 
 ### The pages
 
-On an OPX track, EDIT goes **ALGO, OPERATORS, ENVELOPE, OP LEVELS, EG1, LFO1** and back: VOICE, VOICE 2 and VOICE 3 are OPERATORS' VOICE section on an
+On an OPX track, EDIT goes **ALGO, OPERATORS, ENVELOPE, OP LEVELS, EG1-3, LFO1-3** and back: VOICE, VOICE 2 and VOICE 3 are OPERATORS' VOICE section on an
 OPX track (the same parameters). Both OPX pages
 show the algorithm in the left half: a chart of square operator boxes for a preset algorithm, the matrix for USER.
 
@@ -135,11 +135,19 @@ the operator, KNOB 3 the row, KNOB 4 the value.
 **OP LEVELS** lists the six operators' LEVEL beside the algorithm chart: KNOB 3 (or KNOB 1) the operator, KNOB 4 its
 level.
 
-**EG1** draws the patch's pitch envelope as ENVELOPE draws an operator's, beside its five rows; **LFO1** draws two
-cycles of its wave beside LFO1's rows and PROG PITCH's. Both are the patch's: KNOB 1 does nothing there.
+**EG1-3** draws one of the patch's three EGs (EG1 pitch, EG2 filter, EG3 assignable) as ENVELOPE draws an operator's,
+beside its five rows; **LFO1-3** draws two cycles of one LFO's wave beside its rows (LFO1: and PROG PITCH's). KNOB 1
+picks the EG or LFO there. In OPERATORS the same rows are the EG1-3 and LFO1-3 sections, their first row picking which.
+
+**V.PATCH** (OPERATORS' section after PROG): the first row picks the virtual patch (1–12), then SRC and SOURCE (the
+scope, then the source in it, as the opsix's two knobs: CTRL, KBD, EG/LFO, CC+, CC+/-, MIDI), INT, CTRL, DEST and
+TARGET (the scope, then the destination: PROG, OP1–6, EG1–3, LFO1–3, FILTER, FX1–3, ARP, SEQ). A destination OPX does
+not play yet (the filter, the effects and some others) is shown dimmed and kept in the patch. INT moves 0.05 a click
+up to 1, 0.25 up to 10, then 1; INT 100.00 at a full source is the destination's whole range (PITCH: 100 semitones),
+a guess until compared with an opsix.
 
 A CTRL row picks what scales its INT: OFF (the INT as set), MOD WHEEL, PITCH WHEEL (±), PITCH WHL+ / WHL−, PEDAL,
-NOTE, VEL, EXP VEL, REL VEL, AFTER TOUCH, EG1, LFO1 (EG2, EG3, LFO2, LFO3: listed, no effect yet). P MOD INT moves
+NOTE, VEL, EXP VEL, REL VEL, AFTER TOUCH, EG1–3, LFO1–3. P MOD INT moves
 0.05 semitone a click up to 1, 0.50 up to 12, 1 up to 48, then 12.
 
 **HOME > OP MIX** (the first page HOME opens on an OPX track, before MIXER and CLOCK) puts all six levels on knobs at

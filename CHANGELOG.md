@@ -5,6 +5,12 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPX M5a: EG2, EG3, LFO2, LFO3 and the virtual patch.** The pages EG1 and LFO1 are now **EG1-3** and **LFO1-3**
+  (KNOB 1 picks which); OPERATORS has EG1-3 and LFO1-3 sections and a **V.PATCH** section (12 virtual patches: SRC,
+  INT, CTRL, DEST as the opsix's scope-then-item knobs). Every CTRL source now works (EG2, EG3, LFO2, LFO3 gave 0).
+  V.PATCH plays its destinations in the pitch, level, envelope, feedback and LFO groups; the filter's, the effects' and
+  some others are kept and do nothing yet. INT's scale is a guess. The web editor's OPX tab has all three EGs and LFOs
+  and the 12 virtual patches. SHORT DELAY now stops at 16.6 ms (was 17.4: the new EGs and LFOs took the memory).
 - **OPX's processor load:** a voice no longer runs EG1 or the pitch / level modulation arithmetic when no route uses
   them (every INT at 0, as in INIT), which M4 had added to every voice whether used or not.
 - **OPERATORS: one list per section.** KNOB 2 (PAGE) shows one section at a time (MODE, PITCH, EG, KTRK, USER,

@@ -14,11 +14,13 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M1.5 | Operator editing on the device (algorithm charts, USER matrix, OPERATORS list, scope); each track's patch kept in the stored format; saved with projects and the autosave | done |
 | | **First release, `0.0.1`: M0, M1 and M1.5** | |
 | M2a | The 23 waveforms and WIDTH; the renderer an operator at a time | done (device cost: see [Cost](#cost)) |
-| M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | done (device cost: see [Cost](#cost); SHORT DELAY limited to 17 ms, see below; sound not yet compared with an opsix) |
+| M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | done (device cost: see [Cost](#cost); SHORT DELAY limited to 16.6 ms, see below; sound not yet compared with an opsix) |
 | | **Second release, `0.1.0`: M2a and M2b; the VOICE pages in OPERATORS; SELECT turns pages with BPM LOCK ON** | |
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | done: user presets (16), the backup, the storage repacked ([OPX_STORAGE.md](OPX_STORAGE.md)), the web editor's OPX tab |
 | M4 | EG1 (pitch), LFO1 and their default routes: each operator's P MOD (EG1, LFO1, VEL), LMOD LFO1, PROG PITCH (LFO1, TRANS, OCT); the CTRL sources | done (pages EG1 and LFO1, the rows in OPERATORS, the web editor; not yet compared with an opsix) |
-| M5 | EG2 (filter), EG3, LFO2–3, main filter, effects 1–3, virtual patch, as far as the processor time allows | |
+| M5a | EG2, EG3, LFO2, LFO3; the virtual patch (V.PATCH 1–12) to the destinations OPX has; every CTRL source live | done (pages EG1-3, LFO1-3, OPERATORS' V.PATCH section, the web editor; INT's scale a guess, see [Assumptions](#assumptions-to-check-by-ear)) |
+| M5b | Main filter (EG2, LFO2, key tracking), as far as the processor time allows | to decide: per voice or per part |
+| M5c | Effects 1–3 | to decide: the FM-1's memory has room for few of the 30 types |
 
 Confirmed on a device so far: it installs and runs, and six OPX voices at once do not overload the processor. Not
 yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-by-ear)).
@@ -61,7 +63,7 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
     (cubic soft clip, ×1–10), DEC (sample-and-hold at FREQ × the pitch, whole bits), WAVESHAPER (60 sine shapers of
     rising strength: the 01/W's tables are not published), PUNCH (a fast against a slow envelope lifts the attack).
     Memory: each voice has one delay line of 768 samples (784 before M4) after its part's six notes (`OPX_DLY`), so SHORT DELAY's
-    TIME stops at 17 ms (the manual's 300 ms do not fit the FM-1's RAM), COMB reaches down to 58 Hz, and only one
+    TIME stops at 16.6 ms (the manual's 300 ms do not fit the FM-1's RAM), COMB reaches down to 58 Hz, and only one
     operator per voice gets the line (the first to run in SHORT DELAY or COMB; another plays dry).
 - **KTRK (M2b)**: the level rises (+) or falls (−) with the distance from CENTER, LOW below it and HIGH above;
   LIN is 1 dB a semitone at 100 %, EXP the square of the distance over 48 semitones; −96 to +24 dB, and never past
@@ -89,8 +91,31 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
 - **PROG PITCH TRANS** and **OCT** move the note (not the FIXED operators).
 - **CTRL** (each INT's): the source's value multiplies the INT (p.51). OFF keeps the INT as it is. MOD WHEEL,
   AFTER TOUCH and the PITCH WHEEL are the part's MIDI ones, PEDAL its channel's damper; NOTE, VEL, EXP VEL the note's;
-  EG1 and LFO1 their values now; EG2, EG3, LFO2, LFO3 give 0 until M5 adds them.
+  EG1..3 and LFO1..3 their values now (M5).
 - Not yet: KSYNC OFF should also reset the LFO when a program is chosen or the sequencer starts (p.57).
+- Each EG and LFO runs only while something takes it (an INT that is on, a CTRL or a V.PATCH source), and the per-operator
+  modulation arithmetic only for an operator with a route on: a patch without modulation costs what it did before M4.
+
+## How M5a works
+
+- **EG2, EG3, LFO2, LFO3** are EG1's and LFO1's kind (the same rows; a note's or the part's as KSYNC says). Until M5b's
+  filter they reach the sound through a CTRL (EG2 as the CTRL of an EG1 INT, say) or a virtual patch.
+- **V.PATCH 1–12** (p.71): SRC × CTRL × INT moves DEST, per voice, a block at a time. The sources (p.88): the CTRL list's
+  wheels, pedal, NOTE, VEL, EXP VEL, REL VEL (64); EG1..3 (0 to +1) and LFO1..3; CC+ (0 to +1 over 0..127) and CC+/−
+  (−1 to +1 about 64) of CC 1..119 as last received on the part's channel (none yet: 0); AFTER TOUCH the part's; POLY
+  AFTER 0 (Felucca keeps no poly aftertouch). The sources are read as the last block left them (one block, 0.7 ms, late),
+  so the EGs' and LFOs' own values can move their own times.
+- **Destinations played:** PROG PITCH, OCT, TRANS, LEVEL, ATK, DECAY, REL, SUS; each operator's PITCH, COARSE, OCT,
+  TRANS, LEVEL, ATK, DECAY, REL, SUS, FM FB; EG1..3's ATK, DECAY, REL, SUS; LFO1..3's SPEED (a KSYNC VOICE LFO's only:
+  the part's LFO is one for all the notes), PHASE (not the random waves) and FADE. The rest of the list (the modes'
+  values, the filter, the effects, ARP, SEQ, PROG PAN TEMPO ALGO ALGO FB GLIDE UNISON, the LFOs' WAVE) is kept in the
+  patch, shown dimmed on the device and marked * in the web editor, and does nothing yet.
+- **INT's scale** is a guess (the manual: "depends on destination"): INT 100.00 with the source at full moves the
+  destination over its whole range: PITCH 100 semitones (so INT reads in semitones, as P MOD's), OCT 4 octaves, TRANS
+  24 semitones, COARSE 38 steps, LEVEL SUS FB 100, a stage's time the 1023 codes of 0 ms – 90 s, SPEED 0.01 – 100 Hz,
+  PHASE 360°, FADE 9.9 s, PROG LEVEL ×0 – ×2. To be read off an opsix (INT's display for a few destinations).
+- **Memory:** the three EGs and LFOs took 72 bytes a note, so a voice's delay line (SHORT DELAY, COMB) is 736 samples
+  (16.6 ms; was 768).
 
 ## The device pages (M1.5): where the code is
 

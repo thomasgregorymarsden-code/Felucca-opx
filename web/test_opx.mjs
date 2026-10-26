@@ -41,5 +41,12 @@ ok(tp.length === 16 && tp.every((x) => OPX.ok(x.pk) && x.name.length <= 12 && OP
 ok(OPX.timeText(TST.timeCode(50)) === "50 MS" && OPX.timeText(TST.timeCode(2000)) === "2.00 S" &&
    Math.abs(parseFloat(OPX.speedText(TST.hzCode(5))) / 5 - 1) < 0.01 && OPX.get(tp[0].pk, "op2.level") === 25 && OPX.get(tp[15].pk, "op1.mode") === 5,
    "opx: the test patches' times, LFO speeds (the nearest code, +-1 %) and values as the sheet's");
+{                                                  // M5: V.PATCH's lists: every index once, in order, as the firmware's
+  const run = (g) => g.flatMap(([, names, at]) => names.map((_, k) => at + k));
+  const src = run(OPX.VP_SRC), dst = run(OPX.VP_DST);
+  ok(src.length === 256 && src.every((v, i) => v === i) && dst.length === 293 && dst.every((v, i) => v === i) &&
+     OPX.range("vp1.dst")[1] >= 292 && OPX.vpPlayed(17 + 4) && !OPX.vpPlayed(275) && !OPX.vpPlayed(5),
+     "opx: V.PATCH sources 0..255, destinations 0..292 in order; OP1 LEVEL played, FILTER and PAN not yet");
+}
 console.log(fails ? `OPX WEB TESTS FAILED (${fails})` : "opx web tests passed");
 process.exit(fails ? 1 : 0);

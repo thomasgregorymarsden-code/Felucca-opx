@@ -315,6 +315,18 @@ static void midi_control(uint32_t ch, uint32_t cc, uint32_t value)
 {
     midi_channel_t *c = midi_channel(ch);
     uint32_t i, mask;
+#if FELUCCA_OPX
+    if (cc <= 119u || cc == 121u) {                /* (OPX fork, M5: V.PATCH's CC+ and CC+/- sources, eng_opx.c) */
+        mask = midi_targets(ch);
+        for (i = 0; i < NTRK; i++)
+            if (mask & (1u << i)) {
+                if (cc == 121u)
+                    memset(opx_cc[i], 0, sizeof opx_cc[i]);
+                else if (cc)
+                    opx_cc[i][cc] = (uint8_t)(value + 1u);
+            }
+    }
+#endif
     switch (cc) {
     case 1:
         c->wheel = (uint8_t)value;

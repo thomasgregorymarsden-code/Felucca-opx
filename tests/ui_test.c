@@ -9078,7 +9078,7 @@ static void xo_set(uint32_t knob, int32_t to, int32_t span)   /* a knob to its l
 }
 static int test_opx_ops(void)
 {
-    static const char *const CYC_O[] = {"ALGO", "OPERATORS", "ENVELOPE", "OP LEVELS", "EG1", "LFO1", "ALGO"};
+    static const char *const CYC_O[] = {"ALGO", "OPERATORS", "ENVELOPE", "OP LEVELS", "EG1-3", "LFO1-3", "ALGO"};
     int bad = 0, ok;
     uint32_t tr, at = 0, opn, row, n = 0, f;
     uint8_t before[OPX_PK_BYTES], v[OPX_PK_BYTES];
@@ -9097,8 +9097,9 @@ static int test_opx_ops(void)
     xo_set(EN_K3, 0, 30);
     ok = xop_row() == 0u && xop_top == 0u && xop_kind(0) == XR_MODE && xop_n() == 4u;   /* (FM: MODE WAVE FB WIDTH) */
     {
-        static const uint8_t FIRST[XS_N] = {XR_MODE, XR_FREQ, XR_LVL, XR_KLOW, XR_TO0, XR_ALG, XR_E1A, XR_LW, XR_GL, XR_V0};
-        static const uint8_t N[XS_N] = {4, 11, 9, 5, 7, 2, 5, 6, 4, 9};
+        static const uint8_t FIRST[XS_N] = {XR_MODE, XR_FREQ, XR_LVL, XR_KLOW, XR_TO0, XR_ALG, XR_ESEL, XR_LSEL, XR_GL,
+                                            XR_VSEL, XR_V0};
+        static const uint8_t N[XS_N] = {4, 11, 9, 5, 7, 2, 6, 7, 4, 7, 9};
         uint32_t sc, k;
         for (sc = 1; sc < XS_N; sc++) {              /* (each section its own list, from its first row) */
             turn(EN_K2, 1);
@@ -9109,19 +9110,19 @@ static int test_opx_ops(void)
     }
     turn(EN_K2, 5);
     ok &= xop_sec == XS_VOICE;                       /* (the last: no wrap) */
-    turn(EN_K2, -1);
+    turn(EN_K2, -2);
     ok &= xop_sec == XS_PROG && xop_kind(xop_row()) == XR_GL;
     turn(EN_K3, 2);
     ok &= xop_kind(xop_row()) == XR_GT;
     turn(EN_K2, -1);
-    ok &= xop_sec == XS_LFO1 && xop_kind(xop_row()) == XR_LW;
+    ok &= xop_sec == XS_LFO1 && xop_kind(xop_row()) == XR_LSEL;
     turn(EN_K2, 1);
     ok &= xop_sec == XS_PROG && xop_kind(xop_row()) == XR_GT;   /* (each section keeps its row) */
     turn(EN_K3, 9);
     ok &= xop_kind(xop_row()) == XR_GO;              /* (KNOB 3 stays in the section) */
     turn(EN_K2, -20);
     ok &= xop_sec == XS_MODE && xop_row() == 0u;
-    bad += check("OPX ops: each section its own list (MODE PITCH EG KTRK USER ALGO EG1 LFO1 PROG VOICE); KNOB 2 (PAGE) a section a detent, each keeping its row; KNOB 3 within it", ok);
+    bad += check("OPX ops: each section its own list (MODE PITCH EG KTRK USER ALGO EG1-3 LFO1-3 PROG V.PATCH VOICE); KNOB 2 (PAGE) a section a detent, each keeping its row; KNOB 3 within it", ok);
 
     /* VOICE: the track's VOICE pages' parameters (TSEL->p), shown and turned as there; no operator */
     {
@@ -9299,9 +9300,10 @@ static int test_opx_ops(void)
 
     ok = 1;                                          /* every operator and row: KNOB 4 writes that field only */
     for (opn = 0; opn < 6u; opn++)
-        for (row = 0; row < 53u; row++) {           /* (FM's sections before VOICE: 53 rows, MODE 4 PITCH 11 EG 9 KTRK 5
-                                                     *  USER 7 ALGO 2 EG1 5 LFO1 6 PROG 4) */
-            static const uint8_t SN[XS_VOICE] = {4, 11, 9, 5, 7, 2, 5, 6, 4};
+        for (row = 0; row < 55u; row++) {           /* (FM's sections before V.PATCH: 55 rows, MODE 4 PITCH 11 EG 9 KTRK
+                                                     *  5 USER 7 ALGO 2 EG1-3 6 LFO1-3 7 PROG 4; the EG's, LFO's first:
+                                                     *  which one, no field) */
+            static const uint8_t SN[XS_VP] = {4, 11, 9, 5, 7, 2, 6, 7, 4};
             uint32_t sc = 0, rs = row;
             int32_t x, hi, lo;
             go_title("OPERATORS"); frame();
@@ -9309,7 +9311,7 @@ static int test_opx_ops(void)
             for (; rs >= SN[sc]; rs -= SN[sc], sc++)
                 ;
             xop_sec = (uint8_t)sc;                   /* (that row's section, row rs in it) */
-            if ((opn && sc >= XS_ALGO) || xop_kind(rs) == XR_OUT)
+            if ((opn && sc >= XS_ALGO) || xop_kind(rs) == XR_OUT || xop_kind(rs) == XR_ESEL || xop_kind(rs) == XR_LSEL)
                 continue;                            /* (ALGO's rows on: the patch's, once; OUT: a level, below) */
             xo_set(EN_K3, (int32_t)rs, 80);
             opx_edit(tr, OPXF_OP(opn, OPXF_OP1_FREQ_FIXED), 0);   /* (RATIO / FINE: the ratio fields) */
@@ -9588,27 +9590,79 @@ static int test_opx_ops(void)
         uint32_t ic, op0;
         opx_load_factory(tr, 0);
         TSEL->p[P_E7] = 0;
-        go_title("EG1"); frame();
+        go_title("EG1-3"); frame();
         op0 = fop_op;
-        turn(EN_K1, 2);
-        ok = fop_op == op0 && xop_n() == 5u && xop_kind(0) == XR_E1A && xop_kind(4) == XR_E1C;
-        ok &= !xop_card(0, &lb, val, &u, &r, &ic);     /* (OP: DIM) */
+        xop_egs = 0;
+        turn(EN_K1, 2);                              /* (M5: KNOB 1 the EG: EG3) */
+        ok = fop_op == op0 && xop_egs == 2u && xop_n() == 5u && xop_kind(0) == XR_E1A && xop_kind(4) == XR_E1C;
+        ok &= xop_card(0, &lb, val, &u, &r, &ic) && str_eq(lb, "EG") && str_eq(val, "3") && str_eq(u, "/3");
         xop_card(1, &lb, val, &u, &r, &ic);
-        ok &= str_eq(val, "EG1");
+        ok &= str_eq(val, "EG1-3");
         xo_set(EN_K3, 2, 10);
         frames(1600);
         xo_set(EN_K4, 0, 200);
         turn(EN_K4, 40);
-        ok &= opx_get(opx_pk[tr], OPXF_EG1_SUS) == 40;
+        ok &= opx_get(opx_pk[tr], OPXF_EG3_SUS) == 40 && opx_get(opx_pk[tr], OPXF_EG1_SUS) != 40;
+        turn(EN_K1, -2);                             /* (back to EG1) */
+        xo_set(EN_K4, 0, 200);
+        turn(EN_K4, 40);
+        ok &= opx_get(opx_pk[tr], OPXF_EG1_SUS) == 40 && xop_egs == 0u;
         xo_set(EN_K3, 0, 10);
         frames(1600);
         xo_set(EN_K4, 0, 200);
         turn(EN_K4, 13);
         xop_rowtext(0, &lb, val, &u, &r);
         ok &= str_eq(lb, "ATK") && str_eq(u, "MS") && str_eq(val, "25");   /* (the ladder: 0, 1..9, 10 15 20 25) */
-        bad += check("OPX M4: EG1 page: ATK DEC SUS REL CURVE of EG1 (the times' ladder), KNOB 1 no operator", ok);
+        bad += check("OPX M4, M5: EG1-3 page: KNOB 1 the EG (1..3), ATK DEC SUS REL CURVE of it (the times' ladder)", ok);
+        /* M5: V.PATCH in OPERATORS: slot 3, SRC CTRL > PITCH, INT, DEST OP1 > LEVEL; FILTER's destinations DIM */
+        go_title("OPERATORS"); frame();
+        xop_vps = 0;
+        xop_find(XR_VSEL);
+        xo_set(EN_K3, 0, 10);
+        frames(1600);
+        turn(EN_K4, 2);                              /* (slot 3) */
+        ok = xop_vps == 2u && xop_rowtext(0, &lb, val, &u, &r) && str_eq(lb, "V.PATCH") && str_eq(val, "3");
+        xo_set(EN_K3, 1, 10);                        /* SRC: OFF -> CTRL (MOD WHL) */
+        frames(1600);
+        turn(EN_K4, 1);
+        xo_set(EN_K3, 2, 10);                        /* SOURCE: MOD WHL -> PITCH */
+        frames(1600);
+        turn(EN_K4, 1);
+        ok &= opx_get(opx_pk[tr], OPXF_VP3_SRC) == 2 && opx_get(opx_pk[tr], OPXF_VP1_SRC) == 0;
+        xop_rowtext(1, &lb, val, &u, &r);
+        ok &= str_eq(lb, "SRC") && str_eq(val, "CTRL");
+        xop_rowtext(2, &lb, val, &u, &r);
+        ok &= str_eq(lb, "SOURCE") && str_eq(val, "PITCH");
+        xo_set(EN_K3, 5, 10);                        /* DEST: OFF -> PROG -> OP1 */
+        frames(1600);
+        turn(EN_K4, 2);
+        xo_set(EN_K3, 6, 10);                        /* TARGET: PITCH -> LEVEL */
+        frames(1600);
+        turn(EN_K4, 4);
+        ok &= opx_get(opx_pk[tr], OPXF_VP3_DST) == OPX_VD_OP + OPX_DO_LEVEL;
+        xop_rowtext(5, &lb, val, &u, &r);
+        ok &= str_eq(val, "OP1");
+        ok &= xop_rowtext(6, &lb, val, &u, &r) && str_eq(lb, "TARGET") && str_eq(val, "LEVEL");
+        xo_set(EN_K3, 3, 10);                        /* INT: 0.05 a detent near 0 */
+        frames(1600);
+        turn(EN_K4, 3);
+        ok &= opx_get(opx_pk[tr], OPXF_VP3_INT) == 15 && xop_rowtext(3, &lb, val, &u, &r) && str_eq(val, "+0.15");
+        opx_edit(tr, OPXF_VP3_DST, OPX_VD_FLT);      /* (FILTER CUTOFF: not played yet) */
+        ok &= !xop_rowtext(6, &lb, val, &u, &r) && str_eq(val, "CUTOFF") && !xop_rowtext(3, &lb, val, &u, &r);
+        bad += check("OPX M5: V.PATCH section: the slot; SRC and DEST as scope then item; INT 0.05 a detent; DIM where OPX does not play it yet", ok);
+        go_title("LFO1-3"); frame();                 /* M5: KNOB 1 LFO2: its six rows, no PROG PITCH */
+        xop_lfs = 0;
+        turn(EN_K1, 1);
+        ok = xop_lfs == 1u && xop_n() == 6u;
+        xo_set(EN_K3, 0, 10);
+        frames(1600);
+        turn(EN_K4, 3);
+        ok &= opx_get(opx_pk[tr], OPXF_LFO2_WAVE) == 3 && opx_get(opx_pk[tr], OPXF_LFO1_WAVE) != 3;
+        turn(EN_K1, -1);
+        ok &= xop_n() == 10u;
+        bad += check("OPX M5: LFO1-3 page: KNOB 1 the LFO; LFO2's six rows edit LFO2; LFO1 adds PROG PITCH's", ok);
 
-        go_title("LFO1"); frame();
+        go_title("LFO1-3"); frame();
         ok = xop_n() == 10u && xop_kind(0) == XR_LW && xop_kind(6) == XR_GL && xop_kind(9) == XR_GO;
         opx_edit(tr, OPXF_LFO1_WAVE, 0), opx_edit(tr, OPXF_LFO1_SPEED, 600), opx_edit(tr, OPXF_LFO1_TEMPO, 0);
         opx_edit(tr, OPXF_LFO1_KSYNC, 0), opx_edit(tr, OPXF_LFO1_FADE, 500), opx_edit(tr, OPXF_LFO1_PHASE, -181);

@@ -218,7 +218,7 @@ static int fop_card(uint32_t slot, const char **label, char *val, const char **u
  * "..." at the bottom (top) while more are below (above); the picked row moves down to the last whole row, then the
  * list moves up under it. A detent of KNOB 4 writes one field (opx_edit: the patch becomes the track's own, SLOT OWN),
  * one undo per knob gesture (SAVE held). The user algorithm's matrix is ALGO's too (ui_fm6op.c xmat_*) */
-enum { XS_MODE, XS_PITCH, XS_EG, XS_KTRK, XS_USER, XS_ALGO, XS_EG1, XS_LFO1, XS_PROG, XS_VOICE, XS_N };
+enum { XS_MODE, XS_PITCH, XS_EG, XS_KTRK, XS_USER, XS_ALGO, XS_EG1, XS_LFO1, XS_PROG, XS_VP, XS_VOICE, XS_N };
 enum { XR_MODE, XR_WAVE, XR_FB, XR_WIDTH, XR_RDEPTH, XR_RSHAPE, XR_FTYPE, XR_FMIX, XR_CUT, XR_RESO, XR_FGAIN, XR_GMIX,
        XR_BIAS, XR_FX, XR_XMIX, XR_FXE, XR_FXF,                                            /* MODE */
        XR_FREQ, XR_RATIO, XR_FINE, XR_DTUN, XR_TRANS,                                      /* PITCH */
@@ -230,8 +230,13 @@ enum { XR_MODE, XR_WAVE, XR_FB, XR_WIDTH, XR_RDEPTH, XR_RSHAPE, XR_FTYPE, XR_FMI
        XR_E1A, XR_E1D, XR_E1S, XR_E1R, XR_E1C,                                             /* EG1 (M4) */
        XR_LW, XR_LT, XR_LS, XR_LK, XR_LP, XR_LF,                                           /* LFO1 (M4) */
        XR_GL, XR_GLC, XR_GT, XR_GO,                                                        /* PROG PITCH (M4) */
-       XR_V0, XR_V8 = XR_V0 + 8, XR_N };                                                   /* VOICE */
-static const char *const XS_NAME[XS_N] = {"MODE", "PITCH", "EG", "KTRK", "USER", "ALGO", "EG1", "LFO1", "PROG", "VOICE"};
+       XR_V0, XR_V8 = XR_V0 + 8,                                                          /* VOICE */
+       XR_ESEL, XR_LSEL,                                                                   /* M5: which EG, LFO */
+       XR_VSEL, XR_VSS, XR_VSI, XR_VINT, XR_VCTL, XR_VDS, XR_VDI,                          /* M5: V.PATCH */
+       XR_N };
+static const char *const XS_NAME[XS_N] = {"MODE", "PITCH", "EG", "KTRK", "USER", "ALGO", "EG1-3", "LFO1-3", "PROG",
+                                          "V.PATCH", "VOICE"};
+static uint8_t xop_egs, xop_lfs, xop_vps;   /* M5: the EG (0..2), LFO (0..2), V.PATCH (0..11) the rows show */
 /* M4: the patch's own rows (EG1, LFO1, PROG PITCH): their fields (XR_LS: SPEED, or SYNC with TEMPO on) */
 static const uint16_t XP_F[XR_V0 - XR_E1A] = {OPXF_EG1_ATK, OPXF_EG1_DEC, OPXF_EG1_SUS, OPXF_EG1_REL, OPXF_EG1_CURVE,
     OPXF_LFO1_WAVE, OPXF_LFO1_TEMPO, OPXF_LFO1_SPEED, OPXF_LFO1_KSYNC, OPXF_LFO1_PHASE, OPXF_LFO1_FADE, OPXF_PROG_LFO1,
@@ -276,6 +281,8 @@ static int32_t xop_wave(uint32_t tr) { return xop_get(tr, OPXF_OP1_WAVE); }
 static int xop_fixed(uint32_t tr) { return xop_get(tr, OPXF_OP1_FREQ_FIXED) != 0; }
 static uint32_t xop_sec_k(uint32_t k)               /* a kind's section */
 {
+    if (k >= XR_ESEL)                                /* (M5's rows, after VOICE's in the enum) */
+        return k == XR_ESEL ? XS_EG1 : k == XR_LSEL ? XS_LFO1 : XS_VP;
     return k < XR_FREQ ? XS_MODE : k < XR_LVL ? XS_PITCH : k < XR_KLOW ? XS_EG : k < XR_TO0 ? XS_KTRK :
            k <= XR_OUT ? XS_USER : k < XR_E1A ? XS_ALGO : k < XR_LW ? XS_EG1 : k < XR_GL ? XS_LFO1 : k < XR_V0 ? XS_PROG :
            XS_VOICE;
@@ -292,8 +299,10 @@ static uint32_t xop_list(uint8_t *rw)
         rw[0] = XR_ATK, rw[1] = XR_DEC, rw[2] = XR_SUS, rw[3] = XR_REL, rw[4] = XR_CRV;
         return 5;
     }
-    if (xop_view() == XV_EG1 || xop_view() == XV_LFO) {   /* (EG1: its five; LFO1: its six, then PROG PITCH's) */
-        uint32_t a = xop_view() == XV_EG1 ? XR_E1A : XR_LW, b = xop_view() == XV_EG1 ? XR_LW : XR_V0;
+    if (xop_view() == XV_EG1 || xop_view() == XV_LFO) {   /* (an EG: its five; an LFO: its six, then LFO1's PROG
+                                                         * PITCH's) */
+        uint32_t a = xop_view() == XV_EG1 ? XR_E1A : XR_LW;
+        uint32_t b = xop_view() == XV_EG1 ? XR_LW : xop_lfs ? XR_GL : XR_V0;
         for (k = a; k < b; k++)
             rw[n++] = (uint8_t)k;
         return n;
@@ -309,6 +318,12 @@ static uint32_t xop_list(uint8_t *rw)
             rw[n++] = XR_WAVE;
         for (k = 0; k < 5u && MODE_ROWS[md][k]; k++)
             rw[n++] = MODE_ROWS[md][k];
+        return n;
+    }
+    if (xop_sec % XS_N == XS_EG1 || xop_sec % XS_N == XS_LFO1) {   /* (M5: which one, then its rows) */
+        rw[n++] = xop_sec % XS_N == XS_EG1 ? XR_ESEL : XR_LSEL;
+        for (k = xop_sec % XS_N == XS_EG1 ? XR_E1A : XR_LW; k < (xop_sec % XS_N == XS_EG1 ? XR_LW : XR_GL); k++)
+            rw[n++] = (uint8_t)k;
         return n;
     }
     for (k = XR_FREQ; k < XR_N; k++)
@@ -358,10 +373,19 @@ static uint32_t xop_rowf(uint32_t i, uint32_t tr, uint32_t *field)
         *field = opxf_ua(op, k - XR_TO0);
     else if (k == XR_OUT)
         *field = OPXF_UA_OUT(op);
-    else if (xop_voice(k))
-        *field = 0;                                  /* (VOICE: the track's parameter XV_ID, not the patch's) */
-    else if (k >= XR_E1A)                            /* (M4: EG1, LFO1, PROG PITCH; SPEED: SYNC with TEMPO on) */
-        *field = k == XR_LS && opx_get(opx_pk[tr], OPXF_LFO1_TEMPO) ? OPXF_LFO1_SYNC : XP_F[k - XR_E1A];
+    else if (xop_voice(k) || k == XR_ESEL || k == XR_LSEL || k == XR_VSEL)
+        *field = 0;                                  /* (VOICE: the track's parameter XV_ID, not the patch's; M5: which
+                                                      * EG, LFO, V.PATCH the rows show) */
+    else if (k > XR_VSEL) {                          /* M5: V.PATCH n's SRC, INT, CTRL, DEST */
+        uint32_t b = OPXF_VP1_SRC + (uint32_t)(xop_vps % 12u) * (OPXF_VP2_SRC - OPXF_VP1_SRC);
+        *field = k <= XR_VSI ? b : k == XR_VINT ? b + 1u : k == XR_VCTL ? b + 2u : b + 3u;
+    } else if (k >= XR_E1A && k < XR_LW)             /* M4, M5: EG1..3 */
+        *field = XP_F[k - XR_E1A] + (uint32_t)(xop_egs % 3u) * (OPXF_EG2_ATK - OPXF_EG1_ATK);
+    else if (k >= XR_LW && k < XR_GL) {              /* M4, M5: LFO1..3 (SPEED: SYNC with TEMPO on) */
+        uint32_t o = (uint32_t)(xop_lfs % 3u) * (OPXF_LFO2_WAVE - OPXF_LFO1_WAVE);
+        *field = (k == XR_LS && opx_get(opx_pk[tr], OPXF_LFO1_TEMPO + o) ? OPXF_LFO1_SYNC : XP_F[k - XR_E1A]) + o;
+    } else if (k >= XR_E1A)                          /* M4: PROG PITCH */
+        *field = XP_F[k - XR_E1A];
     else
         *field = k == XR_ALG ? OPXF_ALGO : OPXF_PROG_ALG_FB;
     return k;
@@ -460,7 +484,66 @@ static int xop_enum(uint32_t k)
 {
     return k == XR_MODE || k == XR_FTYPE || k == XR_FX || k == XR_KLC || k == XR_KHC || k == XR_FREQ || k == XR_PMEC ||
            k == XR_PMLC || k == XR_PMD || k == XR_LMLC || k == XR_GLC || k == XR_LW || k == XR_LT || k == XR_LK ||
-           k == XR_GO || (k == XR_LS && opx_get(opx_pk[song.sel % NTRK], OPXF_LFO1_TEMPO));
+           k == XR_GO || k == XR_VCTL ||
+           (k == XR_LS && opx_get(opx_pk[song.sel % NTRK], OPXF_LFO1_TEMPO + (uint32_t)(xop_lfs % 3u) *
+                                  (OPXF_LFO2_WAVE - OPXF_LFO1_WAVE)));
+}
+/* M5: V.PATCH's SRC and DEST: a scope, then the source or destination within it (the opsix's two knobs each); the
+ * patch keeps one index (eng_opx.c OPX_VS_*, OPX_VD_*). Each scope's first index, then the end */
+static const uint16_t XVS_AT[8] = {0, 1, 6, OPX_VS_EG1, OPX_VS_CCU, OPX_VS_CCB, OPX_VS_AT, OPX_NVS};
+static const char *const XVS_NM[7] = {"OFF", "CTRL", "KBD", "EG/LFO", "CC+", "CC+/-", "MIDI"};
+static const uint16_t XVD_AT[21] = {0, OPX_VD_PROG, OPX_VD_OP, OPX_VD_OP + 39, OPX_VD_OP + 78, OPX_VD_OP + 117,
+    OPX_VD_OP + 156, OPX_VD_OP + 195, OPX_VD_EG, OPX_VD_EG + 4, OPX_VD_EG + 8, OPX_VD_LFO, OPX_VD_LFO + 4, OPX_VD_LFO + 8,
+    OPX_VD_FLT, OPX_VD_FX, OPX_VD_FX + 4, OPX_VD_FX + 8, OPX_VD_ARP, OPX_VD_SEQ, OPX_NVD};
+static const char *const XVD_NM[20] = {"OFF", "PROG", "OP1", "OP2", "OP3", "OP4", "OP5", "OP6", "EG1", "EG2", "EG3",
+    "LFO1", "LFO2", "LFO3", "FILTER", "FX1", "FX2", "FX3", "ARP", "SEQ"};
+static uint32_t xvp_scope(const uint16_t *at, uint32_t n, int32_t v)
+{
+    uint32_t i = 0;
+    while (i + 1u < n && v >= at[i + 1u])
+        i++;
+    return i;
+}
+/* a source's name (CC: "CC 74"), a destination's (within its scope; the list p.89-90, shortened) */
+static void xvp_src_name(int32_t v, char *val)
+{
+    static const char *const NM[OPX_VS_CCU] = {"---", "MOD WHL", "PITCH", "PITCH+", "PITCH-", "PEDAL", "NOTE", "VEL",
+        "EXP VEL", "REL VEL", "EG1", "EG2", "EG3", "LFO1", "LFO2", "LFO3"};
+    if (v < OPX_VS_CCU)
+        str_cpy(val, NM[clamp(v, 0, OPX_VS_CCU - 1)], 12);
+    else if (v < OPX_VS_AT) {
+        str_cpy(val, "CC ", 12);
+        fmt_int(val + 3, (v - OPX_VS_CCU) % 119 + 1);
+    } else
+        str_cpy(val, v == OPX_VS_AT ? "A.TOUCH" : "POLY AT", 12);
+}
+static void xvp_dst_name(int32_t v, char *val)
+{
+    static const char *const PR[16] = {"PITCH", "OCT", "TRANS", "LEVEL", "PAN", "ATK", "DECAY", "REL", "SUS", "TEMPO",
+        "ALGO", "ALGO FB", "GLIDE", "UNI VCS", "UNI DTN", "UNI SPR"};
+    static const char *const OP[39] = {"PITCH", "COARSE", "OCT", "TRANS", "LEVEL", "ATK", "DECAY", "REL", "SUS", "FM FB",
+        "WIDTH", "R.DEPTH", "R.SHAPE", "F.GAIN", "F.BIAS", "F.MIX", "CUTOFF", "RESO", "FLT MIX", "FX MIX", "PEQ FRQ",
+        "PEQ GN", "SEQ LOW", "SEQ HI", "PHS FRQ", "PHS FB", "SDL TIM", "SDL FB", "CMB FRQ", "COMB FB", "DST AMT",
+        "DST LOW", "DRV AMT", "DRV LOW", "DEC FRQ", "DEC BIT", "WS DAMP", "PCH AMT", "PCH HI"};
+    static const char *const EG[4] = {"ATK", "DECAY", "REL", "SUS"}, *const LF[4] = {"WAVE", "SPEED", "PHASE", "FADE"};
+    static const char *const MS[6] = {"CUTOFF", "RESO", "RESO", "GATE", "OCT", "SWING"};
+    if (v <= 0)
+        str_cpy(val, "---", 12);
+    else if (v < OPX_VD_OP)
+        str_cpy(val, PR[v - OPX_VD_PROG], 12);
+    else if (v < OPX_VD_EG)
+        str_cpy(val, OP[(v - OPX_VD_OP) % 39], 12);
+    else if (v < OPX_VD_LFO)
+        str_cpy(val, EG[(v - OPX_VD_EG) % 4], 12);
+    else if (v < OPX_VD_FLT)
+        str_cpy(val, LF[(v - OPX_VD_LFO) % 4], 12);
+    else if (v < OPX_VD_FX)
+        str_cpy(val, MS[v - OPX_VD_FLT], 12);
+    else if (v < OPX_VD_ARP) {
+        str_cpy(val, "PARAM ", 12);
+        fmt_int(val + 6, (v - OPX_VD_FX) % 4 + 1);
+    } else
+        str_cpy(val, MS[2 + clamp(v - OPX_VD_ARP, 0, 3)], 12);
 }
 /* M4: a value through a ladder of step sizes by its size, either side of 0 (lim[i]: below it, a detent is stp[i]); from
  * a value between two places, a detent goes to the next place. P MOD INT (x0.01 semitone): 0.05 to 1, 0.50 to 12, 1.00
@@ -488,6 +571,7 @@ static int32_t xop_ladder(int32_t v, int32_t steps, const int32_t *lim, const in
 }
 static const int32_t XPM_LIM[4] = {100, 1200, 4800, 14400}, XPM_STP[4] = {5, 50, 100, 1200};
 static const int32_t XFD_LIM[3] = {100, 1000, 9900}, XFD_STP[3] = {10, 50, 100};
+static const int32_t XVI_LIM[3] = {100, 1000, 10000}, XVI_STP[3] = {5, 25, 100};
 /* OP MIX (HOME): operator op's LEVEL turned by the knob of role `role` (PRESETS OP 1, ALGORITHM OP 2, KNOB 1..4 OP 3..6);
  * the operator becomes the picked one (its row lit); one undo per gesture, as the list's */
 static void xop_level_turn(uint32_t op, int32_t steps, uint32_t role)
@@ -510,8 +594,13 @@ static void xop_knob(uint32_t slot, int32_t steps)
         return;
     }
     if (slot == 0u) {
-        if (xop_noop())                              /* (EG1, LFO1: the patch's; no operator) */
+        if (xop_noop()) {                            /* (M5: the EG, LFO pages: which EG, LFO) */
+            uint8_t *sel = xop_view() == XV_EG1 ? &xop_egs : &xop_lfs;
+            *sel = (uint8_t)clamp((int32_t)*sel + steps, 0, 2);
+            xop_li = (uint8_t)xop_row();             /* (LFO2, LFO3: no PROG PITCH rows) */
+            xop_scroll();
             return;
+        }
         fop_op = (uint8_t)clamp((int32_t)fop_op + steps, 0, 5);
         xop_li = (uint8_t)xop_row();                 /* (another operator, another MODE section: the row kept in range) */
         xop_scroll();
@@ -537,6 +626,27 @@ static void xop_knob(uint32_t slot, int32_t steps)
     k = xop_rowf(xop_row(), tr, &f);
     if (k == XR_OUT) {
         xop_out_turn(tr, fop_op % 6u, steps);
+        return;
+    }
+    if (k == XR_ESEL || k == XR_LSEL || k == XR_VSEL) {   /* M5: which EG, LFO, V.PATCH */
+        uint8_t *sel = k == XR_ESEL ? &xop_egs : k == XR_LSEL ? &xop_lfs : &xop_vps;
+        *sel = (uint8_t)clamp((int32_t)*sel + steps, 0, k == XR_VSEL ? 11 : 2);
+        return;
+    }
+    if (k == XR_VSS || k == XR_VSI || k == XR_VDS || k == XR_VDI) {   /* M5: V.PATCH's SRC, DEST: scope, item */
+        const uint16_t *at = k <= XR_VSI ? XVS_AT : XVD_AT;
+        uint32_t na = k <= XR_VSI ? NELEM(XVS_AT) : NELEM(XVD_AT), sc;
+        int32_t was = opx_get(opx_pk[tr], f);
+        sc = xvp_scope(at, na, was);
+        if (k == XR_VSS || k == XR_VDS)              /* (another scope: its first) */
+            v = at[clamp((int32_t)sc + steps, 0, (int32_t)na - 2)];
+        else
+            v = clamp(was + accel(EN_K4, steps, at[sc + 1u] - at[sc]), at[sc], at[sc + 1u] - 1);
+        if (v != was) {
+            edit_undo_take(TSEL, 0x4000u | f, UNDO_SOUND);
+            opx_edit(tr, f, v);
+            motion_undo_done(TSEL);
+        }
         return;
     }
     if (xop_voice(k)) {                              /* VOICE: as the VOICE pages' knob (ui_input.c edit_param) */
@@ -566,13 +676,15 @@ static void xop_knob(uint32_t slot, int32_t steps)
             v = xop_ladder(v, accel(EN_K4, steps, 100), XPM_LIM, XPM_STP, 4u, hi);
         else if (k == XR_LF)
             v = xop_ladder(v, accel(EN_K4, steps, 100), XFD_LIM, XFD_STP, 3u, hi);
+        else if (k == XR_VINT)                       /* (M5: V.PATCH INT x0.01: 0.05 to 1, 0.25 to 10, 1.00 on) */
+            v = xop_ladder(v, accel(EN_K4, steps, 100), XVI_LIM, XVI_STP, 3u, hi);
         else if (k == XR_LS && !xop_enum(k))         /* (SPEED: 4 codes a detent, 0.01 .. 100 Hz in 256) */
             v += 4 * accel(EN_K4, steps, 256);
         else if (xop_enum(k))
             v += steps;
         else
             v += accel(EN_K4, steps, hi - lo);
-        if (f == OPXF_LFO1_SYNC)                     /* (the note values there are: OPX_SYNC) */
+        if (f == OPXF_LFO1_SYNC || f == OPXF_LFO2_SYNC || f == OPXF_LFO3_SYNC)   /* (the note values there are: OPX_SYNC) */
             hi = (int32_t)NELEM(OPX_SYNC) - 1;
         v = clamp(v, lo, hi);
     }
@@ -662,11 +774,21 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
         "TO OP", "TO OP", "TO OP", "TO OP", "TO OP", "TO OP", "OUT", "ALG", "ALG FB",
         "ATK", "DEC", "SUS", "REL", "CURVE", "WAVE", "TEMPO", "SPEED", "KSYNC", "PHASE", "FADE",
         "LFO1", "LFO CTRL", "TRANS", "OCT",
-        "VOICE", "GLIDE", "GLIDE MODE", "PRIORITY", "ALLOC", "DETUNE", "PAN", "MUTE", "SPREAD"};
+        "VOICE", "GLIDE", "GLIDE MODE", "PRIORITY", "ALLOC", "DETUNE", "PAN", "MUTE", "SPREAD",
+        "EG", "LFO", "V.PATCH", "SRC", "SOURCE", "INT", "CTRL", "DEST", "TARGET"};
     static const char NOTE[12][3] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
     uint32_t tr = song.sel % NTRK, f, k = xop_rowf(r, tr, &f);
     int32_t v, lo, hi;
     int on = 1;
+    if (k == XR_ESEL || k == XR_LSEL || k == XR_VSEL) {   /* M5: which EG, LFO, V.PATCH the rows below show */
+        uint32_t x = k == XR_ESEL ? xop_egs : k == XR_LSEL ? xop_lfs : xop_vps;
+        *label = LBL[k];
+        *unit = "";
+        str_cpy(val, k == XR_ESEL ? "EG" : k == XR_LSEL ? "LFO" : "", 12);
+        fmt_int(val + str_len(val), (int32_t)x + 1);
+        *ratio = (int32_t)x * 1000 / (k == XR_VSEL ? 11 : 2);
+        return 1;
+    }
     if (xop_voice(k)) {                              /* VOICE: the track's parameter, as its page shows it */
         uint32_t id = XV_ID[k - XR_V0];
         const param_desc_t *d = track_desc(TSEL, id);
@@ -774,8 +896,38 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
         str_cpy(val, v ? "ON" : "OFF", 12);
         *ratio = -1;
         break;
+    /* M5: V.PATCH */
+    case XR_VSS:
+    case XR_VDS: {
+        uint32_t sc = k == XR_VSS ? xvp_scope(XVS_AT, NELEM(XVS_AT), v) : xvp_scope(XVD_AT, NELEM(XVD_AT), v);
+        str_cpy(val, k == XR_VSS ? XVS_NM[sc] : XVD_NM[sc], 12);
+        *ratio = -1;
+        on = k == XR_VSS || !v || opx_vd_on((uint32_t)v);
+        break;
+    }
+    case XR_VSI:
+        xvp_src_name(v, val);
+        *ratio = -1;
+        on = v != 0;
+        break;
+    case XR_VDI:
+        xvp_dst_name(v, val);
+        *ratio = -1;
+        on = !v || opx_vd_on((uint32_t)v);          /* (not played yet: DIM) */
+        break;
+    case XR_VINT: {
+        int32_t d = opx_get(opx_pk[tr], f + 2u);    /* (DEST, two fields on) */
+        val[0] = v > 0 ? '+' : v < 0 ? '-' : 0;
+        fop_dec(val + (val[0] != 0), (uint32_t)(v < 0 ? -v : v) / 100u, (uint32_t)(v < 0 ? -v : v) % 100u, 2u);
+        on = !d || opx_vd_on((uint32_t)d);
+        break;
+    }
+    case XR_VCTL:
+        str_cpy(val, N_OPX_CTRL[clamp(v, 0, OPX_NCTRL - 1)], 12);
+        *ratio = -1;
+        break;
     case XR_LS:
-        if (f == OPXF_LFO1_SYNC) {                   /* a note value: "1/16", "3/8", "4/1" */
+        if (f == OPXF_LFO1_SYNC || f == OPXF_LFO2_SYNC || f == OPXF_LFO3_SYNC) {   /* a note value: "1/16", "3/8" */
             const uint8_t *nv = OPX_SYNC[clamp(v, 0, (int32_t)NELEM(OPX_SYNC) - 1)];
             fmt_int(val, nv[0]);
             str_cpy(val + str_len(val), "/", 2);
@@ -804,7 +956,7 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
             fmt_int(val, v), *unit = "MS";
         else
             fop_dec(val, (uint32_t)v / 1000u, (uint32_t)v % 1000u / 10u, 2u), *unit = "S";
-        on = opx_get(opx_pk[tr], OPXF_LFO1_KSYNC) != 0;
+        on = opx_get(opx_pk[tr], f - OPXF_LFO1_FADE + OPXF_LFO1_KSYNC) != 0;
         break;
     case XR_GT:
         xop_signed(val, v, 0);
@@ -925,7 +1077,8 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         ICON_ATTACK, ICON_DECAY, ICON_SUSTAIN, ICON_RELEASE, ICON_ENV, ICON_LFO_WAVE, ICON_TEMPO, ICON_RATE, ICON_PHASE,
         ICON_PHASE, ICON_FADE, ICON_VIBRATO, ICON_MOD, ICON_TRANSPOSE, ICON_OCTAVE,
         ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE,
-        ICON_NONE, ICON_NONE, ICON_NONE};                /* (VOICE: the parameter's own, param_icon) */
+        ICON_NONE, ICON_NONE, ICON_NONE,                 /* (VOICE: the parameter's own, param_icon) */
+        ICON_ENV, ICON_LFO_WAVE, ICON_MOD, ICON_MOD, ICON_MOD, ICON_ACCENT, ICON_MOD, ICON_MOD, ICON_MOD};   /* (M5) */
     uint32_t tr = song.sel % NTRK, f;
     *unit = "";
     *ratio = -1;
@@ -945,8 +1098,15 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         *unit = "/6";
         *ratio = (int32_t)fop_op * 200;
         *icon = ICON_ALGORITHM;
-        if (xop_noop())                              /* (EG1, LFO1: the patch's) */
-            return 0;
+        if (xop_noop()) {                            /* (M5: the EG, LFO pages: which one) */
+            uint32_t x = xop_view() == XV_EG1 ? xop_egs : xop_lfs;
+            *label = xop_view() == XV_EG1 ? "EG" : "LFO";
+            fmt_int(val, (int32_t)x + 1);
+            *unit = "/3";
+            *ratio = (int32_t)x * 500;
+            *icon = xop_view() == XV_EG1 ? ICON_ENV : ICON_LFO_WAVE;
+            return 1;
+        }
         return xop_view() != XV_ALL || xop_sec_of(xop_row()) < XS_ALGO;   /* (ALGO's rows on: the patch's, VOICE's the
                                                                            * track's: no operator) */
     }
@@ -957,7 +1117,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         *ratio = (int32_t)sc * 1000 / (XS_N - 1);
         *icon = ICON_ENV;
         if (xop_view() != XV_ALL) {                  /* (ENVELOPE, OP LEVELS: no sections; KNOB 2 does nothing) */
-            str_cpy(val, xop_view() == XV_ENV ? "EG" : xop_view() == XV_EG1 ? "EG1" : xop_view() == XV_LFO ? "LFO1" : "LEVEL", 12);
+            str_cpy(val, xop_view() == XV_ENV ? "EG" : xop_view() == XV_EG1 ? "EG1-3" : xop_view() == XV_LFO ? "LFO1-3" : "LEVEL", 12);
             *ratio = -1;
             return 0;
         }
@@ -1001,7 +1161,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         return on;
     }
 }
-_Static_assert(XR_N == 75, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
+_Static_assert(XR_N == 84, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
 #endif
 
 /* the dispatch: FM6's pages, or OPX's OPERATORS (OPX fork) */

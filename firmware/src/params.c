@@ -476,8 +476,8 @@ static const page_t PAGES[] = {
                                                                              /* the section (PAGE), 3 its row, 4 the value */
     {"ENVELOPE", FAM_EDIT, SC_TRACK, GR_OPXE, {0xFF, 0xFF, 0xFF, 0xFF}},    /* .. the operator's EG drawn, ATK DEC SUS REL */
     {"OP LEVELS", FAM_EDIT, SC_TRACK, GR_OPXV, {0xFF, 0xFF, 0xFF, 0xFF}},      /* .. the six operators' LEVEL */
-    {"EG1", FAM_EDIT, SC_TRACK, GR_OPXP, {0xFF, 0xFF, 0xFF, 0xFF}},          /* .. M4: EG1 (pitch) drawn, its rows */
-    {"LFO1", FAM_EDIT, SC_TRACK, GR_OPXF, {0xFF, 0xFF, 0xFF, 0xFF}},         /* .. M4: LFO1 drawn, its rows, PROG PITCH */
+    {"EG1-3", FAM_EDIT, SC_TRACK, GR_OPXP, {0xFF, 0xFF, 0xFF, 0xFF}},          /* .. M4: EG1 (pitch) drawn, its rows */
+    {"LFO1-3", FAM_EDIT, SC_TRACK, GR_OPXF, {0xFF, 0xFF, 0xFF, 0xFF}},         /* .. M4: LFO1 drawn, its rows, PROG PITCH */
 #endif
     {"OP1 ENV", FAM_EDIT, SC_TRACK, GR_ADSR, {P_FM1_ATK, P_FM1_DEC, P_FM1_SUS, P_FM1_REL}},
     {"OP2 ENV", FAM_EDIT, SC_TRACK, GR_ADSR, {P_FM2_ATK, P_FM2_DEC, P_FM2_SUS, P_FM2_REL}},

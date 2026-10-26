@@ -894,7 +894,7 @@ static void m4_patch(void)                       /* one sine carrier, ratio 1, s
     P.algo = 31;
     P.op[0] = OP_FLAT;
     P.op[0].level = 100;
-    P.eg1.sus = 100;
+    P.eg[0].sus = 100;
 }
 static void test_m4(void)
 {
@@ -909,7 +909,7 @@ static void test_m4(void)
 
     /* EG1: ATK 0, DEC to SUS 0, P MOD EG1 +12.00: an octave up at the start, the note's pitch after the decay */
     m4_patch();
-    P.eg1.dec = 600, P.eg1.sus = 0;                  /* (DEC about 0.8 s) */
+    P.eg[0].dec = 600, P.eg[0].sus = 0;                  /* (DEC about 0.8 s) */
     P.op[0].pm_eg1 = 1200;
     setup(&P, 0);
     engine_render(69, 127, y, FS * 2, 0, 0);
@@ -922,7 +922,7 @@ static void test_m4(void)
     engine_render(69, 127, y, FS / 4, 0, 0);
     check("  .. -12.00: an octave down", fabs(freq_at(y, 64, 882) / f0 - 0.5) < 0.01);
     m4_patch();
-    P.eg1.rel = 700;
+    P.eg[0].rel = 700;
     P.op[0].pm_eg1 = 1200;
     setup(&P, 0);
     engine_render(69, 127, y, FS, FS / 4, 0);
@@ -932,7 +932,7 @@ static void test_m4(void)
 
     /* LFO1: SIN, P MOD LFO1 +1.00: the pitch swings +-1 semitone; SPEED and TEMPO */
     m4_patch();
-    P.lfo1.wave = OPX_L_SIN, P.lfo1.speed = 600;     /* (0.01 x 10000^(600/1023): 2.2 Hz) */
+    P.lfo[0].wave = OPX_L_SIN, P.lfo[0].speed = 600;     /* (0.01 x 10000^(600/1023): 2.2 Hz) */
     P.op[0].pm_lfo1 = 100;
     setup(&P, 0);
     engine_render(69, 127, y, FS * 2, 0, 0);
@@ -946,37 +946,37 @@ static void test_m4(void)
     {
         opx_rt_t *r = &opx_rt[0];
         int ok = 1;
-        P.lfo1.speed = 0; opx_build(&trk[0], r); ok &= fabs(r->linc / 3116550.0 - 0.01) < 0.0001;
-        P.lfo1.speed = 1023; opx_build(&trk[0], r); ok &= fabs(r->linc / 3116550.0 / 100.0 - 1.0) < 0.01;
-        P.lfo1.speed = 512; opx_build(&trk[0], r); ok &= fabs(r->linc / 3116550.0 / (0.01 * pow(10000, 512.0 / 1023)) - 1.0) < 0.01;
+        P.lfo[0].speed = 0; opx_build(&trk[0], r); ok &= fabs(r->lf[0].inc / 3116550.0 - 0.01) < 0.0001;
+        P.lfo[0].speed = 1023; opx_build(&trk[0], r); ok &= fabs(r->lf[0].inc / 3116550.0 / 100.0 - 1.0) < 0.01;
+        P.lfo[0].speed = 512; opx_build(&trk[0], r); ok &= fabs(r->lf[0].inc / 3116550.0 / (0.01 * pow(10000, 512.0 / 1023)) - 1.0) < 0.01;
         check("M4 LFO1 SPEED: 0.01 Hz at 0, 100 Hz at 1023, 0.01 x 10000^(c/1023) between (+-1 %)", ok);
-        P.lfo1.tempo = 1, P.lfo1.sync = 11;          /* 1/4 */
+        P.lfo[0].tempo = 1, P.lfo[0].sync = 11;          /* 1/4 */
         song.g[G_BPM] = 120;
         opx_build(&trk[0], r);
-        ok = fabs(r->linc / 3116550.0 - 2.0) < 0.001;
-        P.lfo1.sync = 23;                            /* 4/1: 16 beats */
+        ok = fabs(r->lf[0].inc / 3116550.0 - 2.0) < 0.001;
+        P.lfo[0].sync = 23;                            /* 4/1: 16 beats */
         opx_build(&trk[0], r);
-        ok &= fabs(r->linc / 3116550.0 - 0.125) < 0.001;
+        ok &= fabs(r->lf[0].inc / 3116550.0 - 0.125) < 0.001;
         check("M4 LFO1 TEMPO: 1/4 at 120 BPM is 2 Hz, 4/1 1/8 Hz", ok);
         {   /* the opsix's 24 note values (read off one), in its knob's order: each length's triplet, dotted, straight */
             static const double LEN[24] = {1. / 48, 3. / 128, 1. / 32, 1. / 24, 3. / 64, 1. / 16, 1. / 12, 3. / 32, 1. / 8,
                 1. / 6, 3. / 16, 1. / 4, 1. / 3, 3. / 8, 1. / 2, 2. / 3, 3. / 4, 1, 4. / 3, 3. / 2, 2, 8. / 3, 3, 4};
             ok = NELEM(OPX_SYNC) == 24u;
             for (i = 0; i < 24u; i++) {
-                P.lfo1.sync = (uint8_t)i;
+                P.lfo[0].sync = (uint8_t)i;
                 opx_build(&trk[0], r);
-                ok &= fabs(r->linc / 3116550.0 / (2.0 / (4 * LEN[i])) - 1.0) < 0.001 && (i == 0 || LEN[i] > LEN[i - 1]);
+                ok &= fabs(r->lf[0].inc / 3116550.0 / (2.0 / (4 * LEN[i])) - 1.0) < 0.001 && (i == 0 || LEN[i] > LEN[i - 1]);
             }
-            P.lfo1.sync = 200;                       /* (out of range: 1/4) */
+            P.lfo[0].sync = 200;                       /* (out of range: 1/4) */
             opx_build(&trk[0], r);
-            ok &= fabs(r->linc / 3116550.0 - 2.0) < 0.001;
+            ok &= fabs(r->lf[0].inc / 3116550.0 - 2.0) < 0.001;
             check("M4 LFO1 TEMPO: the opsix's 24 note values 1/48 .. 4/1 at 120 BPM (+-0.1 %), rising; out of range 1/4", ok);
         }
     }
 
     /* LMOD LFO1: SQR at 100 %: the level between full and silent; at -100 % the other way round; 50 %: half */
     m4_patch();
-    P.lfo1.wave = OPX_L_SQR, P.lfo1.speed = 512, P.lfo1.ksync = 2;
+    P.lfo[0].wave = OPX_L_SQR, P.lfo[0].speed = 512, P.lfo[0].ksync = 2;
     P.op[0].lm_lfo1 = 100;
     setup(&P, 0);
     engine_render(69, 127, y, FS, 0, 0);
@@ -995,7 +995,7 @@ static void test_m4(void)
 
     /* FADE: KSYNC VOICE, FADE 1 s: little swing at first, the whole after */
     m4_patch();
-    P.lfo1.wave = OPX_L_SQR, P.lfo1.speed = 700, P.lfo1.ksync = 2, P.lfo1.fade = 1000;
+    P.lfo[0].wave = OPX_L_SQR, P.lfo[0].speed = 700, P.lfo[0].ksync = 2, P.lfo[0].fade = 1000;
     P.op[0].pm_lfo1 = 1200;
     setup(&P, 0);
     engine_render(69, 127, y, FS * 2, 0, 0);
@@ -1086,20 +1086,20 @@ static void test_m4(void)
         printf("opx: %-96s %s\n", "M4 LFO shapes: the bipolar ones -1 .. +1, GTR and the + ones 0 .. +1; SIN, TRI from 0 rising", ok ? "ok" : "FAIL");
         memset(&r, 0, sizeof r);
         memset(&l, 0, sizeof l);
-        r.lw = OPX_L_SH, r.linc = 1u << 28;          /* (16 blocks a cycle) */
-        opx_lfo_reset(&l, &r, 1);
+        r.lf[0].w = OPX_L_SH, r.lf[0].inc = 1u << 28;   /* (16 blocks a cycle) */
+        opx_lfo_reset(&l, &r.lf[0], 1);
         {
-            int32_t v0 = opx_lfo_step(&l, &r), changes = 0;
+            int32_t v0 = opx_lfo_step(&l, &r.lf[0], r.lf[0].inc), changes = 0;
             for (u = 1; u < 160u; u++) {             /* (16 blocks a cycle: a new level every 16th) */
-                int32_t v = opx_lfo_step(&l, &r);
+                int32_t v = opx_lfo_step(&l, &r.lf[0], r.lf[0].inc);
                 changes += v != v0;
                 v0 = v;
             }
             ok = changes >= 8 && changes <= 10;
         }
-        r.lw = OPX_L_RL;
+        r.lf[0].w = OPX_L_RL;
         for (u = 0; u < 64u; u++) {
-            int32_t v = opx_lfo_step(&l, &r);
+            int32_t v = opx_lfo_step(&l, &r.lf[0], r.lf[0].inc);
             ok &= v >= -32768 && v <= 32767;
         }
         check("M4 LFO S/H: one level a cycle; RND LEVEL inside the range", ok);
@@ -1127,9 +1127,9 @@ static void test_m4(void)
             }
         }
         trk[0].mw = 0, opx_ctl_bend[0] = 0;
-        check("M4 CTRL: OFF, MOD WHEEL, VEL, PITCH WHEEL (+ / -), NOTE (C4 +- 64), EG2 (none yet) x P MOD EG1 INT", ok);
+        check("M4 CTRL: OFF, MOD WHEEL, VEL, PITCH WHEEL (+ / -), NOTE (C4 +- 64), EG2 (here at 0) x P MOD EG1 INT", ok);
         m4_patch();
-        P.lfo1.wave = OPX_L_SQR, P.lfo1.speed = 600;
+        P.lfo[0].wave = OPX_L_SQR, P.lfo[0].speed = 600;
         P.op[0].lm_lfo1 = 100, P.op[0].lm_lfo1_ctrl = OPX_C_MW;
         setup(&P, 0);
         engine_render(69, 127, y, FS, 0, 0);
@@ -1157,6 +1157,113 @@ static void test_m4(void)
     }
     memset(&P, 0, sizeof P);                         /* (the tests after: no M4 values left) */
     song.g[G_BPM] = bpm0;
+}
+
+/* M5a: EG2, EG3, LFO2, LFO3 as CTRL sources; V.PATCH: its sources, destinations, CTRL and INT */
+static void m5_vp(uint32_t i, uint32_t src, int32_t amt, uint32_t ctrl, uint32_t dst)
+{
+    P.vp[i].src = (uint8_t)src, P.vp[i].amt = (int16_t)amt, P.vp[i].ctrl = (uint8_t)ctrl, P.vp[i].dst = (uint16_t)dst;
+}
+static double m5_st(uint32_t vel, double f0)        /* the note's pitch from 1/8 s on, semitones from f0 */
+{
+    static double y[FS / 2];
+    engine_render(69, vel, y, FS / 4, 0, 0);
+    return 12 * log2(freq_at(y, FS / 8, FS / 16) / f0);
+}
+static double m5_rms(uint32_t from, uint32_t n)
+{
+    static double y[FS];
+    double e = 0;
+    uint32_t i;
+    engine_render(69, 127, y, from + n, 0, 0);
+    for (i = from; i < from + n; i++)
+        e += y[i] * y[i];
+    return sqrt(e / n);
+}
+static void test_m5(void)
+{
+    static const struct { uint8_t c; uint8_t sus; double st; } EC[] = {
+        {OPX_C_EG2, 50, 6}, {OPX_C_EG3, 25, 3}, {OPX_C_EG2, 0, 0}};
+    double f0, st, a, b;
+    uint32_t i;
+    int ok = 1;
+    m4_patch();
+    setup(&P, 0);
+    f0 = 440.0 * pow(2.0, (m5_st(127, 440.0)) / 12.0);   /* (the plain note's own pitch) */
+    for (i = 0; i < NELEM(EC); i++) {                /* EG2 / EG3 held at SUS x P MOD EG1 +12.00: SUS x 12 semitones */
+        m4_patch();
+        P.op[0].pm_eg1 = 1200, P.op[0].pm_eg1_ctrl = EC[i].c;
+        P.eg[EC[i].c - OPX_C_EG1].sus = EC[i].sus;
+        setup(&P, 0);
+        st = m5_st(127, f0);
+        if (fabs(st - EC[i].st) > 0.1) {
+            printf("opx: M5 CTRL EG %u SUS %u: %.2f st, want %.2f\n", EC[i].c, EC[i].sus, st, EC[i].st);
+            ok = 0;
+        }
+    }
+    check("M5 CTRL: EG2, EG3 held at SUS scale P MOD EG1's INT (SUS 50: half the octave)", ok);
+    m4_patch();                                      /* LFO2 as CTRL: a SQR at 2 Hz makes the EG1 INT swing */
+    P.op[0].pm_eg1 = 1200, P.op[0].pm_eg1_ctrl = OPX_C_LFO2;
+    P.lfo[1].wave = OPX_L_SQRP, P.lfo[1].speed = 589, P.lfo[1].ksync = 2;
+    setup(&P, 0);
+    {
+        static double y[FS];
+        double lo = 1e9, hi = -1e9;
+        engine_render(69, 127, y, FS, 0, 0);
+        for (i = FS / 8; i + 2205u < FS; i += 2205u) {
+            double s2 = 12 * log2(freq_at(y, i, 2205) / f0);
+            lo = s2 < lo ? s2 : lo, hi = s2 > hi ? s2 : hi;
+        }
+        check("M5 CTRL: LFO2 (SQR+, 2 Hz) x P MOD EG1 +12.00: the pitch steps between 0 and an octave",
+              fabs(lo) < 0.3 && fabs(hi - 12) < 0.3);
+    }
+    /* V.PATCH: MOD WHEEL -> OP1 PITCH, INT +12.00: wheel 0 none, full an octave; under CTRL VEL at velocity 64 half */
+    m4_patch();
+    m5_vp(0, OPX_C_MW, 1200, OPX_C_OFF, OPX_VD_OP + OPX_DO_PITCH);
+    setup(&P, 0);
+    trk[0].mw = 0;
+    a = m5_st(127, f0);
+    trk[0].mw = 127;
+    b = m5_st(127, f0);
+    P.vp[0].ctrl = OPX_C_VEL;
+    setup(&P, 0);
+    trk[0].mw = 127;                                 /* (setup clears the wheel) */
+    st = m5_st(64, f0);
+    trk[0].mw = 0;
+    check("M5 V.PATCH MOD WHEEL -> OP1 PITCH +12.00: wheel 0 none, full +12 semitones; CTRL VEL at 64 half",
+          fabs(a) < 0.05 && fabs(b - 12) < 0.1 && fabs(st - 6.05) < 0.15);
+    /* CC+ 74 -> OP1 LEVEL -100.00: no CC yet none; CC 127 silent; CC+/- 20 -> PROG PITCH +12.00 at 64 none, at 127 up */
+    m4_patch();
+    m5_vp(0, OPX_VS_CCU + 73, -10000, OPX_C_OFF, OPX_VD_OP + OPX_DO_LEVEL);
+    m5_vp(1, OPX_VS_CCB + 19, 1200, OPX_C_OFF, OPX_VD_PROG + OPX_DP_PITCH);
+    setup(&P, 0);
+    memset(opx_cc, 0, sizeof opx_cc);
+    a = m5_rms(FS / 8, FS / 8);
+    opx_cc[0][74] = 128;
+    b = m5_rms(FS / 8, FS / 8);
+    opx_cc[0][74] = 0, opx_cc[0][20] = 65;
+    st = m5_st(127, f0);
+    opx_cc[0][20] = 128;
+    ok = fabs(st) < 0.05 && fabs(m5_st(127, f0) - 12) < 0.15;
+    memset(opx_cc, 0, sizeof opx_cc);
+    check("M5 V.PATCH CC+ 74 -> OP1 LEVEL -100: none until a CC, silent at 127; CC+/- 20 -> PROG PITCH: 0 at 64, +12 at 127",
+          a > 1000 && b < a * 0.01 && ok);
+    /* EG3 -> OP1 SUS: EG3 at SUS 100 holds, OP1 SUS 60 + 40 = 100 (louder than SUS 60 alone); LFO3 -> PROG PITCH */
+    m4_patch();
+    P.op[0].sus = 60, P.op[0].dec = 300;
+    setup(&P, 0);
+    a = m5_rms(FS / 2, FS / 8);
+    P.eg[2].sus = 100;
+    m5_vp(0, OPX_VS_EG1 + 2, 4000, OPX_C_OFF, OPX_VD_OP + OPX_DO_SUS);
+    setup(&P, 0);
+    b = m5_rms(FS / 2, FS / 8);
+    check("M5 V.PATCH EG3 (held at 100) -> OP1 SUS +40.00: SUS 60 heard as 100", b > a * 1.4 && b < a * 1.9);
+    /* a destination OPX does not play yet (FILTER CUTOFF): nothing moves */
+    m4_patch();
+    m5_vp(0, OPX_C_MW, 10000, OPX_C_OFF, OPX_VD_FLT);
+    setup(&P, 0);
+    check("M5 V.PATCH: a destination not played yet (FILTER) is skipped", opx_rt[0].nvp == 0u);
+    memset(&P, 0, sizeof P);
 }
 
 static void test_factory(void)
@@ -1348,6 +1455,7 @@ int main(int argc, char **argv)
     test_feedback();
     test_velocity();
     test_m4();
+    test_m5();
     test_user_empty();
     test_waves();
     test_factory();

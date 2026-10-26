@@ -144,3 +144,29 @@ export const stText = (v) => signed(v, 2) + " ST";
 // the matrix (USER): what operator x (1..6) sends to y (its own: its self feedback); its direct out
 export const uaField = (x, y) => (x === y ? `ua.op${x}_self` : `ua.op${x}_to_op${y}`);
 export const outField = (x) => `ua.op${x}_out`;
+
+// M5: V.PATCH's sources and destinations (eng_opx.c OPX_VS_*, OPX_VD_*; ui_fm6op.c xvp_*): [scope, [names], first]
+const CC = Array.from({ length: 119 }, (_, k) => `CC ${k + 1}`);
+export const VP_SRC = [["OFF", ["---"], 0], ["CTRL", ["MOD WHL", "PITCH", "PITCH+", "PITCH-", "PEDAL"], 1],
+  ["KBD", ["NOTE", "VEL", "EXP VEL", "REL VEL"], 6], ["EG/LFO", ["EG1", "EG2", "EG3", "LFO1", "LFO2", "LFO3"], 10],
+  ["CC+", CC, 16], ["CC+/-", CC, 135], ["MIDI", ["A.TOUCH", "POLY AT"], 254]];
+const VP_PROG = ["PITCH", "OCT", "TRANS", "LEVEL", "PAN", "ATK", "DECAY", "REL", "SUS", "TEMPO", "ALGO", "ALGO FB", "GLIDE",
+  "UNI VCS", "UNI DTN", "UNI SPR"];
+const VP_OP = ["PITCH", "COARSE", "OCT", "TRANS", "LEVEL", "ATK", "DECAY", "REL", "SUS", "FM FB", "WIDTH", "R.DEPTH",
+  "R.SHAPE", "F.GAIN", "F.BIAS", "F.MIX", "CUTOFF", "RESO", "FLT MIX", "FX MIX", "PEQ FRQ", "PEQ GN", "SEQ LOW", "SEQ HI",
+  "PHS FRQ", "PHS FB", "SDL TIM", "SDL FB", "CMB FRQ", "CMB FB", "DST AMT", "DST LOW", "DRV AMT", "DRV LOW", "DEC FRQ",
+  "DEC BIT", "WS DAMP", "PCH AMT", "PCH HI"];
+export const VP_DST = [["OFF", ["---"], 0], ["PROG", VP_PROG, 1],
+  ...[1, 2, 3, 4, 5, 6].map((k) => [`OP${k}`, VP_OP, 17 + 39 * (k - 1)]),
+  ...[1, 2, 3].map((k) => [`EG${k}`, ["ATK", "DECAY", "REL", "SUS"], 251 + 4 * (k - 1)]),
+  ...[1, 2, 3].map((k) => [`LFO${k}`, ["WAVE", "SPEED", "PHASE", "FADE"], 263 + 4 * (k - 1)]),
+  ["FILTER", ["CUTOFF", "RESO"], 275], ...[1, 2, 3].map((k) => [`FX${k}`, ["PARAM 1", "PARAM 2", "PARAM 3", "PARAM 4"],
+  277 + 4 * (k - 1)]), ["ARP", ["RESO", "GATE", "OCT"], 289], ["SEQ", ["SWING"], 292]];
+// the destinations OPX plays now (eng_opx.c opx_vd_on): the rest are kept and do nothing yet
+export function vpPlayed(d) {
+  if (d >= 1 && d < 17) return d - 1 <= 8 && d - 1 !== 4;
+  if (d >= 17 && d < 251) return (d - 17) % 39 <= 9;
+  if (d >= 251 && d < 263) return true;
+  if (d >= 263 && d < 275) return (d - 263) % 4 !== 0;
+  return false;
+}
