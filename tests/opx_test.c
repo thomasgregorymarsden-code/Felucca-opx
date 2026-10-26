@@ -1391,9 +1391,10 @@ static void test_m5c(void)
     opx_defaults(pk);                                /* the INIT: FX1 CHO, FX2 3EQ, FX3 REVERB, all ON (as an opsix's) */
     memset(&d, 0, sizeof d);
     opx_decode(pk, &d);
-    check("M5c FX: INIT has FX1 CHORUS, FX2 3-BAND EQ (flat), FX3 REVERB HALL, all ON; the 13 cheap types play, CHO and the reverbs not yet",
+    check("M5c FX: INIT has FX1 CHORUS, FX2 3-BAND EQ (flat), FX3 REVERB HALL, all ON; the 13 cheap types play, CHO and the reverbs only in the OPX-only build",
           d.fx[0].type == 1u && d.fx[1].type == 14u && d.fx[2].type == 28u && d.fx[0].on && d.fx[1].on && d.fx[2].on &&
-          d.fx[1].v[0] == 0 && d.fx[1].v[3] == 1000 && !opx_fx_played(1) && opx_fx_played(14) && !opx_fx_played(28));
+          d.fx[1].v[0] == 0 && d.fx[1].v[3] == 1000 && opx_fx_played(1) == OPX_FX_ALL && opx_fx_played(14) &&
+          opx_fx_played(28) == OPX_FX_ALL);
     m5b_saw(OPX_MF_LPF12, 23680, 0);                 /* the SAW alone */
     P.flt.on = 0;
     setup(&P, 0);
@@ -1574,7 +1575,7 @@ static void test_cost(void)
     double opx = engine_time(ENGI_OPX, 6) - engine_time(ENGI_OPX, 0);
     printf("opx: cost: 6 voices, 2 s: OPX %.1f ms, FM6 %.1f ms of host CPU: OPX = %.2f x FM6\n", opx * 1e3, fm6 * 1e3,
            opx / fm6);
-    check("cost: measured against FM6 (printed; the device decides the voice count)", fm6 > 0 && opx > 0);
+    check("cost: measured against FM6 (printed; the device decides the voice count)", (fm6 > 0 || FELUCCA_OPX_ONLY) && opx > 0);
     {   /* M2: the heaviest waveforms on all six operators */
         static const uint8_t W[] = {OPX_W_SAW, OPX_W_SAWHD, OPX_W_SQRHD, OPX_W_A12345, OPX_W_PINK};
         uint32_t i;

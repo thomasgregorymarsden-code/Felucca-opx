@@ -1024,7 +1024,7 @@ static int project_restore_runtime(const project_t *input)
             fm6_adopt(k);
         }
     }
-    song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);
+    song.sel = (uint8_t)(p->sel < NTRK && !FELUCCA_OPX_ONLY ? p->sel : 0u);
     fm1_irq_on();
 #if FELUCCA_OPX
     opx_after_restore();                                /* OPX fork: patches by SLOT (an extension may follow) */

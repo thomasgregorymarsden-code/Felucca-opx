@@ -45,7 +45,7 @@ static int32_t opx_fxr[CTL];             /* the right channel (the audio ISR's a
  * (OPX_FX_ALL) all of them, once built. The UI shows the others NOT AVAILABLE, their knobs kept, so a patch moves
  * between the builds unchanged */
 #ifndef OPX_FX_ALL
-#define OPX_FX_ALL 0
+#define OPX_FX_ALL FELUCCA_OPX_ONLY
 #endif
 static int opx_fx_played(uint32_t t) { return t && t < OPX_NFXT && (OPX_FXT[t].kind == 0u || OPX_FX_ALL); }
 /* an effect that changes the sound: on, played, and not a 3EQ at 0 dB all three (the INIT's FX2: skipped, no cost) */

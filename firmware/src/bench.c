@@ -275,10 +275,12 @@ static int bench_run(void)
                0xFFFFu);
     bench_line(BR_HEAD, "6 NOTES", 0, 0);
 
+#if !FELUCCA_OPX_ONLY                                   /* (the OPX-only firmware has no FM6) */
     bench_track(ENGI_FM6, 0);                          /* FM6: its first factory patch */
     fm6_load_slot(0, 0);
     pm = bench_notes(idle);
     bench_line(BR_PCT, "FM6 F1", pm, bench_one(pm));
+#endif
     bench_line(BR_SUB, "OPX, THE WAVE ON ALL 6 OPS", 0, 0);
 
     memset(&bench_px, 0, sizeof bench_px);             /* OPX: algorithm 1, all six sounding, the sixth with feedback */

@@ -162,8 +162,22 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
   buffers, one part at a time, silencing the bus it borrows.
 - **Decided (2026-10-26): two builds.** Felucca-OPX (this firmware: four parts, every engine) keeps the 13; the
   other 17 read NOT AVAILABLE and keep their knobs. An OPX-only firmware (one part, Felucca's other engines, effects
-  and sequencer left out) plays all 30 (OPX_FX_ALL); a patch moves between the two unchanged. Its base: to decide
-  (this tree as a build configuration, or the fm1-base platform on felucca-bsp).
+  and sequencer left out) plays all 30 (OPX_FX_ALL); a patch moves between the two unchanged. Its base: this tree,
+  as a build configuration (FELUCCA_OPX_ONLY=1, "-solo"); a move to the fm1-base platform (on felucca-bsp) later,
+  once its interface settles.
+
+## The OPX-only firmware (FELUCCA_OPX_ONLY=1)
+
+- **Built by** `FELUCCA_OPX_ONLY=1 ./build.sh`: `build/felucca-solo.fwsc`, version `v…-solo`. CI builds both
+  firmwares; the OPX-only one's installer page is the site's `/solo/`.
+- **One part:** track 1 plays OPX; tracks 2–4 and every other engine are a silent reserved row (opx_map.h,
+  engines.c eng_part). The other engines' code is then referenced from nowhere that runs, so the compiler drops
+  most of it; the stores and the protocol keep four tracks and the engine numbers, so projects and patches load in
+  either firmware (another engine, or OPX on tracks 2–4: silent here). PRESETS and the editor offer OPX alone;
+  track 2–4 cannot be selected. The parts' engine memory: track 1's region alone (three of 12.9 KB freed).
+- **Not yet stripped:** the sequencer, Felucca's send effects (chorus, delay, reverb buses), the other engines' UI
+  pages and their data (the FM6 bank, SAMPLE's sets, SLICE). Next as the remaining effects need the room: Felucca's
+  delay and reverb buffers (~144 KB) go to OPX's delays and reverbs.
 
 ## The device pages (M1.5): where the code is
 

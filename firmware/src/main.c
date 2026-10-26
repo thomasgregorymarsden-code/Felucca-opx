@@ -109,7 +109,7 @@ static void felucca_init(void)
         track_defaults(t);
         set_engine_of(t, TRK_DEF[i][0]);
         apply_preset_to(t, TRK_DEF[i][1]);    /* with its sends */
-        t->engine = t->eng_req;
+        t->engine = (uint8_t)eng_part(i, t->eng_req);
         eng_mem_claim(t);                     /* (zeros already: no note can come before) */
         track_defaults_steps(t);              /* (a sound load never touches them) */
         if (TRK_DEF[i][2])

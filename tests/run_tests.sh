@@ -283,6 +283,8 @@ if [ -f build/gen/felucca_tables.h ]; then
     run "UI renders: layout lint (every screen and palette, every page, engine and column value), GREY gray, MONO neutral, alignment by ink (1 px fails), draw cost" \
         "$OUT/ui_render" build/ui_new build/ui_slot
     if python3 -c "import PIL" 2>/dev/null; then python3 tests/ui_render.py build/ui_new build/ui_slot; fi
+    $CC -w -DFELUCCA_OPX_ONLY=1 -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test_solo" tests/ui_test.c -lm
+    run "UI built with FELUCCA_OPX_ONLY=1 (the OPX-only firmware): track 1 OPX alone, the others silent, every effect" "$OUT/ui_test_solo"
     $CC -w -DFELUCCA_FM4=1 -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test_fm4" tests/ui_test.c -lm
     run "UI built with FELUCCA_FM4=1 (DIGITAL, kept in the tree): its OP pages, EDIT cycle, algorithm charts" "$OUT/ui_test_fm4"
     $CC -O1 -w -DFELUCCA_FM4=1 "-DFELUCCA_VERSION=\"$FV\"" -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/ui_render_fm4" tests/ui_render.c -lm
@@ -366,6 +368,8 @@ if [ -f build/gen/felucca_tables.h ]; then
     run "OPX (OPX fork): 40 algorithms + USER = a float reference, envelopes, feedback, velocity, DC, clipping, cost, demos" \
         "$OUT/opx_test" build/opx_demo
     "$OUT/opx_test" --dump > "$OUT/opx_dump.txt"
+    $CC -O2 -w -DFELUCCA_OPX_ONLY=1 -Ibuild/gen -Ifirmware/src -o "$OUT/opx_test_solo" tests/opx_test.c -lm
+    run "OPX engine built with FELUCCA_OPX_ONLY=1 (the OPX-only firmware)" "$OUT/opx_test_solo" "$OUT/opx_demo_solo"
     run "OPX (OPX fork): records the firmware packs = the patch spec's unpack (factory, defaults, random)" \
         python3 tools/opx_patch_spec.py --check-c "$OUT/opx_dump.txt"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm

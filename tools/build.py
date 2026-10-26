@@ -191,7 +191,7 @@ def build_app():
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_OTA_RAMONLY", "FELUCCA_CDC",
                  "FELUCCA_UART", "FELUCCA_UAC", "FELUCCA_UAC_TONE", "FELUCCA_UAC_48K", "FELUCCA_ICONS", "FELUCCA_SLICE", "FELUCCA_FM4",
-                 "FELUCCA_CDC_DEFAULT", "FELUCCA_UAC_AS_FIRST"):
+                 "FELUCCA_CDC_DEFAULT", "FELUCCA_UAC_AS_FIRST", "FELUCCA_OPX_ONLY"):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
@@ -203,6 +203,8 @@ def build_app():
         if not re.fullmatch(r"r\d[a-z0-9]*", cpu):   # in hardware (FELUCCA_HWFLOAT for the code that may use it)
             raise SystemExit(f"FELUCCA_CPU={cpu!r}: use a pi32v2 core name such as r3")
         flags += [f"-mcpu={cpu}", "-DFELUCCA_HWFLOAT=1", f'-DFELUCCA_CPU_TAG="-{cpu}"']
+    if os.environ.get("FELUCCA_OPX_ONLY") == "1":   # OPX fork: the OPX-only firmware's version says so ("-solo")
+        flags.append('-DFELUCCA_ONLY_TAG="-solo"')
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     if VERSION:
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
@@ -344,14 +346,15 @@ def main():
     ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_9XY, version string vX.Y")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     a = ap.parse_args()
-    name = "felucca.fwsc"
+    solo = os.environ.get("FELUCCA_OPX_ONLY") == "1"   # OPX fork: the OPX-only firmware, its own package name
+    name = "felucca-solo.fwsc" if solo else "felucca.fwsc"
     if a.release:                   # one digit each: the identity has room for two (X.Y.Z and X.Y.Z.W keep X.Y's)
         m = re.fullmatch(r"(\d)\.(\d)(?:\.\d){0,2}(-[A-Za-z0-9]+)?", a.release)
         if not m:
             raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z, X.Y.Z.W or X.Y-suffix, one digit each")
         PRODUCT = "FM-1_9" + m[1] + m[2]
         VERSION = "v" + a.release.lower()      # e.g. v1.0, v1.1-rc1
-        name = f"felucca-{a.release}.fwsc"
+        name = f"felucca-{'solo-' if solo else ''}{a.release}.fwsc"
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:

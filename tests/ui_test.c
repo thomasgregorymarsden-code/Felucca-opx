@@ -194,7 +194,7 @@ static void ui_power_on(void)
         track_defaults(t);
         set_engine_of(t, TRK_DEF[i][0]);
         apply_preset_to(t, TRK_DEF[i][1]);
-        t->engine = t->eng_req;
+        t->engine = (uint8_t)eng_part(i, t->eng_req);   /* (as main.c: OPX-only, tracks 2..4 silent) */
         track_defaults_steps(t);
         if (TRK_DEF[i][2])
             load_pat16(t, PATTERNS[TRK_DEF[i][2] - 1u].note, PATTERNS[TRK_DEF[i][2] - 1u].flags);
@@ -10414,10 +10414,79 @@ static int test_edit_quick_actions(void)
     return bad;
 }
 
+#if FELUCCA_OPX_ONLY
+/* the OPX-only firmware (FELUCCA_OPX_ONLY=1, tests/run_tests.sh): track 1 plays OPX; tracks 2..4 and every other engine
+ * silent; the engine pick OPX alone; track 1 the only one selectable; all 30 effect types played */
+static double solo_energy(uint32_t tr)
+{
+    static int32_t o[2 * CTL];
+    double e = 0;
+    uint32_t i, k;
+    for (i = 0; i < NPART; i++)
+        memset(trk[i].v, 0, sizeof trk[i].v);
+    for (i = 0; i < 4u; i++) {                       /* (the audio running before the note, as on the device: the
+                                                      * engine's per-block state built) */
+        engine_block(&trk[tr]);
+        track_render(&trk[tr], o, CTL);
+    }
+    trk_note_on(&trk[tr], 60, 100);
+    for (i = 0; i < 96u; i++) {                      /* (the part itself: engine_block, then its voices) */
+        engine_block(&trk[tr]);
+        track_render(&trk[tr], o, CTL);
+        for (k = 0; k < CTL; k++)
+            e += (double)o[k] * o[k];
+    }
+    trk_note_off(&trk[tr], 60);
+    return e;
+}
+static int test_solo(void)
+{
+    int bad = 0, ok;
+    uint32_t i;
+    ui_power_on();
+    for (i = 0; i < 8u; i++)
+        frame();                                     /* (the main loop: opx_poll decodes the tracks' patches) */
+    ok = trk[0].engine == ENGI_OPX && song.sel == 0u;
+    for (i = 1; i < NPART; i++)
+        ok &= trk[i].eng_req == ENGI_OPX && trk[i].engine == ENGI_ROW14;
+    bad += check("OPX-only: power-on: track 1 OPX, tracks 2..4 silent (their engine number kept)", ok);
+    {
+        double e0, e1, e3;
+        e0 = solo_energy(0), e1 = solo_energy(1), e3 = solo_energy(3);
+        ok = e0 > 1e6 && e1 == 0 && e3 == 0;
+        if (!ok)
+            printf("ui: OPX-only: energies %g %g %g\n", e0, e1, e3);
+    }
+    bad += check("OPX-only: a note on track 1 sounds, on tracks 2 and 4 nothing", ok);
+    track_select(1);
+    ok = song.sel == 0u && NENG_SHOWN == 1u && eng_vis(0) == ENGI_OPX && eng_step(ENGI_OPX, 1) == ENGI_OPX &&
+         eng_ok(ENGI_OPX) && !eng_ok(ENGI_FM6) && !eng_ok(0);
+    bad += check("OPX-only: track 2 not selectable; the engine pick OPX alone", ok);
+    set_engine_of(&trk[0], ENGI_FM6);                /* (another engine on track 1, as a project from Felucca-OPX may hold) */
+    for (i = 0; i < 8u; i++)
+        frame();
+    ok = solo_energy(0) == 0;
+    set_engine_of(&trk[0], ENGI_OPX);
+    for (i = 0; i < 8u; i++)
+        frame();
+    ok &= solo_energy(0) > 1e6;
+    bad += check("OPX-only: another engine on track 1 is silent; OPX back, it sounds", ok);
+    ok = 1;
+    for (i = 1; i < OPX_NFXT; i++)
+        ok &= opx_fx_played(i) == (OPX_FXT[i].kind == 0u || OPX_FX_ALL);
+    bad += check("OPX-only: every effect type played (OPX_FX_ALL), none NOT AVAILABLE", ok && OPX_FX_ALL);
+    printf(bad ? "ui: OPX-only: %d FAILED\n" : "ui: OPX-only: all passed\n", bad);
+    return bad;
+}
+#endif
+
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
     int bad = 0;
+#if FELUCCA_OPX_ONLY
+    return test_solo() != 0;
+#endif
     bad += test_large_face();
     bad += test_sound_loads();
     bad += test_patterns();

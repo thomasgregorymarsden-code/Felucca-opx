@@ -19,6 +19,16 @@
 #ifndef FELUCCA_OPX
 #define FELUCCA_OPX 1
 #endif
+/* the OPX-only firmware (build.py FELUCCA_OPX_ONLY=1): one part (track 1) playing OPX, every other engine a silent
+ * reserved row (their code then unreferenced: dropped by the compiler), all 30 program effects (OPX_FX_ALL). The
+ * stores and the protocol keep their four tracks and engine numbers, so projects and patches move between the two
+ * firmwares; another engine, or OPX on tracks 2..4, stays silent here */
+#ifndef FELUCCA_OPX_ONLY
+#define FELUCCA_OPX_ONLY 0
+#endif
+#if FELUCCA_OPX_ONLY && !FELUCCA_OPX
+#error "FELUCCA_OPX_ONLY needs FELUCCA_OPX"
+#endif
 
 #define OPX_EXT_OBJS 5u                      /* one extension per project (4) and one for the autosave */
 #define OPX_EXT_LO 0x000D2000u

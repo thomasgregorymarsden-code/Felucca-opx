@@ -13,12 +13,13 @@
  * Sized by the largest, PHYS (3 x SYMP's slot); an engine that needs more than ENG_MEM_PART grows it for
  * every part (x NPART of the pool). Zero-initialised pool section: main.c fm1_cstart clears it. */
 #define ENG_MEM_PART 12888u
+#define ENG_MEM_NP (FELUCCA_OPX_ONLY ? 1u : NPART)   /* (the OPX-only firmware: track 1's region alone) */
 static union {
     uint64_t align;
     uint8_t b[ENG_MEM_PART];
-} eng_mem[NPART] __attribute__((section(".pool")));
+} eng_mem[ENG_MEM_NP] __attribute__((section(".pool")));
 static uint8_t eng_mem_owner[NPART];       /* engine index + 1 whose state is in the region, 0 = none (zeros) */
-#define ENG_MEM(p) ((void *)eng_mem[p].b)  /* part p's region (p < NPART) */
+#define ENG_MEM(p) ((void *)eng_mem[(p) % ENG_MEM_NP].b)  /* part p's region (p < NPART; OPX-only: part 0's) */
 #define ENG_MEM_FITS(name, size) _Static_assert((size) <= ENG_MEM_PART, name " state over ENG_MEM_PART")
 
 #include "eng_analog.c"
@@ -45,6 +46,12 @@ static uint8_t eng_mem_owner[NPART];       /* engine index + 1 whose state is in
 #endif
 
 /* the editor protocol, user presets and projects store these indices: append, never reorder */
+#if FELUCCA_OPX_ONLY                     /* the OPX-only firmware: every other engine a silent reserved row (its code then
+                                          * referenced from nowhere but the UI's own pages: dropped as unused) */
+static const engine_t *const ENGINES[NENGINES] = {&ENG_ROW14, &ENG_FM4_GONE, &ENG_ROW14, &ENG_ROW14, &ENG_ROW14, &ENG_ROW14,
+    &ENG_ROW14, &ENG_ROW14, &ENG_ROW14, &ENG_ROW14, &ENG_ROW14, &ENG_ROW14, &ENG_ROW14, &ENG_ROW14, &ENG_ROW14, &ENG_OPX};
+_Static_assert(NENGINES == 16, "the OPX-only table: an entry per engine number");
+#else
 static const engine_t *const ENGINES[NENGINES] = {
     &ENG_ANALOG,                 /* 0 */
 #if FELUCCA_FM4
@@ -71,6 +78,14 @@ static const engine_t *const ENGINES[NENGINES] = {
     &ENG_OPX,                    /* 15 (ENGI_OPX; OPX fork, FELUCCA_OPX=0 builds without it) */
 #endif
 };
+#endif
+/* the engine part p plays for engine number e: e (a bad number: 0); the OPX-only firmware: OPX on part 0, else the
+ * silent row 14 */
+static inline uint32_t eng_part(uint32_t p, uint32_t e)
+{
+    e = e < NENGINES ? e : 0u;
+    return FELUCCA_OPX_ONLY && (p != 0u || e != ENGI_OPX) ? ENGI_ROW14 : e;
+}
 
 /* a track's engine number as an index (the audio paths: a compare, cheaper than % NENGINES; a bad number: 0) */
 static inline uint32_t eng_idx(uint32_t e) { return e < NENGINES ? e : 0u; }
@@ -82,7 +97,7 @@ static void eng_mem_claim(const track_t *t)
 {
     uint32_t p = (uint32_t)(t - trk), e, k, n;
     uint32_t *w;
-    if (p >= NPART)
+    if (p >= ENG_MEM_NP)
         return;
     e = eng_idx(t->engine);
     n = ENGINES[e]->mem;
@@ -119,6 +134,9 @@ static const char *snd_missing(const track_t *t, uint32_t *code)
  * engine indices, never DIGITAL's reserved 1 (with FELUCCA_FM4 it follows FM6). The indices stay as they are (the
  * stores and the protocol hold them); only this table orders them */
 static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
+#if FELUCCA_OPX_ONLY
+    15,                          /* OPX alone */
+#else
     0,                           /* ANALOG */
     12,                          /* FM6 */
 #if FELUCCA_OPX
@@ -133,17 +151,22 @@ static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
     13,                          /* SLICE */
 #endif
     10,                          /* DRUM */
+#endif
 };
 
 /* the engines one can pick (engine 1 only with FELUCCA_FM4), in ENGINE_ORDER: eng_ok(e), the n-th of them
  * eng_vis(n), e's place among them eng_rank(e), the next / previous one eng_step(e, dir) (wraps) */
-static int eng_ok(uint32_t e) { return e < NENGINES && (FELUCCA_FM4 || e != ENGI_DIGITAL) && (!FELUCCA_OPX || e != ENGI_ROW14); }
+static int eng_ok(uint32_t e)
+{
+    return FELUCCA_OPX_ONLY ? e == ENGI_OPX
+                            : e < NENGINES && (FELUCCA_FM4 || e != ENGI_DIGITAL) && (!FELUCCA_OPX || e != ENGI_ROW14);
+}
 static uint32_t eng_vis(uint32_t n) { return ENGINE_ORDER[n % NENG_SHOWN]; }
 static uint32_t eng_rank(uint32_t e)
 {
     uint32_t n;
     if (!eng_ok(e))
-        e = ENGI_FM6;                            /* (DIGITAL without FELUCCA_FM4: its sounds play as FM6) */
+        e = FELUCCA_OPX_ONLY ? ENGI_OPX : ENGI_FM6;   /* (DIGITAL without FELUCCA_FM4: its sounds play as FM6) */
     for (n = 0; n < NENG_SHOWN && ENGINE_ORDER[n] != e; n++)
         ;
     return n < NENG_SHOWN ? n : 0u;
@@ -197,6 +220,11 @@ static const struct {
 #define NPATTERNS (sizeof PATTERNS / sizeof PATTERNS[0])
 
 /* the parts at power-on (engine, preset, PATTERNS[n - 1] in the sequencer, 0 = empty: all are): bass, pad, lead, drums */
+#if FELUCCA_OPX_ONLY
+static const uint8_t TRK_DEF[NPART][3] = {{ENGI_OPX, 0, 0}, {ENGI_OPX, 0, 0}, {ENGI_OPX, 0, 0}, {ENGI_OPX, 0, 0}};   /* (OPX:
+                                                                       * tracks 2..4 silent: eng_part) */
+#else
 static const uint8_t TRK_DEF[NPART][3] = {{0, 4, 0}, {ENGI_FM6, 4, 0}, {3, 0, 0}, {ENGI_DRUM, 0, 0}}; /* ANALOG ACID,
                                                                        * FM6 PAD (was DIGITAL PAD), LOFI PULSE LD, DRUM KIT */
+#endif
 static uint32_t trk_def_engine(uint32_t i) { return TRK_DEF[i % NPART][0]; }
