@@ -1977,7 +1977,7 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     uint32_t inc[OPX_NOP], ph[OPX_NOP], q, nact = 0, ord[OPX_NOP], heard = r->out;
     int32_t g[OPX_NOP], dg[OPX_NOP], y[OPX_NOP], yp[OPX_NOP], fbq[OPX_NOP], lf, k, a, da, dc, vf, mf = 32768, e1, lv, pg;
     int32_t ms[6];                                  /* EG1..3 (Q24), LFO1..3 (Q15) this block */
-    int32_t vb[CTL], *dst = out;                    /* M5b: the voice's block before the main filter */
+    int32_t vb[CTL], *dst;                          /* M5b: the voice's block before the main filter */
     const int lup = OPX_L_UNI(r->lf[0].w);   /* (M4: LFO1 0 .. +1) */
     opx_vm_t vm;
     if (!n || !n->live || len != CTL)
@@ -2076,8 +2076,9 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     a = mulq15(m->amp0, k);
     da = (mulq15(m->amp1, k) - a) >> CTL_LOG2;
     dc = n->dc;
-    if (r->fon)                                     /* M5b: the voice into its own block, then the main filter */
-        memset(vb, 0, sizeof vb), dst = vb;
+    memset(vb, 0, sizeof vb);                       /* M5b: with the main filter on, the voice into its own block
+                                                     * (cleared either way: no branch out of line, 32 stores) */
+    dst = r->fon ? vb : out;
     {   /* the samples: operator by operator, unless an operator takes a lower one's output (sample by sample) */
         uint32_t wv = 0, back = 0, act = 0, c, mdx = 0, dly_op = 6u;
         opx_wsel_t tb[OPX_NOP];

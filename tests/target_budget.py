@@ -90,7 +90,8 @@ def cost(insns):
             k *= 1 + DIV_W
         calls += t.startswith("call")
         w += k
-    return {"insns": len(insns), "loop": n, "div": divs, "call": calls, "cost": w}
+    spans = [(h, e, sum(1 for x, _ in insns if h <= x <= e), next(t for x, t in insns if x == e)) for h, e in sorted(heads.items())]
+    return {"insns": len(insns), "loop": n, "div": divs, "call": calls, "cost": w, "spans": spans}
 
 
 def main():
@@ -126,6 +127,8 @@ def main():
             if r["cost"] > b * (1 + TOL):
                 state = f"OVER BUDGET (+{(r['cost'] / b - 1) * 100:.0f} %, limit +{TOL * 100:.0f} %)"
                 fail += 1
+                for h, e, k, t in r["spans"]:         # (what made the loops: each span, its size, its closing branch)
+                    print(f"target:   {n} loop {h:#x}..{e:#x}: {k} instructions, closed by '{t}'")
             elif r["cost"] < b * (1 - TOL):
                 state = f"note: {(r['cost'] / b - 1) * 100:.0f} % (BUDGET_UPDATE=1 to keep it)"
         print(f"target: {n:15s} {r['insns']:5d} instructions, {r['loop']:4d} in loops, {r['div']} divides, "
