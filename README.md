@@ -110,8 +110,8 @@ hidden above or below.
 
 | Knob | Selects |
 |---|---|
-| 1 | the operator, 1–6 |
-| 2 | PAGE, the section, one per click: MODE, PITCH, EG, KTRK, USER, ALGO, EG1-3, LFO1-3, PROG, FILTER, V.PATCH, VOICE |
+| 1 | the operator, 1–6 (ALL on the sections that are the patch's: ALGO and after) |
+| 2 | PAGE, the section, one per click: MODE, PITCH, EG, KTRK, ROUTE, ALGO, EG1-3, LFO1-3, P.PITCH, FILTER, V.PATCH, VOICE |
 | 3 | the row, within the section |
 | 4 | the row's value (a list such as MODE, TYPE or FX: one step per click) |
 
@@ -121,11 +121,11 @@ hidden above or below.
 | PITCH | FREQ (RATIO / FIXED), RATIO (in FIXED: the frequency, a semitone per click), FINE (in FIXED a cent per click), DTUN, TRANS; P MOD: EG1 (INT, semitones), EG CTRL, LFO1 (INT), LFO CTRL, VEL, VEL DEST (FINE / COARSE; RATIO only) |
 | EG | LEVEL, ATK, DEC, SUS, REL, CURVE, VEL; LMOD: LFO1 (INT, %), LFO CTRL |
 | KTRK | LOW, CENTER, HIGH, L CRV, H CRV |
-| USER | TO OP1 … TO OP6: what this operator sends to each, as exact numbers (its own row reads "(SELF)" and is its self feedback); OUT, as on the matrix. Dimmed unless the track plays USER |
+| ROUTE | TO OP1 … TO OP6: what this operator sends to each, as exact numbers (its own row reads "(SELF)" and is its self feedback); OUT, as on the matrix. Dimmed unless the track plays USER. On the matrix the operator's column number, the row's (TO OPn, OUT) number and their cell (framed) are highlighted |
 | ALGO | ALG (the patch's algorithm), ALG FB |
 | EG1 | the patch's pitch envelope: ATK, DEC, SUS, REL, CURVE |
 | LFO1 | WAVE (the opsix's 23), TEMPO, SPEED (Hz; with TEMPO a note value), KSYNC (OFF, COMMON, VOICE), PHASE (RND: random), FADE (with KSYNC on) |
-| PROG | PROG PITCH: LFO1 (INT), LFO CTRL, TRANS, OCT |
+| P.PITCH | PROG PITCH (the opsix's page): LFO1 (INT), LFO CTRL, TRANS, OCT |
 | VOICE | the track's VOICE pages: VOICE (POLY, MONO, LEG, UNI), GLIDE, GLIDE MODE, PRIORITY, ALLOC, DETUNE, PAN, MUTE, SPREAD, as on every engine (automation and MIDI LEARN included) |
 
 **ENVELOPE** draws the selected operator's EG in the left half (ATK a line, DEC and REL shaped by CURVE; the stage
@@ -139,9 +139,9 @@ level.
 beside its five rows; **LFO1-3** draws two cycles of one LFO's wave beside its rows (LFO1: and PROG PITCH's). KNOB 1
 picks the EG or LFO there. In OPERATORS the same rows are the EG1-3 and LFO1-3 sections, their first row picking which.
 
-**FILTER** (OPERATORS' section after PROG): the main filter, one a voice after the operators: TYPE (LPF 12, LPF 24,
+**FILTER** (OPERATORS' section after P.PITCH): the main filter, one a voice after the operators: TYPE (LPF 12, LPF 24,
 LPF MS-20, LPF POLY6, HPF 12, HPF 24, HPF MS-20, BPF 6, BPF 12, BRF 6, BRF 12), ENABLE, CUTOFF (6.49 Hz – 23.68 kHz),
-RESO, EG2 (INT in semitones) and its CTRL, LOW / CENTER / HIGH (key tracking: the slope below and above CENTER, 1.00
+RESO (CUTOFF moves ~2.4 semitones a click: end to end in 60 clicks), EG2 (INT in semitones) and its CTRL, LOW / CENTER / HIGH (key tracking: the slope below and above CENTER, 1.00
 following the key, ±INF), LFO2 and its CTRL. INIT has LPF 12 on and wide open, which costs no processor time.
 
 **V.PATCH** (OPERATORS' section after FILTER): the first row picks the virtual patch (1–12), then SRC and SOURCE (the

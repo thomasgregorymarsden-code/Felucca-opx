@@ -235,8 +235,9 @@ enum { XR_MODE, XR_WAVE, XR_FB, XR_WIDTH, XR_RDEPTH, XR_RSHAPE, XR_FTYPE, XR_FMI
        XR_VSEL, XR_VSS, XR_VSI, XR_VINT, XR_VCTL, XR_VDS, XR_VDI,                          /* M5: V.PATCH */
        XR_MFT, XR_MFE, XR_MFC, XR_MFR, XR_MFE2, XR_MFE2C, XR_MFKL, XR_MFKC, XR_MFKH, XR_MFL2, XR_MFL2C,   /* M5b: FILTER */
        XR_N };
-static const char *const XS_NAME[XS_N] = {"MODE", "PITCH", "EG", "KTRK", "USER", "ALGO", "EG1-3", "LFO1-3", "PROG",
-                                          "FILTER", "V.PATCH", "VOICE"};
+static const char *const XS_NAME[XS_N] = {"MODE", "PITCH", "EG", "KTRK", "ROUTE", "ALGO", "EG1-3", "LFO1-3",
+                                          "P.PITCH", "FILTER", "V.PATCH", "VOICE"};   /* (ROUTE: the USER algorithm's
+                                          * matrix, what the operator sends to each; P.PITCH: the opsix's PROG PITCH) */
 static const char *const N_OPX_MFLT[11] = {"LPF 12", "LPF 24", "LPF MS-20", "LPF POLY6", "HPF 12", "HPF 24", "HPF MS-20",
                                            "BPF 6", "BPF 12", "BRF 6", "BRF 12"};   /* (M5b: p.38) */
 static uint8_t xop_egs, xop_lfs, xop_vps;   /* M5: the EG (0..2), LFO (0..2), V.PATCH (0..11) the rows show */
@@ -687,6 +688,8 @@ static void xop_knob(uint32_t slot, int32_t steps)
             v = xop_ladder(v, accel(EN_K4, steps, 100), XVI_LIM, XVI_STP, 3u, hi);
         else if (k == XR_MFE2 || k == XR_MFL2)       /* (M5b: EG2 / LFO2 INT x0.01 semitone, as P MOD's) */
             v = xop_ladder(v, accel(EN_K4, steps, 100), XPM_LIM, XPM_STP, 4u, hi);
+        else if (k == XR_MFC)                        /* (CUTOFF: 17 codes, ~2.4 semitones, a detent: end to end in 60) */
+            v += accel(EN_K4, steps, 100) * 17;
         else if (k == XR_MFR)                        /* (RESO x0.01 %: 1 % a detent) */
             v = (v / 100 + accel(EN_K4, steps, 100)) * 100;
         else if (k == XR_LS && !xop_enum(k))         /* (SPEED: 4 codes a detent, 0.01 .. 100 Hz in 256) */
@@ -1168,8 +1171,14 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
             *icon = xop_view() == XV_EG1 ? ICON_ENV : ICON_LFO_WAVE;
             return 1;
         }
-        return xop_view() != XV_ALL || xop_sec_of(xop_row()) < XS_ALGO;   /* (ALGO's rows on: the patch's, VOICE's the
-                                                                           * track's: no operator) */
+        if (xop_view() == XV_ALL && xop_sec_of(xop_row()) >= XS_ALGO) {   /* (ALGO on: the patch's rows, VOICE's the
+                                                                          * track's: no operator, ALL of them) */
+            str_cpy(val, "ALL", 12);
+            *unit = "";
+            *ratio = -1;
+            return 0;
+        }
+        return 1;
     }
     if (slot == 1u) {
         uint32_t sc = xop_sec_of(xop_row());

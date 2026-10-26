@@ -5,6 +5,11 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPERATORS:** the USER section is now **ROUTE** (it holds what the operator sends to each operator in the USER
+  algorithm) and PROG is **P.PITCH** (the opsix's PROG PITCH). On the ROUTE section the matrix highlights the row
+  the list is on (TO OP6: the 6 on the left) as well as the operator's column, and frames their cell. KNOB 1 reads
+  **ALL** on the sections that are the whole patch's (ALGO and after). The FILTER's CUTOFF moves 17 codes
+  (~2.4 semitones) a click: end to end in 60 clicks (it was 1 code, 1023 clicks).
 - **OPX M5b: the main filter.** One filter a voice, after the operators and before the effects, as on the opsix:
   TYPE (LPF 12, LPF 24, LPF MS-20, LPF POLY6, HPF 12, HPF 24, HPF MS-20, BPF 6, BPF 12, BRF 6, BRF 12), ENABLE,
   CUTOFF (6.49 Hz – 23.68 kHz), RESO, EG2 INT and CTRL, KTRK LOW / CENTER / HIGH, LFO2 INT and CTRL, in a new

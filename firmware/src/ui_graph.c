@@ -945,7 +945,8 @@ static void graph_opx_chart(const track_t *t, uint16_t c, uint32_t a, uint32_t s
 /* USER: the matrix (ui_fm6op.c xmat_*), square cells XM_P px apart from XM_X0: column = the operator sending (1..6),
  * row = the one receiving (1..6), then OUT; a dot as big as the amount (0: a point), the diagonal (self feedback) on
  * RAISE; OUT's dot as big as the operator's LEVEL while it is heard, a dash while it is not; the picked cell (EDIT 1)
- * on ACCENT; the row and column numbers centred on their cells */
+ * on ACCENT; the row and column numbers centred on their cells. OPERATORS: the operator's column number ACCENT and, in
+ * its ROUTING section, the row the list's row sends to (TO OPn, OUT) ACCENT and its cell framed */
 #define XM_P 14                                          /* a cell: 13 px and a 1 px gap, across and down */
 #define XM_X0 32
 #define XM_Y0 16
@@ -953,8 +954,12 @@ static void graph_opx_chart(const track_t *t, uint16_t c, uint32_t a, uint32_t s
 static void graph_opx_matrix(const track_t *t, uint16_t c, int pick, uint32_t op)
 {
     const uint8_t *pk = opx_pk[(t - trk) % NTRK];
-    uint32_t r, k;
+    uint32_t r, k, hr = 7u;
     int32_t oy = cv_oy;
+    if (op < 6u && xop_view() == XV_ALL && xop_sec % XS_N == XS_USER) {   /* (the list's TO OPn / OUT row: its row) */
+        uint32_t kd = xop_kind(xop_row());
+        hr = kd >= XR_TO0 && kd <= XR_TO5 ? kd - XR_TO0 : kd == XR_OUT ? 6u : 7u;
+    }
     cv_oy = 0;                                           /* (the panel's own rows: the 100 px scale is too short) */
     cv_text(8, 1 + CAP_IN(S, 13), &AF_S, "USR", T_DIM);
     for (k = 0; k < 6u; k++) {                           /* the columns: the operators sending */
@@ -968,7 +973,7 @@ static void graph_opx_matrix(const track_t *t, uint16_t c, int pick, uint32_t op
         if (r == 6u)
             str_cpy(n, "OUT", 4);
         GFX_HOOK_ALIGN(0, yy, 0, yy + 13, AL_V, "OPX matrix row label centred on its row");
-        cv_text(8, yy + CAP_IN(S, 13), &AF_S, n, (pick && r == xmat_row) || r == op ? T_ACCENT : T_MID);
+        cv_text(8, yy + CAP_IN(S, 13), &AF_S, n, (pick && r == xmat_row) || r == hr ? T_ACCENT : T_MID);
         for (k = 0; k < 6u; k++) {
             int32_t x0 = XM_X0 + (int32_t)k * XM_P, cx = x0 + 6, cy = yy + 6, v, sel = pick && r == xmat_row && k == xmat_col;
             uint16_t bg = sel ? T_ACCENT : r == k ? T_RAISE : T_SURF, fg = sel ? T_INK : c;
@@ -976,7 +981,10 @@ static void graph_opx_matrix(const track_t *t, uint16_t c, int pick, uint32_t op
                 v = xop_out((uint32_t)(t - trk) % NTRK, k);
             else
                 v = opx_get(pk, opxf_ua(k, r));
-            if (sel || r == k)
+            if (!sel && r == hr && k == op) {            /* (the list's cell: framed) */
+                cv_rrect(x0, yy, 13, 13, 3, T_ACCENT, T_SURF);
+                cv_rrect(x0 + 1, yy + 1, 11, 11, 2, bg, T_ACCENT);
+            } else if (sel || r == k)
                 cv_rrect(x0, yy, 13, 13, 3, bg, T_SURF);
             if (v > 0) {
                 int32_t d = 3 + v * 6 / 100;             /* 3..9 px, odd and even about the centre */
