@@ -1801,6 +1801,58 @@ static int32_t __attribute__((noinline)) opx_eg_stepm(opx_eg_t *e, const opx_rt_
                         opx_stage_inc(clamp(r->tc[k][1] + vm->td[k][1], 0, 1023)),
                         opx_stage_inc(clamp(r->tc[k][2] + vm->td[k][2], 0, 1023)), su, r->curve[k]);
 }
+/* M5: operator k's level as V.PATCH moves it (LEVEL: points; PROG LEVEL: the heard ones x (1 + lev)), Q15 */
+static int32_t __attribute__((noinline)) opx_vp_amp(const opx_rt_t *r, const opx_vm_t *vm, uint32_t k, uint32_t heard)
+{
+    int32_t am = r->amp[k];
+    if (vm->lv[k]) {
+        am = opx_level_amp(clamp(r->lvl[k] + vm->lv[k], 0, 100));
+        if (!heard)
+            am = (int32_t)clamp((am * r->mlv) >> 15, 0, 32767);
+    }
+    if (vm->lev && heard)
+        am = (int32_t)clamp((int32_t)(((int64_t)am * clamp(32768 + vm->lev, 0, 65536)) >> 15), 0, 32767);
+    return am;
+}
+/* M4, M5: EG1..3 (Q24; while something takes them) and LFO1..3 (Q15, their FADE in) a block on, as V.PATCH moves them:
+ * ms[0..2], ms[3..5] (out of the render: most patches run none) */
+static void __attribute__((noinline)) opx_srcs(track_t *t, opx_note_t *n, const opx_rt_t *r, const opx_vm_t *vm, int32_t *ms)
+{
+    int32_t k, lv;
+    for (k = 0; k < 3; k++) {
+        const opx_lfr_t *l = &r->lf[k];
+        ms[k] = !r->eon[k] ? 0 : vm->eg >> (OPX_NOP + k) & 1u ? opx_eg_stepm(&n->egm[k], r, (uint32_t)(OPX_NOP + k), vm)
+                                                              : opx_eg_step(&n->egm[k], r, (uint32_t)(OPX_NOP + k));
+        lv = 0;
+        if (l->on) {
+            int32_t fi = l->fi;
+            uint32_t tr = (uint32_t)(t - trk) % NTRK;
+            if (r->nvp && (vm->lsp[k] || vm->lph[k] || vm->lfd[k])) {   /* (V.PATCH: SPEED moves a KSYNC VOICE LFO's) */
+                if (l->ks == 2u) {
+                    uint32_t inc = vm->lsp[k] ? (uint32_t)(((uint64_t)l->inc * (uint32_t)fm6_exp2(clamp(vm->lsp[k],
+                                   -1023, 1023) * 217926 - (9 << 24))) >> 15) : l->inc;
+                    lv = opx_lfo_step(&n->lfo[k], l, inc);
+                    if (vm->lph[k] && !OPX_L_RANDOM(l->w))
+                        lv = opx_lfo_shape(l->w, (n->lfo[k].ph + vm->lph[k]) >> 16);
+                } else
+                    lv = vm->lph[k] && !OPX_L_RANDOM(l->w) ? opx_lfo_shape(l->w, (opx_lfoc[tr][k].ph + vm->lph[k]) >> 16)
+                                                          : opx_lfov[tr][k];
+                if (vm->lfd[k] && l->ks) {
+                    int32_t ms_ = 0;                 /* (the FADE time moved: from the rate back to ms) */
+                    ms_ = fi < 1 << 24 ? (int32_t)(12174240u / (uint32_t)(fi ? fi : 1)) : 0;
+                    ms_ = clamp(ms_ + vm->lfd[k], 0, 9900);
+                    fi = ms_ ? (int32_t)(12174240u / (uint32_t)ms_) : 1 << 24;
+                }
+            } else
+                lv = l->ks == 2u ? opx_lfo_step(&n->lfo[k], l, l->inc) : opx_lfov[tr][k];
+            if (n->lfade[k] < 1 << 24) {
+                n->lfade[k] = n->lfade[k] + fi > 1 << 24 ? 1 << 24 : n->lfade[k] + fi;
+                lv = (int32_t)(((int64_t)lv * n->lfade[k]) >> 24);
+            }
+        }
+        ms[3 + k] = lv;
+    }
+}
 static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const vmod_t *m)
 {
     opx_note_t *n = opx_note_of(t, v);
@@ -1827,40 +1879,8 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
         vm.eg = 0, vm.pitch = vm.lev = 0;
     lf = fm6_note_logfreq(m->pitch16, m->fine) + r->poff;   /* (M4: PROG TRANS, OCT on the note: not the FIXED ones) */
     ms[0] = ms[1] = ms[2] = ms[3] = ms[4] = ms[5] = 0;
-    for (k = 0; k < 3 && r->son; k++) {             /* M4, M5: EG1..3 (Q24; while something takes them), LFO1..3 (Q15,
-                                                     * their FADE in) */
-        const opx_lfr_t *l = &r->lf[k];
-        ms[k] = !r->eon[k] ? 0 : vm.eg >> (OPX_NOP + k) & 1u ? opx_eg_stepm(&n->egm[k], r, (uint32_t)(OPX_NOP + k), &vm)
-                                                              : opx_eg_step(&n->egm[k], r, (uint32_t)(OPX_NOP + k));
-        lv = 0;
-        if (l->on) {
-            int32_t fi = l->fi;
-            uint32_t tr = (uint32_t)(t - trk) % NTRK;
-            if (r->nvp && (vm.lsp[k] || vm.lph[k] || vm.lfd[k])) {   /* (V.PATCH: SPEED moves a KSYNC VOICE LFO's) */
-                if (l->ks == 2u) {
-                    uint32_t inc = vm.lsp[k] ? (uint32_t)(((uint64_t)l->inc * (uint32_t)fm6_exp2(clamp(vm.lsp[k],
-                                   -1023, 1023) * 217926 - (9 << 24))) >> 15) : l->inc;
-                    lv = opx_lfo_step(&n->lfo[k], l, inc);
-                    if (vm.lph[k] && !OPX_L_RANDOM(l->w))
-                        lv = opx_lfo_shape(l->w, (n->lfo[k].ph + vm.lph[k]) >> 16);
-                } else
-                    lv = vm.lph[k] && !OPX_L_RANDOM(l->w) ? opx_lfo_shape(l->w, (opx_lfoc[tr][k].ph + vm.lph[k]) >> 16)
-                                                          : opx_lfov[tr][k];
-                if (vm.lfd[k] && l->ks) {
-                    int32_t ms_ = 0;                 /* (the FADE time moved: from the rate back to ms) */
-                    ms_ = fi < 1 << 24 ? (int32_t)(12174240u / (uint32_t)(fi ? fi : 1)) : 0;
-                    ms_ = clamp(ms_ + vm.lfd[k], 0, 9900);
-                    fi = ms_ ? (int32_t)(12174240u / (uint32_t)ms_) : 1 << 24;
-                }
-            } else
-                lv = l->ks == 2u ? opx_lfo_step(&n->lfo[k], l, l->inc) : opx_lfov[tr][k];
-            if (n->lfade[k] < 1 << 24) {
-                n->lfade[k] = n->lfade[k] + fi > 1 << 24 ? 1 << 24 : n->lfade[k] + fi;
-                lv = (int32_t)(((int64_t)lv * n->lfade[k]) >> 24);
-            }
-        }
-        ms[3 + k] = lv;
-    }
+    if (r->son)
+        opx_srcs(t, n, r, &vm, ms);
     e1 = ms[0], lv = ms[3];
     pg = r->cpg && r->plfo ? OPX_CQ(r->plfo, opx_ctl(t, v, r->cpg, ms)) : r->plfo;   /* PROG LFO1 INT x its CTRL */
 #if OPX_FELUCCA_MACROS
@@ -1902,17 +1922,8 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
         }
         inc[k] = f;
         g2 = mulq15(r->amp[k], n->vg[k]);
-        if (r->nvp && (vm.lv[k] || (vm.lev && ((heard >> k) & 1u)))) {   /* M5: V.PATCH's LEVEL, PROG LEVEL */
-            int32_t am = r->amp[k];
-            if (vm.lv[k]) {
-                am = opx_level_amp(clamp(r->lvl[k] + vm.lv[k], 0, 100));
-                if (!((heard >> k) & 1u))
-                    am = (int32_t)clamp((am * r->mlv) >> 15, 0, 32767);
-            }
-            if (vm.lev && ((heard >> k) & 1u))
-                am = (int32_t)clamp((int32_t)(((int64_t)am * clamp(32768 + vm.lev, 0, 65536)) >> 15), 0, 32767);
-            g2 = mulq15(am, n->vg[k]);
-        }
+        if (r->nvp && (vm.lv[k] || (vm.lev && ((heard >> k) & 1u))))   /* M5: V.PATCH's LEVEL, PROG LEVEL */
+            g2 = mulq15(opx_vp_amp(r, &vm, (uint32_t)k, (heard >> k) & 1u), n->vg[k]);
         if (lm && lv) {                       /* M4: LMOD LFO1: the level dips by INT at the LFO's far end, never
                                                       * above the operator's own (- INT: the LFO turned over) */
             int32_t al = lm < 0 ? -lm : lm, u = lm < 0 ? -lv : lv;
