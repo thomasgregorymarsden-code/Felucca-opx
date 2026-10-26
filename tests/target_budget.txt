@@ -38,7 +38,9 @@ dv_metal_mix 16
 slicer_track 557
 slice_render 436
 slc_rev 120
-opx_render 12602
+opx_render 10784
+opx_post 66
+opx_fx_run 2591
 opx_loop_wave 2833
 opx_loop_sine 391
 opx_op_in 16
