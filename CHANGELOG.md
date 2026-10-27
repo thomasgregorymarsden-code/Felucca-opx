@@ -5,6 +5,9 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **Fix: the installers did not find an FM-1 running an `FM-1_OPX-…` build.** They read the identity as letters, an
+  underscore and digits (`FM-1_900`), so the new identities failed: an install ended with "did not come back", and the
+  next one with "not found". The web installer and `tools/fm1_install.py` now take letters, digits, dots and dashes.
 - **Fix: the benchmark crashed Felucca-OPX Solo** (FELUCCA CRASH, vector 1: a divide by zero). It set track 1 to FM6
   for the idle mix, which in Solo is a reserved engine with no presets. It now uses OPX there, and an engine without
   presets is handled.

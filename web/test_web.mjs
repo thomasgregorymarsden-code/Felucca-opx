@@ -1661,10 +1661,10 @@ const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 
 /* an FM-1 on WebMIDI: identity, then "device asks, host answers" reads of the image */
 class FakeFM1 {
-  constructor(image, { unplugAfter = Infinity } = {}) {
-    this.image = image; this.unplugAfter = unplugAfter; this.served = 0; this.bad = 0;
+  constructor(image, { unplugAfter = Infinity, start = "FM-1_015", after = "FM-1_900" } = {}) {
+    this.image = image; this.unplugAfter = unplugAfter; this.served = 0; this.bad = 0; this.after = after;
     this.access = { inputs: new Map(), outputs: new Map() };
-    this.boot("FM-1_015", "FM-1");
+    this.boot(start, start === "FM-1_015" ? "FM-1" : "Felucca");
   }
   boot(identity, name) {
     this.identity = identity; this.waiting = null; this.queue = [];
@@ -1699,7 +1699,7 @@ class FakeFM1 {
       this.served++;
       if (this.served >= this.unplugAfter) { this.input.state = this.output.state = "disconnected"; return; }
       if (addr === 0xE0000000) setTimeout(() => this.boot("ota-FM-1_900", "Felucca Update"), 300);
-      else if (addr === 0xF0000000) setTimeout(() => this.boot("FM-1_900", "Felucca"), 300);
+      else if (addr === 0xF0000000) setTimeout(() => this.boot(this.after, "Felucca"), 300);
       else this.next();
     }
   }
@@ -1725,6 +1725,11 @@ async function updater() {
   ok(got === "FM-1_900" && dev.bad === 0 && steps.includes("write") && steps.at(-1) === "done",
     `fm1ota.js: install: running firmware -> loader -> Felucca (${dev.served} reads)`);
   ok(wbytes > 0 && wbytes <= image.length, `fm1ota.js: the write reports the bytes sent (${wbytes} of ${image.length})`);
+  {                                                // (OPX fork: identities with letters, FM-1_OPX-<version>)
+    const d = new FakeFM1(image, { start: "FM-1_OPX-SOLO-dev", after: "FM-1_OPX-dev" });
+    const g = await new Updater(d.access).install(image, "FM-1_OPX-dev").then((x) => x, (e) => e);
+    ok(g === "FM-1_OPX-dev" && d.bad === 0, `fm1ota.js: install over FM-1_OPX-SOLO-dev, back as FM-1_OPX-dev (${g})`);
+  }
 
   const dev2 = new FakeFM1(image, { unplugAfter: 3 });
   dev2.boot("ota-FM-1_900", "Felucca Update");

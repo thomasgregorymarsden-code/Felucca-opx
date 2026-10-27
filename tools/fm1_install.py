@@ -120,8 +120,8 @@ def parse_identity(pkt):
     if len(d) != 34 or d[:3] != b"\x00\x59\x11":
         return None
     txt = printable(d[6:33].rstrip(b"\0"))
-    m = re.fullmatch(r"([^_]+)_(\d+)", txt)
-    return Identity(txt, m[1], int(m[2])) if m else None
+    m = re.fullmatch(r"([^_]+)_([A-Za-z0-9.\-]+)", txt)   # (OPX fork: FM-1_OPX-0.2.0 as well as FM-1_015)
+    return Identity(txt, m[1], int(m[2]) if m[2].isdigit() else m[2]) if m else None
 
 
 # --------------------------------------------------------------- package ---
@@ -377,7 +377,7 @@ def load_package(path, force):
     except OSError as e:
         raise InstallError("badpkg", f"cannot read {path}: {e.strerror}")
     product = product_of(raw)
-    if not re.fullmatch(r"[^_]+_\d+", product):
+    if not re.fullmatch(r"[^_]+_[A-Za-z0-9.\-]+", product):
         raise InstallError("badpkg", f"{path}: not an FM-1 package (identity {product!r})")
     official = hashlib.sha256(raw).hexdigest() == STOCK_V15_SHA256
     if LOADER_MARK not in raw and not official and not force:

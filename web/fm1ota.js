@@ -61,8 +61,8 @@ function parseIdentity(pkt) {
   const d = unpack7(pkt.slice(1, -1));
   if (d.length !== 34 || d[0] !== 0 || d[1] !== 0x59 || d[2] !== 0x11) return null;
   const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0+$/, "");
-  const m = /^([^_]+)_(\d+)$/.exec(txt);
-  return m ? { text: txt, model: m[1], version: parseInt(m[2], 10) } : null;
+  const m = /^([^_]+)_([A-Za-z0-9.\-]+)$/.exec(txt);   // (OPX fork: FM-1_OPX-0.2.0 as well as FM-1_015, FM-1_900)
+  return m ? { text: txt, model: m[1], version: /^\d+$/.test(m[2]) ? parseInt(m[2], 10) : m[2] } : null;
 }
 
 // one MIDI in/out pair with a SysEx queue

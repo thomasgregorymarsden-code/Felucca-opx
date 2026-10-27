@@ -178,6 +178,8 @@ def wire():
        and ~sum(u[6:17]) & 0xFF == u[17], "response: header, address, data, checksum")
     raw = package("FM-1_906")
     ok(I.product_of(raw) == "FM-1_906" and len(I.logical_image(raw)) == len(raw) - 20, "product_of / logical_image (synthetic)")
+    raw2 = package("FM-1_OPX-0.2.0")                     # (OPX fork: identities with letters)
+    ok(I.product_of(raw2) == "FM-1_OPX-0.2.0", "product_of: FM-1_OPX-0.2.0")
 
 
 def installs():
@@ -198,6 +200,9 @@ def installs():
     rc, out, err = cli([p], dev, answer=False)
     ok(rc == 1 and dev.upgrades == 0 and "cancelled" in out, "install: answer no -> nothing sent but the handshake")
 
+    dev = FakeFM1(image, identity="FM-1_OPX-SOLO-dev", name="Felucca")   # (OPX fork: a letter identity is found)
+    rc, out, err = cli(["--info"], dev)
+    ok(rc == 0 and "FM-1_OPX-SOLO-dev" in out and "running" in out, "--info: FM-1_OPX-SOLO-dev found")
     dev = FakeFM1(image, identity="FM-1_905", name="Felucca")
     rc, out, err = cli(["--info"], dev)
     ok(rc == 0 and "FM-1_905" in out and "running" in out and dev.upgrades == 0, "--info: identity of the connected FM-1")
