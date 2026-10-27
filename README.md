@@ -19,6 +19,9 @@ not to Felucca's authors, who did not write the OPX engine.
   the same firmware compiled to WebAssembly, with the panel on screen (mouse, touch, computer keyboard, Web MIDI in).
 - **Editor:** [web editor](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/editor/): Felucca's, with an
   OPX tab for the whole OPX patch (operators, EGs, LFOs, filter, effects, virtual patches).
+- **Every build's pages:** each installer, editor and simulator page has a bar at the top linking the others, for the
+  latest release and the development build of Felucca-OPX and of Felucca-OPX Solo (the OPX-only firmware:
+  [its development installer](https://thomasgregorymarsden-code.github.io/Felucca-opx/dev/opx-solo/webapp/installer/)).
 - **Releases:** [Releases](https://github.com/thomasgregorymarsden-code/Felucca-opx/releases) (packages and
   checksums), [CHANGELOG.md](CHANGELOG.md).
 - **Build:** [BUILDING.md](BUILDING.md). Every push is built and tested by GitHub Actions.

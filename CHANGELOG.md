@@ -5,6 +5,10 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **The site links its builds:** every installer, editor and simulator page has a bar linking the installer, editor
+  and simulator of the latest release and of the development build, for Felucca-OPX and Felucca-OPX Solo (the
+  development builds under dev/, Solo under opx-solo/; each with its version). A release now carries its simulators
+  and editor (`felucca-opx-X.Y.Z-web.zip`), so the release's pages are the release's own; Solo has a simulator.
 - **Web installer:** the log of an install is a box of its own height that follows its newest line (scroll up to read
   back), not a page growing by 2,300 lines. The progress bar follows the bytes written (the check 0–3 %, the write
   3–99 %): it counted 512-byte requests, but the loader asks for 256 bytes at a time, so it reached its end halfway.
@@ -26,7 +30,7 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 - **The OPX-only firmware (first step).** A second firmware from the same source, `felucca-opx-solo.fwsc`
   (version "…-opx-solo"): track 1 plays OPX, the other tracks and engines are silent and cannot be picked, and all 30 effect types
   are enabled (the 17 buffered ones pass the sound until they are built). Projects and patches move between it and
-  Felucca-OPX unchanged. CI builds both; the OPX-only one's installer page is the site's /opx-solo/.
+  Felucca-OPX unchanged. CI builds both; the OPX-only one's installer page is the site's /dev/opx-solo/ (a release's: /opx-solo/).
 - **OPX M5c, part 1: the program effects FX1–3.** Three effects in series on each OPX part after its voices, in a
   new **FX1-3** section of OPERATORS and the web editor's OPX tab: TYPE (the opsix's 30), ENABLE and the type's four
   knobs in its own units. 13 types play: PHA, PHABPM, PAN, PANBPM (the part in stereo), A.WAH, EXC, FLTR, 3EQ, DIST,

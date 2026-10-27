@@ -169,7 +169,7 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
 ## The OPX-only firmware (FELUCCA_OPX_ONLY=1)
 
 - **Built by** `FELUCCA_OPX_ONLY=1 ./build.sh`: `build/felucca-opx-solo.fwsc`, version `v…-opx-solo`. CI builds both
-  firmwares; the OPX-only one's installer page is the site's `/opx-solo/`.
+  firmwares; the OPX-only one's installer page is the site's `/dev/opx-solo/` (a release's `/opx-solo/`).
 - **One part:** track 1 plays OPX; tracks 2–4 and every other engine are a silent reserved row (opx_map.h,
   engines.c eng_part). The other engines' code is then referenced from nowhere that runs, so the compiler drops
   most of it; the stores and the protocol keep four tracks and the engine numbers, so projects and patches load in
