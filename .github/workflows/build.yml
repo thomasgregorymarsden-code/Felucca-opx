@@ -66,7 +66,7 @@ jobs:
             echo "REL=$ver" >> "$GITHUB_ENV"
           fi
           export FELUCCA_OPX_ONLY=1; b; unset FELUCCA_OPX_ONLY   # (the OPX-only firmware first: build/felucca-opx-solo.fwsc, kept aside)
-          mkdir -p solo && cp build/felucca-opx-solo.fwsc solo/
+          mkdir -p solo && cp build/felucca-opx-solo.fwsc solo/ && cp build/felucca.dis solo/felucca-opx-solo.dis
           grep -a -E "  ok +image " build.log | tail -1 | sed 's/^/::notice::size (OPX-only): /' || true
           b                                            # (the development build: build/felucca.fwsc)
           grep -a -E "^app |^package |  ok +image " build.log | tail -3 | sed 's/^/::notice::size: /' || true   # (the app's room: 0x8DFBC = 581564 B, firmware/app.ld XIP)
@@ -146,7 +146,10 @@ jobs:
       - uses: actions/upload-artifact@v6
         with:
           name: disasm
-          path: _site/dev/disasm.txt
+          path: |
+            _site/dev/disasm.txt
+            build/felucca.dis
+            solo/felucca-opx-solo.dis
 
       - uses: actions/upload-pages-artifact@v5
         with:
@@ -164,10 +167,11 @@ jobs:
           name: disasm
       - name: Push to ci-diag
         run: |
-          git init -q -b ci-diag d && mv disasm.txt d/ && cd d
+          git init -q -b ci-diag d && find . -path ./d -prune -o \( -name '*.txt' -o -name '*.dis' \) -type f -print \
+            | xargs -I{} mv {} d/ && cd d                # (disasm.txt; both firmwares' whole listings: a crash's PC)
           git config user.name "github-actions[bot]"
           git config user.email "41898319+github-actions[bot]@users.noreply.github.com"
-          git add disasm.txt && git commit -q -m "disasm of ${GITHUB_SHA::7}"
+          git add . && git commit -q -m "disasm of ${GITHUB_SHA::7}"
           git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-diag
 
   deploy:

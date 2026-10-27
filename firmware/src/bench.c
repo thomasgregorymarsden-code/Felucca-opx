@@ -78,7 +78,10 @@ static void bench_track(uint32_t e, uint32_t pi)
 {
     static const uint8_t FX_DEF[4] = {0, 24, 28, 36};
     track_t *t = &trk[0];
-    const preset_t *p = &ENGINES[e]->presets[pi % ENGINES[e]->npresets];
+    static const preset_t NONE;                        /* (an engine without presets: the reserved rows; OPX-only:
+                                                        * every one but OPX. Was a divide by 0: the crash, vector 1) */
+    const engine_t *en = ENGINES[e % NENGINES];
+    const preset_t *p = en->npresets ? &en->presets[pi % en->npresets] : &NONE;
     uint32_t i;
     bench_kill(t);
     for (i = 0; i < P_E0; i++)                         /* every value its default (no INSERT, SLICER, matrix ...) */
@@ -268,7 +271,7 @@ static int bench_run(void)
         bench_kill(&trk[i]);
     fm1_irq_on();
 
-    bench_track(ENGI_FM6, 0);                          /* (an engine with no note: the idle mix) */
+    bench_track(FELUCCA_OPX_ONLY ? ENGI_OPX : ENGI_FM6, 0);   /* (an engine with no note: the idle mix) */
     bench_mix(16);
     idle = bench_mix(BENCH_BLOCKS);
     bench_line(BR_PCT, "IDLE MIX", (uint32_t)(((uint64_t)idle * 1000u) / (BENCH_BLOCKS * CTL * BENCH_TICKS_PER_SAMPLE)),

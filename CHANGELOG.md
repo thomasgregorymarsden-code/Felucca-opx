@@ -5,6 +5,9 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **Fix: the benchmark crashed Felucca-OPX Solo** (FELUCCA CRASH, vector 1: a divide by zero). It set track 1 to FM6
+  for the idle mix, which in Solo is a reserved engine with no presets. It now uses OPX there, and an engine without
+  presets is handled.
 - **The site links its builds:** every installer, editor and simulator page has a bar linking the installer, editor
   and simulator of the latest release and of the development build, for Felucca-OPX and Felucca-OPX Solo (the
   development builds under dev/, Solo under opx-solo/; each with its version). A release now carries its simulators

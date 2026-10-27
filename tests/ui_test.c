@@ -10475,6 +10475,22 @@ static int test_solo(void)
     for (i = 1; i < OPX_NFXT; i++)
         ok &= opx_fx_played(i) == (OPX_FXT[i].kind == 0u || OPX_FX_ALL);
     bad += check("OPX-only: every effect type played (OPX_FX_ALL), none NOT AVAILABLE", ok && OPX_FX_ALL);
+    {                                                /* the benchmark (MENU > INFO, OCT+): no FM6 row; no engine without
+                                                      * presets on track 1 (a divide by 0 crashed it, vector 1) */
+        int32_t own_lvl = trk[0].p[P_LEVEL];
+        hold(B_HOME);
+        ui.menu_sel = MI_INFO;
+        press(B_OCTUP);
+        frame();
+        press(B_OCTUP);
+        frame();
+        frames(3);
+        ok = bench_state == 3u && bench_n == 2u + 1u + 18u + 1u + 8u + 1u + 3u + 8u + 2u && !bench_mute &&
+             trk[0].engine == ENGI_OPX && trk[0].p[P_LEVEL] == own_lvl;
+        if (!ok)
+            printf("ui: OPX-only bench: state %u rows %u\n", bench_state, bench_n);
+        bad += check("OPX-only: the benchmark runs (44 rows, no FM6), track 1 as it was after", ok);
+    }
     printf(bad ? "ui: OPX-only: %d FAILED\n" : "ui: OPX-only: all passed\n", bad);
     return bad;
 }
