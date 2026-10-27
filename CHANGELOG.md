@@ -5,6 +5,21 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **The factory patches use the new features.** E.PIANO: PAN (a suitcase tremolo), 3EQ, MOD WHEEL brightening its
+  tine. BELL: 3EQ, a slow PAN. FM BASS: LPF 24 plucked by EG2 x velocity, COMP. BRASS: an EG2 swell on LPF 12 x
+  velocity, delayed vibrato (LFO1 faded in, PROG PITCH). SAW LEAD: LPF 24 with an EG2 sweep, vibrato on the MOD
+  WHEEL, DIST. LOOP PAD: LPF 12 with a slow EG2 and LFO2, PHA, PAN. X-MOD: MOD WHEEL -> OP3 LEVEL, LFO3 -> OP2 PITCH,
+  FLTR, DEC. A project or preset that saved a factory patch as its own copy keeps the copy as it was.
+- **Package identity `FM-1_OPX-<version>`** (0.2.0: `FM-1_OPX-0.2.0`; Felucca-OPX Solo `FM-1_OPX-SOLO-0.2.0`;
+  development builds `FM-1_OPX-dev`), unique to this firmware: releases up to 0.1.0 used Felucca's `FM-1_9XY`.
+  Release packages are `felucca-opx-X.Y.Z.fwsc` (and `felucca-opx-solo-X.Y.Z.fwsc`).
+- **MENU > INFO and ABOUT show the build** (the commit it was built from; "+" when built with local changes).
+- **ABOUT points to this project:** its QR code and address are github.com/thomasgregorymarsden-code/Felucca-opx
+  (Felucca's own stay in the credits).
+- **Fix: the main filter's 24 dB types (LPF 24, POLY6, HPF 24, BPF 6, BRF 6) could run away** near the top of the
+  range with resonance (KTRK on high notes). Their cutoff now stops at 12.3 kHz and their resonance eases above 4.4 kHz.
+- **Fix: a track still on a factory patch played its effects only once it had its own copy.**
+- **DIST:** a ~40 Hz high-pass after the clipper takes out the DC an uneven wave leaves.
 - **The OPX-only firmware (first step).** A second firmware from the same source, `felucca-opx-solo.fwsc`
   (version "…-opx-solo"): track 1 plays OPX, the other tracks and engines are silent and cannot be picked, and all 30 effect types
   are enabled (the 17 buffered ones pass the sound until they are built). Projects and patches move between it and

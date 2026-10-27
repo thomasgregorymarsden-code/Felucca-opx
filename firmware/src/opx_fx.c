@@ -17,7 +17,7 @@
  *   EXC      the input above FREQ (one pole), saturated as BLEND goes up (+100: all saturated), added at MIX
  *   FLTR     a low-pass (state-variable) at CUTOFF (20 Hz x 2^(10 x %)), the triangle LFO +-4 octaves x DEPTH
  *   3EQ      shelves at 250 Hz and 4 kHz (first order, as the operators' SHELV EQ) and a peaking EQ (Q 1) at 2 FREQ
- *   DIST     DRIVE x1 .. x50 into a cubic soft clip, a peaking EQ (Q 1) at EQFREQ, LEVEL
+ *   DIST     DRIVE x1 .. x50 into a cubic soft clip, a ~40 Hz high-pass (its DC), a peaking EQ (Q 1) at EQFREQ, LEVEL
  *   G.AMP    a 100 Hz high-pass, the type's gain x DRIVE into an asymmetric soft clip, HEQ a 3 kHz shelf (+-12 dB), the
  *            type's cabinet (a two-pole low-pass at its corner), VOLUME; the 16 types are gains and corners, not models
  *   DEC      held at FREQ, quantised to BIT bits of full scale (fractional bits: the step between), DAMP a low-pass
@@ -270,8 +270,10 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
                     y = x + (int32_t)(((int64_t)gl * opx_fxlp(&q[4], x, OPX_G250)) >> 15);
                     y += (int32_t)(((int64_t)gh * (x - opx_fxlp(&q[5], x, OPX_G4K))) >> 15);
                     y = opx_fxbq(q, s->c, clamp(y, -OPX_FXLIM, OPX_FXLIM));
-                } else {
+                } else {                             /* (a ~40 Hz high-pass after the clip: an uneven wave clipped
+                                                      * has DC) */
                     y = opx_fxsat(clamp((int32_t)(((int64_t)x * dr) >> 8), -OPX_FXLIM, OPX_FXLIM), OPX_FXFS, il);
+                    y -= opx_fxlp(&q[4], y, 47);
                     y = opx_fxbq(q, s->c, y * 3 / 2);
                     y = (int32_t)(((int64_t)y * lv) >> 15);
                 }
@@ -380,7 +382,9 @@ static uint32_t opx_post(track_t *t, int32_t *out, int32_t *left, uint32_t n, ui
 {
     uint32_t tr = (uint32_t)(t - trk) % NTRK, k, i, st, made = 0, any = 0;
     const opx_patch_t *p = opx_own[tr];
-    if (!p || n != CTL)
+    if (!p)                                          /* (no own copy yet: the factory patch SLOT names, as opx_build) */
+        p = &OPX_FACTORY[(uint32_t)clamp(t->p[P_E7], 0, (int32_t)OPX_NFACTORY - 1)];
+    if (n != CTL)
         return 0;
     for (k = 0; k < 3u; k++)
         any |= (uint32_t)opx_fx_live(&p->fx[k]);

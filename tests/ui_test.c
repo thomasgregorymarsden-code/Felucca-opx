@@ -1902,9 +1902,9 @@ static int test_information(void)
     press(B_OCTUP);
     ui_draw();
     bad += check("ABOUT opens one document with scrollable license text and credits", ui.menu == 2 && !ui.menu_scroll && menu_scroll_max() > MENU_DOC_H);
-    for (y = 146; y < 220; y++)
-        for (x = 158; x < 232; x++)
-            if (x < 166 || x >= 224 || y < 154 || y >= 212)
+    for (y = 140; y < 218; y++)                      /* (OPX fork: version 4, 33 modules, a 3-module zone) */
+        for (x = 156; x < 234; x++)
+            if (x < 162 || x >= 228 || y < 146 || y >= 212)
                 quiet &= host_screen[y * 240 + x] == swap16(UI_QR_LIGHT);
     bad += check("ABOUT QR keeps its complete white quiet zone above the fixed footer", quiet);
     memcpy(header, host_screen, sizeof header);
@@ -9099,7 +9099,7 @@ static int test_opx_ops(void)
     {
         static const uint8_t FIRST[XS_N] = {XR_MODE, XR_FREQ, XR_LVL, XR_KLOW, XR_TO0, XR_ALG, XR_ESEL, XR_LSEL, XR_GL,
                                             XR_MFT, XR_FSEL, XR_VSEL, XR_V0};
-        static const uint8_t N[XS_N] = {4, 11, 9, 5, 7, 2, 6, 7, 4, 11, 3, 7, 9};   /* (FX1-3: F1's FX1 OFF: no knobs) */
+        static const uint8_t N[XS_N] = {4, 11, 9, 5, 7, 2, 6, 7, 4, 11, 7, 7, 9};   /* (FX1-3: F1's FX1 PAN, its 4 knobs) */
         uint32_t sc, k;
         for (sc = 1; sc < XS_N; sc++) {              /* (each section its own list, from its first row) */
             turn(EN_K2, 1);
@@ -9628,7 +9628,7 @@ static int test_opx_ops(void)
         xo_set(EN_K3, 2, 10);                        /* SOURCE: MOD WHL -> PITCH */
         frames(1600);
         turn(EN_K4, 1);
-        ok &= opx_get(opx_pk[tr], OPXF_VP3_SRC) == 2 && opx_get(opx_pk[tr], OPXF_VP1_SRC) == 0;
+        ok &= opx_get(opx_pk[tr], OPXF_VP3_SRC) == 2 && opx_get(opx_pk[tr], OPXF_VP1_SRC) == OPX_C_MW;   /* (F1's own: kept) */
         xop_rowtext(1, &lb, val, &u, &r);
         ok &= str_eq(lb, "SRC") && str_eq(val, "CTRL");
         xop_rowtext(2, &lb, val, &u, &r);
@@ -9686,20 +9686,20 @@ static int test_opx_ops(void)
         ok &= opx_get(opx_pk[tr], OPXF_FLT_EG2) == 10 && xop_rowtext(4, &lb, val, &u, &r) && str_eq(val, "+0.10");
         bad += check("OPX M5b: FILTER section: TYPE ENABLE CUTOFF (Hz) RESO EG2 CTRL LOW CENTER HIGH LFO2 CTRL", ok);
         /* M5c: FX1-3: KNOB 3 on TYPE: OFF -> CHO (DIM: not built yet) -> ... 3EQ: its four knobs at their defaults */
-        xop_fxs = 1;
+        xop_fxs = 2;                                 /* (F1's FX3: OFF) */
         xop_find(XR_FXT);
         ok = xop_sec == XS_FX && xop_n() == 3u;
         xo_set(EN_K3, 1, 20);
         frames(1600);
         turn(EN_K4, 1);                              /* (CHO) */
-        ok &= opx_get(opx_pk[tr], OPXF_FX2_TYPE) == 1 && xop_n() == 8u && !xop_rowtext(1, &lb, val, &u, &r) &&
+        ok &= opx_get(opx_pk[tr], OPXF_FX3_TYPE) == 1 && xop_n() == 8u && !xop_rowtext(1, &lb, val, &u, &r) &&
               str_eq(val, "CHO");
         ok &= xop_rowtext(3, &lb, val, &u, &r) == 0 && str_eq(lb, "NOT AVAILABLE") && !val[0];   /* (this build) */
         ok &= xop_rowtext(4, &lb, val, &u, &r) == 0 && str_eq(lb, "MIX") && str_eq(val, "50");
         xop_rowtext(6, &lb, val, &u, &r);
         ok &= str_eq(lb, "SPEED") && str_eq(val, "0.500") && str_eq(u, "HZ");
         turn(EN_K4, 13);                             /* (3EQ: 14) */
-        ok &= opx_get(opx_pk[tr], OPXF_FX2_TYPE) == 14 && xop_rowtext(1, &lb, val, &u, &r) && str_eq(val, "3EQ");
+        ok &= opx_get(opx_pk[tr], OPXF_FX3_TYPE) == 14 && xop_rowtext(1, &lb, val, &u, &r) && str_eq(val, "3EQ");
         xop_rowtext(3, &lb, val, &u, &r);
         ok &= str_eq(lb, "1 LOW") && str_eq(val, "0.0") && str_eq(u, "DB");
         xo_set(EN_K3, 3, 20);                        /* 1 LOW: 0.5 dB a detent */

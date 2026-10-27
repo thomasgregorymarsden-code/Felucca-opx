@@ -62,6 +62,7 @@ jobs:
           if [ "${{ github.event_name }}" = release ]; then
             ver="${GITHUB_REF_NAME#v}"
             b --release "$ver"
+            export FELUCCA_OPX_ONLY=1; b --release "$ver"; unset FELUCCA_OPX_ONLY   # (Solo's files beside them)
             echo "REL=$ver" >> "$GITHUB_ENV"
           fi
           export FELUCCA_OPX_ONLY=1; b; unset FELUCCA_OPX_ONLY   # (the OPX-only firmware first: build/felucca-opx-solo.fwsc, kept aside)
@@ -86,8 +87,8 @@ jobs:
         run: |
           # the site's installer: the latest published release, else this build
           if gh release download --repo "$GITHUB_REPOSITORY" --pattern 'felucca-*.fwsc' --dir rel 2>/dev/null; then
-            pkg=$(ls rel/felucca-*.fwsc | head -1)
-            ver=$(basename "$pkg" .fwsc); ver="${ver#felucca-}"
+            pkg=$(ls rel/felucca-*.fwsc | grep -v -- -solo- | head -1)
+            ver=$(basename "$pkg" .fwsc); ver="${ver#felucca-}"; ver="${ver#opx-}"
             python3 web/make_site.py "$pkg" "$ver" _site
           else
             python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site

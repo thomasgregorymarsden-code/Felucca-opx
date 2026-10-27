@@ -49,7 +49,8 @@ SDK_SHA256 = {
     "cfg/eq_cfg_hw.bin": "41167491bffed4651750719c973d2758adeb9021a5670d02d6a53c85ed80ea7d",
 }
 
-PRODUCT = "FM-1_900"                # package identity; release builds are FM-1_9XY
+PRODUCT = "FM-1_OPX-dev"            # package identity (OPX fork: FM-1_OPX-<version>, the Solo firmware FM-1_OPX-SOLO-;
+                                    # a development build -dev). Upstream Felucca's are FM-1_9XY
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/felucca.c)
 
 
@@ -206,6 +207,15 @@ def build_app():
     if os.environ.get("FELUCCA_OPX_ONLY") == "1":   # OPX fork: the OPX-only firmware's version says so ("-opx-solo")
         flags.append('-DFELUCCA_ONLY_TAG="-opx-solo"')
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
+    try:                                        # OPX fork: the build's commit (MENU > INFO, ABOUT); "+": changed files
+        sha = subprocess.run(["git", "rev-parse", "--short=7", "HEAD"], cwd=SRC, capture_output=True, text=True,
+                             check=True).stdout.strip()
+        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=SRC, capture_output=True,
+                               text=True).stdout.strip()
+        if re.fullmatch(r"[0-9a-f]{7}", sha):
+            flags.append(f'-DFELUCCA_BUILD="{sha}{"+" if dirty else ""}"')
+    except (OSError, subprocess.CalledProcessError):
+        pass
     if VERSION:
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
     # felucca.c goes to LLVM IR without the optimizer, the main-loop functions (UI, stores, editor) are
@@ -343,18 +353,20 @@ def mmio_check():
 def main():
     global PRODUCT, VERSION
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_9XY, version string vX.Y")
+    ap.add_argument("--release", metavar="X.Y.Z", help="release build: identity FM-1_OPX-X.Y.Z, version string vX.Y.Z")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     a = ap.parse_args()
     solo = os.environ.get("FELUCCA_OPX_ONLY") == "1"   # OPX fork: the OPX-only firmware, its own package name
     name = "felucca-opx-solo.fwsc" if solo else "felucca.fwsc"
-    if a.release:                   # one digit each: the identity has room for two (X.Y.Z and X.Y.Z.W keep X.Y's)
-        m = re.fullmatch(r"(\d)\.(\d)(?:\.\d){0,2}(-[A-Za-z0-9]+)?", a.release)
+    if solo:
+        PRODUCT = "FM-1_OPX-SOLO-dev"
+    if a.release:                   # (the identity: 20 characters at most, fm1pkg_make checks)
+        m = re.fullmatch(r"\d+\.\d+(?:\.\d+){0,2}(-[A-Za-z0-9]+)?", a.release)
         if not m:
-            raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z, X.Y.Z.W or X.Y-suffix, one digit each")
-        PRODUCT = "FM-1_9" + m[1] + m[2]
-        VERSION = "v" + a.release.lower()      # e.g. v1.0, v1.1-rc1
-        name = f"felucca-{'opx-solo-' if solo else ''}{a.release}.fwsc"
+            raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z, X.Y.Z.W or X.Y.Z-suffix")
+        PRODUCT = ("FM-1_OPX-SOLO-" if solo else "FM-1_OPX-") + a.release
+        VERSION = "v" + a.release.lower() + ("-opx-solo" if solo else "")   # e.g. v0.2.0, v0.2.0-opx-solo
+        name = f"felucca-opx-{'solo-' if solo else ''}{a.release}.fwsc"
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
@@ -386,13 +398,15 @@ def main():
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")
     if a.release:                   # what a release carries: the package, the app and every licence they need
         rel = OUT / f"release-{a.release}"
-        shutil.rmtree(rel, ignore_errors=True)
-        (rel / "LICENSES").mkdir(parents=True)
-        app = f"felucca-{a.release}-app.bin"
+        if not solo:                # (Solo's files join Felucca-OPX's, built first: CI)
+            shutil.rmtree(rel, ignore_errors=True)
+        (rel / "LICENSES").mkdir(parents=True, exist_ok=True)
+        app = f"felucca-opx-{'solo-' if solo else ''}{a.release}-app.bin"
         (rel / name).write_bytes(pkg)
         (rel / app).write_bytes(img)
-        (rel / "SHA256SUMS").write_text("".join(f"{hashlib.sha256(b).hexdigest()}  {n}\n"
-                                                for n, b in ((name, pkg), (app, bytes(img)))))
+        sums = (rel / "SHA256SUMS").read_text() if solo and (rel / "SHA256SUMS").exists() else ""
+        (rel / "SHA256SUMS").write_text(sums + "".join(f"{hashlib.sha256(b).hexdigest()}  {n}\n"
+                                                       for n, b in ((name, pkg), (app, bytes(img)))))
         for f in sorted((SRC / "LICENSES").glob("*.txt")):
             shutil.copy(f, rel / "LICENSES" / f.name)
         for doc in ("LICENSE", "LICENSING.md"):

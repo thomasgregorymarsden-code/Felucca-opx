@@ -46,6 +46,8 @@ static void setup(const opx_patch_t *p, const int16_t *e)
     for (i = 0; i < 8u; i++)
         trk[0].p[P_E0 + i] = e ? e[i] : 0;
     opx_own[0] = p;
+    memset(opx_fxs, 0, sizeof opx_fxs);              /* (M5c: the effects from rest: each render the same) */
+    memset(opx_fxtail, 0, sizeof opx_fxtail);
     trk[0].p[P_VOICE] = V_POLY;
     trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = 0;
 }
@@ -1338,6 +1340,19 @@ static void test_m5b(void)
         if (!(hi < 131071 && lo > -131071 && hi - lo > 1000)) printf("opx: FILTER type %u: %.3f .. %.3f\n", i, lo, hi), ok = 0;
     }
     check("M5b FILTER: all 11 types at RESO 100 %: sound, inside full scale", ok);
+    ok = 1;                                          /* (each type wide open, RESO 70 %, KTRK 1.00, at C7: no runaway) */
+    for (i = 0; i < OPX_NMF; i++) {
+        uint32_t j;
+        m5b_saw(i, 23680, 7000);
+        P.flt.kh = 64, P.flt.eg2 = 1800, P.eg[1].sus = 100;
+        setup(&P, 0);
+        engine_render(96, 127, y, FS / 2, 0, 0);
+        lo = 1e9, hi = -1e9;
+        for (j = 0; j < FS / 2; j++)
+            lo = y[j] < lo ? y[j] : lo, hi = y[j] > hi ? y[j] : hi;
+        if (!(hi < 131070 && lo > -131070)) printf("opx: FILTER type %u at the top: %.0f .. %.0f\n", i, lo, hi), ok = 0;
+    }
+    check("M5b FILTER: every type at the top of its range (C7, KTRK 1.00, EG2 +18), RESO 70 %: no runaway", ok);
     m5b_saw(OPX_MF_LPF12, 300, 0);                   /* EG2 +48.00 held at SUS 100: the cutoff 4 octaves up */
     setup(&P, 0);
     engine_render(45, 127, z, FS / 2, 0, 0);
@@ -1501,6 +1516,7 @@ static void test_factory(void)
     setup(0, 0);
     trk[0].p[P_E7] = 0;
     engine_render(60, 100, y, FS / 2, 0, 0);
+    memset(opx_fxs, 0, sizeof opx_fxs);              /* (the part's effects from rest again: their LFOs run on) */
     engine_render(60, 100, z, FS / 2, 0, 0);
     same = !memcmp(y, z, sizeof(double) * (FS / 2));
     check("a note from silence renders the same samples twice", same);

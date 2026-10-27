@@ -282,36 +282,81 @@ static int32_t opx_level_amp(int32_t l)
 #define OP(l, c, fi, dt, a, d, r, s, cv, fb, v) {(l), (c), (fi), (dt), 0, 0, 0, (a), (d), (r), (s), (cv), (fb), (v)}
 #define R1 7                     /* coarse index of ratio 1 (R1 + n - 1: ratio n) */
 #define OFF OP(0, R1, 1000, 0, 0, 0, 0, 0, 0, 0, 0)
+/* (0.2.0: the factory patches use what M4..M5c added; an EG, LFO, filter or virtual patch they leave out is INIT's)
+ * EGP(atk, dec, rel, sus, curve): TIME10 codes (100 ms 414, 300 ms 512, 1 s 620); LFOP(wave, speed HZ10 (6 Hz ~711),
+ * KSYNC, fade ms); VPP(source, CTRL, INT x0.01, destination); MFLT(type, cutoff CUT10 (1 kHz ~631), reso x0.01 %,
+ * EG2 INT x0.01 st, its CTRL, KTRK HIGH, CENTER, LFO2 INT); PFX(type, B, C, E, F) in the type's units, ON */
+#define EGP(a, d, r, s, cv) {(a), (d), (r), (s), (cv)}
+#define LFOP(w, sp, ks, fd) {(w), (sp), 0, 0, (ks), 0, (fd)}
+#define VPP(src, ctl, amt, dst) {(src), (ctl), (amt), (dst)}
+#define MFLT(ty, cut, re, e2, e2c, kh, kc, l2) {(ty), 1, (e2c), 0, (kc), 0, (kh), (cut), (re), (e2), (l2)}
+#define PFX(t, b, c, e, f) {(t), 1, {(b), (c), (e), (f)}}
+#define OPLV(n) (OPX_VD_OP + ((n) - 1) * 39 + OPX_DO_LEVEL)   /* (a virtual patch's destination: OPn LEVEL) */
 static const opx_patch_t OPX_FACTORY[] = {
     {"E.PIANO", 4, 0, {{0}}, 0, {   /* algorithm 5: three pairs, a tine (op 3, 4) and a bell (op 5, 6) */
         OP(100, R1, 1000, 2, 1, 682, 300, 0, 8, 0, 60), OP(62, R1, 1000, -2, 1, 620, 300, 0, 8, 0, 70),
         OP(80, R1, 1000, -3, 1, 764, 400, 0, 8, 0, 60), OP(58, R1 + 13, 1000, 3, 1, 450, 300, 0, 8, 0, 80),
-        OP(45, R1, 1000, 0, 1, 806, 400, 0, 8, 0, 60), OP(55, R1 + 13, 1000, 0, 1, 414, 300, 0, 9, 40, 80)}},
+        OP(45, R1, 1000, 0, 1, 806, 400, 0, 8, 0, 60), OP(55, R1 + 13, 1000, 0, 1, 414, 300, 0, 9, 40, 80)},
+        .vp = {VPP(OPX_C_MW, 0, 2500, OPLV(4))},       /* (MOD WHEEL: the tine brighter, OP4 +25) */
+        .fx = {PFX(5, 35, 1, 3500, 500),                /* (a suitcase's tremolo: PAN SINE 3.5 Hz, 35 %, left / right) */
+               PFX(14, 20, -10, 0, 1000)}},             /* (3EQ: LOW +2 dB, HIGH -1 dB) */
     {"BELL", 4, 0, {{0}}, 0, {      /* algorithm 5, inharmonic modulators */
         OP(100, R1, 1000, 0, 1, 806, 806, 0, 10, 0, 50), OP(52, R1 + 2, 1410, 0, 1, 764, 764, 0, 10, 0, 60),
         OP(85, R1, 1000, 4, 1, 764, 764, 0, 10, 0, 50), OP(48, R1 + 5, 1000, 0, 1, 682, 682, 0, 10, 0, 60),
-        OP(70, R1 + 1, 1000, -4, 1, 720, 720, 0, 10, 0, 50), OP(42, R1 + 7, 1414, 0, 1, 600, 600, 0, 10, 0, 60)}},
+        OP(70, R1 + 1, 1000, -4, 1, 720, 720, 0, 10, 0, 50), OP(42, R1 + 7, 1414, 0, 1, 600, 600, 0, 10, 0, 60)},
+        .fx = {PFX(14, -30, 20, 0, 1000),               /* (3EQ: LOW -3 dB, HIGH +2 dB) */
+               PFX(5, 20, 1, 300, 500)}},               /* (PAN: a slow 20 % sway, for width) */
     {"FM BASS", 0, 0, {{0}}, 0, {   /* algorithm 1: a pair and a stack */
         OP(100, R1 - 1, 1000, 0, 1, 682, 207, 70, 6, 0, 40), OP(78, R1 - 1, 1000, 0, 1, 476, 207, 30, 6, 0, 60),
         OP(80, R1 - 1, 1000, 1, 1, 620, 207, 60, 6, 0, 40), OP(70, R1, 1000, 0, 1, 414, 207, 20, 6, 0, 60),
-        OP(55, R1 + 2, 1000, 0, 1, 306, 207, 0, 6, 0, 60), OP(50, R1, 1000, 0, 1, 351, 207, 0, 6, 60, 60)}},
+        OP(55, R1 + 2, 1000, 0, 1, 306, 207, 0, 6, 0, 60), OP(50, R1, 1000, 0, 1, 351, 207, 0, 6, 60, 60)},
+        .eg = {EGP(0, 0, 0, 0, 0), EGP(0, 512, 414, 0, 4)},   /* (EG2: the filter's pluck, 300 ms) */
+        .flt = MFLT(OPX_MF_LPF24, 600, 2000, 3600, OPX_C_VEL, 43, 48, 0),   /* (800 Hz, RESO 20 %, EG2 +36 st x VEL,
+                                                                             * KTRK HIGH 0.50 from C2) */
+        .fx = {PFX(20, 100, 40, 30, -60)}},             /* (COMP: SENS 40, ATTACK 30, LEVEL -6 dB: its make-up) */
     {"BRASS", 21, 0, {{0}}, 0, {    /* algorithm 22: one modulator on three carriers, slow bright attack */
         OP(100, R1, 1000, 0, 351, 620, 300, 85, 4, 0, 30), OP(72, R1, 1000, 0, 394, 558, 300, 70, 4, 0, 50),
         OP(90, R1, 1000, 6, 351, 620, 300, 85, 4, 0, 30), OP(90, R1, 1000, -6, 351, 620, 300, 85, 4, 0, 30),
-        OP(70, R1 + 1, 1000, 0, 351, 620, 300, 80, 4, 0, 30), OP(74, R1, 1000, 0, 414, 600, 300, 65, 4, 45, 50)}},
+        OP(70, R1 + 1, 1000, 0, 351, 620, 300, 80, 4, 0, 30), OP(74, R1, 1000, 0, 414, 600, 300, 65, 4, 45, 50)},
+        .eg = {EGP(0, 0, 0, 0, 0), EGP(394, 574, 512, 50, 4)},   /* (EG2: the swell, 80 ms up, 600 ms to half) */
+        .lfo = {LFOP(OPX_L_SIN, 701, 2, 600)},          /* (LFO1: 5.5 Hz a note, faded in over 600 ms) */
+        .prog_lfo1 = 12,                                /* (PROG PITCH LFO1 +0.12 st: the delayed vibrato) */
+        .flt = MFLT(OPX_MF_LPF12, 651, 1000, 3000, OPX_C_VEL, 64, 60, 0),   /* (1.2 kHz, EG2 +30 st x VEL, KTRK 1.00) */
+        .fx = {PFX(14, 0, -20, 30, 1500)}},             /* (3EQ: HIGH -2 dB, 1.5 kHz +3 dB) */
     {"SAW LEAD", 31, 0, {{0}}, 0, { /* algorithm 32: three detuned carriers at the sawtooth-like feedback */
         OP(100, R1, 1000, 0, 1, 682, 207, 90, 3, 75, 20), OP(90, R1, 1000, 7, 1, 682, 207, 90, 3, 75, 20),
-        OP(90, R1, 1000, -7, 1, 682, 207, 90, 3, 75, 20), OFF, OFF, OFF}},
+        OP(90, R1, 1000, -7, 1, 682, 207, 90, 3, 75, 20), OFF, OFF, OFF},
+        .eg = {EGP(0, 0, 0, 0, 0), EGP(0, 538, 476, 30, 6)},   /* (EG2: 400 ms down to 30 %) */
+        .lfo = {LFOP(OPX_L_SIN, 701, 1, 0)},            /* (LFO1: 5.5 Hz) */
+        .prog_lfo1 = 50, .prog_lfo1_ctrl = OPX_C_MW,    /* (vibrato on the MOD WHEEL, +-0.5 st) */
+        .flt = MFLT(OPX_MF_LPF24, 765, 3000, 1800, 0, 64, 60, 0),   /* (3 kHz, RESO 30 %, EG2 +18 st, KTRK 1.00) */
+        .fx = {PFX(15, 25, -80, 2500, 20)}},            /* (DIST: DRIVE 25, LEVEL -8 dB, 2.5 kHz +2 dB) */
     {"LOOP PAD", 33, 70, {{0}}, 0, {/* algorithm 34: the 6-operator chain with its 4 -> 6 loop (ALG FB) */
         OP(100, R1, 1000, 0, 600, 826, 682, 90, 5, 0, 20), OP(55, R1, 1000, 3, 620, 826, 682, 80, 5, 0, 30),
         OP(50, R1 + 1, 1000, 0, 656, 826, 682, 70, 5, 0, 30), OP(48, R1, 1000, -3, 682, 826, 682, 70, 5, 0, 30),
-        OP(45, R1 + 2, 1000, 0, 682, 826, 682, 60, 5, 0, 30), OP(45, R1, 1000, 0, 718, 826, 682, 60, 5, 0, 30)}},
+        OP(45, R1 + 2, 1000, 0, 682, 826, 682, 60, 5, 0, 30), OP(45, R1, 1000, 0, 718, 826, 682, 60, 5, 0, 30)},
+        .eg = {EGP(0, 0, 0, 0, 0), EGP(656, 718, 656, 60, 5)},   /* (EG2: 1.5 s up, 3 s to 60 %) */
+        .lfo = {LFOP(0, 0, 0, 0), LFOP(OPX_L_TRI, 333, 1, 0)},   /* (LFO2: 0.2 Hz, the part's) */
+        .flt = MFLT(OPX_MF_LPF12, 715, 1500, 1200, 0, 0, 60, 800),   /* (2 kHz, EG2 +12 st, LFO2 +-8 st) */
+        .fx = {PFX(3, 50, 70, 150, 400),                /* (PHA: 0.15 Hz, DEPTH 70, RESO 40 %) */
+               PFX(5, 30, 1, 100, 500)}},               /* (PAN: 0.1 Hz, 30 %) */
     {"X-MOD", OPX_USER, 0,          /* USER: two carriers that modulate each other, a third modulating both */
         {{0, 12, 0, 0, 0, 0}, {10, 0, 0, 0, 0, 0}, {35, 35, 0, 0, 0, 0},
          {0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0}}, 0x03u, {
         OP(100, R1, 1000, 0, 1, 764, 414, 50, 6, 0, 40), OP(90, R1 + 1, 1005, 0, 1, 764, 414, 50, 6, 0, 40),
-        OP(50, R1 + 2, 1000, 0, 1, 558, 414, 10, 6, 0, 60), OFF, OFF, OFF}},
+        OP(50, R1 + 2, 1000, 0, 1, 558, 414, 10, 6, 0, 60), OFF, OFF, OFF},
+        .lfo = {LFOP(0, 0, 0, 0), LFOP(0, 0, 0, 0), LFOP(OPX_L_TRI, 378, 2, 0)},   /* (LFO3: 0.3 Hz a note) */
+        .vp = {VPP(OPX_C_MW, 0, 3000, OPLV(3)),         /* (MOD WHEEL: OP3 +30, more cross-modulation) */
+               VPP(OPX_VS_LFO3, 0, 10, OPX_VD_OP + 39 + OPX_DO_PITCH)},   /* (LFO3: OP2 +-0.10 st, a slow beat) */
+        .fx = {PFX(13, 65, 40, 35, 500),                /* (FLTR: CUTOFF 65 %, RESO 40, its LFO 0.5 Hz, DEPTH 35) */
+               PFX(17, 25, 1600, 120, 0)}},             /* (DEC: 16 kHz, 12 bits, MIX 25) */
 };
+#undef EGP
+#undef LFOP
+#undef VPP
+#undef MFLT
+#undef PFX
+#undef OPLV
 #undef OP
 #undef OFF
 #define OPX_NFACTORY ((uint32_t)NELEM(OPX_FACTORY))
@@ -1922,6 +1967,12 @@ static void __attribute__((noinline)) opx_mflt_coef(const track_t *t, const voic
     }
     c->type = 0, c->fm = 0;
     c->fc0 = f > OPX_FCMAX ? OPX_FCMAX : f < 4096u ? 4096u : (uint32_t)f;
+    if (r->fms == 2u && c->fc0 > 1202590843u)        /* (the ladder: at most 0.28 fs, 12.3 kHz: its feedback a sample
+                                                      * late, higher with RESO it runs away) */
+        c->fc0 = 1202590843u;
+    if (r->fms == 2u && c->fc0 > 429496730u)         /* (.. and above 0.1 fs its feedback less, to 55 % at the top:
+                                                      * (0.5 fs - fc) / 0.4 fs; 32-bit) */
+        kq = (int32_t)((uint32_t)kq * ((2147483648u - c->fc0) >> 17) / 13107u);
     c->kl = kq;
     opx_svf_coef(c, c->fc0);
 }

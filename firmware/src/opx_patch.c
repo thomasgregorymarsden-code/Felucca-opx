@@ -226,10 +226,50 @@ static void opx_encode(const opx_patch_t *p, uint8_t *pk)
             opx_put(pk, OPXF_OP(k, OPXF_OP1_KTRK_LCRV), o->ktrk_lcrv);
             opx_put(pk, OPXF_OP(k, OPXF_OP1_KTRK_HCRV), o->ktrk_hcrv);
         }
+        opx_put(pk, OPXF_OP(k, OPXF_OP1_PMOD_EG1), o->pm_eg1);   /* (M4: P MOD, LMOD; their defaults 0, OFF) */
+        opx_put(pk, OPXF_OP(k, OPXF_OP1_PMOD_EG1_CTRL), o->pm_eg1_ctrl);
+        opx_put(pk, OPXF_OP(k, OPXF_OP1_PMOD_LFO1), o->pm_lfo1);
+        opx_put(pk, OPXF_OP(k, OPXF_OP1_PMOD_LFO1_CTRL), o->pm_lfo1_ctrl);
+        opx_put(pk, OPXF_OP(k, OPXF_OP1_PMOD_VEL), o->pm_vel);
+        opx_put(pk, OPXF_OP(k, OPXF_OP1_PMOD_VEL_DEST), o->pm_dest);
+        opx_put(pk, OPXF_OP(k, OPXF_OP1_LMOD_LFO1), o->lm_lfo1);
+        opx_put(pk, OPXF_OP(k, OPXF_OP1_LMOD_LFO1_CTRL), o->lm_lfo1_ctrl);
         for (j = 0; j < OPX_NOP; j++)
             opx_put(pk, opxf_ua(k, j), p->ua[k][j]);
         opx_put(pk, OPXF_UA_OUT(k), (int32_t)((p->ua_out >> k) & 1u));
     }
+    for (k = 0; k < 3u; k++) {                        /* (M4, M5: an EG / LFO the patch sets: all of it; else INIT's) */
+        const opx_egp_t *e = &p->eg[k];
+        const opx_lfop_t *l = &p->lfo[k];
+        uint32_t f = k * (OPXF_EG2_ATK - OPXF_EG1_ATK), g = k * (OPXF_LFO2_WAVE - OPXF_LFO1_WAVE);
+        if (e->atk || e->dec || e->rel || e->sus || e->curve) {
+            opx_put(pk, OPXF_EG1_ATK + f, e->atk), opx_put(pk, OPXF_EG1_DEC + f, e->dec);
+            opx_put(pk, OPXF_EG1_REL + f, e->rel), opx_put(pk, OPXF_EG1_SUS + f, e->sus);
+            opx_put(pk, OPXF_EG1_CURVE + f, e->curve);
+        }
+        if (l->speed || l->tempo) {
+            opx_put(pk, OPXF_LFO1_WAVE + g, l->wave), opx_put(pk, OPXF_LFO1_SPEED + g, l->speed);
+            opx_put(pk, OPXF_LFO1_SYNC + g, l->sync), opx_put(pk, OPXF_LFO1_KSYNC + g, l->ksync);
+            opx_put(pk, OPXF_LFO1_PHASE + g, l->phase), opx_put(pk, OPXF_LFO1_TEMPO + g, l->tempo);
+            opx_put(pk, OPXF_LFO1_FADE + g, l->fade);
+        }
+    }
+    for (k = 0; k < OPX_NVP; k++)                    /* (M5: the virtual patches it sets) */
+        if (p->vp[k].src) {
+            uint32_t f = k * (OPXF_VP2_SRC - OPXF_VP1_SRC);
+            opx_put(pk, OPXF_VP1_SRC + f, p->vp[k].src), opx_put(pk, OPXF_VP1_INT + f, p->vp[k].amt);
+            opx_put(pk, OPXF_VP1_CTRL + f, p->vp[k].ctrl), opx_put(pk, OPXF_VP1_DST + f, p->vp[k].dst);
+        }
+    if (p->flt.on) {                                  /* (M5b: the main filter, when it sets it; else INIT's: open) */
+        opx_put(pk, OPXF_FLT_TYPE, p->flt.type), opx_put(pk, OPXF_FLT_ENABLE, 1);
+        opx_put(pk, OPXF_FLT_CUTOFF, p->flt.cutoff), opx_put(pk, OPXF_FLT_RESO, p->flt.reso);
+        opx_put(pk, OPXF_FLT_EG2, p->flt.eg2), opx_put(pk, OPXF_FLT_EG2_CTRL, p->flt.eg2_ctrl);
+        opx_put(pk, OPXF_FLT_KTRK_LOW, p->flt.kl), opx_put(pk, OPXF_FLT_KTRK_HIGH, p->flt.kh);
+        opx_put(pk, OPXF_FLT_KTRK_CENTER, p->flt.kc ? p->flt.kc : 60);
+        opx_put(pk, OPXF_FLT_LFO2, p->flt.lfo2), opx_put(pk, OPXF_FLT_LFO2_CTRL, p->flt.lfo2_ctrl);
+    }
+    opx_put(pk, OPXF_PROG_LFO1, p->prog_lfo1), opx_put(pk, OPXF_PROG_LFO1_CTRL, p->prog_lfo1_ctrl);   /* (M4) */
+    opx_put(pk, OPXF_PROG_TRANS, p->prog_trans), opx_put(pk, OPXF_PROG_OCT, p->prog_oct);
     for (k = 0; k < 3u; k++) {                        /* (M5c: a factory patch's effects: OFF unless it sets them) */
         uint32_t f = k * (OPXF_FX2_TYPE - OPXF_FX1_TYPE), t = p->fx[k].type < OPX_NFXT ? p->fx[k].type : 0u;
         opx_put(pk, OPXF_FX1_TYPE + f, (int32_t)t);

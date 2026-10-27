@@ -52,7 +52,11 @@ the operators' pitch and level. It plays up to six voices. The opsix's EG2, EG3,
 virtual patch are not implemented yet ([plan](docs/OPX_PLAN.md)).
 
 To use it, hold **EDIT** and press **A3**, the third white key from F3 (ANALOG, FM6, OPX, …; the layer's map shows
-them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD and X-MOD.
+them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD and X-MOD. Since
+0.2.0 they use the newer parts of OPX: E.PIANO a suitcase-style auto-pan and the MOD WHEEL on its tine, BELL an EQ and a
+slow pan, FM BASS a velocity-plucked LPF 24 and a compressor, BRASS a velocity swell on its filter and a delayed
+vibrato, SAW LEAD a filter envelope, vibrato on the MOD WHEEL and light distortion, LOOP PAD a filter swept by LFO2, a
+phaser and a pan, X-MOD more cross-modulation on the MOD WHEEL, a beating LFO3, the LFO filter and the decimator.
 
 ### What it plays
 
