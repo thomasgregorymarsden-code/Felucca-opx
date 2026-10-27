@@ -100,9 +100,9 @@ jobs:
             pkg=$(ls rel/felucca-*.fwsc | grep -v -- -solo- | head -1)
             ver=$(basename "$pkg" .fwsc); ver="${ver#felucca-}"; ver="${ver#opx-}"
             python3 web/make_site.py "$pkg" "$ver" _site
-            solo=$(ls rel/felucca-opx-solo-*.fwsc 2>/dev/null | head -1)
+            solo=$(ls rel/felucca-opx-solo-*.fwsc 2>/dev/null | head -1 || true)   # (none: -eo pipefail)
             [ -n "$solo" ] && python3 web/make_site.py "$solo" "$ver-opx-solo" _site/opx-solo
-            web=$(ls rel/felucca-*-web.zip 2>/dev/null | head -1)
+            web=$(ls rel/felucca-*-web.zip 2>/dev/null | head -1 || true)
             if [ -n "$web" ]; then                     # (the release's own simulators and editor)
               mkdir -p relweb && unzip -q "$web" -d relweb
               mkdir -p _site/webapp/try && cp -R relweb/try/. _site/webapp/try/ && cp -R relweb/editor/. _site/webapp/editor/
