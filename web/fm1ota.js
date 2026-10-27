@@ -144,7 +144,7 @@ export class Updater {
   // serve read requests until the device asks for one of the finish addresses; stops early
   // when the port disappears (lost: true) instead of waiting out idleMs
   async serve(link, image, finishAddr, idleMs, onProgress) {
-    let served = 0, last = Date.now();
+    let served = 0, bytes = 0, last = Date.now();   // (bytes: the data sent, for a progress bar: requests vary in size)
     for (;;) {
       const pkt = await link.read(1000);
       if (!pkt) {
@@ -166,7 +166,8 @@ export class Updater {
         return { served, finished: false, lost: true };
       }
       served++;
-      if (onProgress) onProgress(served, r.addr);
+      bytes += r.len;
+      if (onProgress) onProgress(served, r.addr, bytes);
     }
   }
 
@@ -203,7 +204,7 @@ export class Updater {
   async write(ota, image, step) {
     ota.link.send(UPGRADE);
     await sleep(2000);
-    const s2 = await this.serve(ota.link, image, 0xF0000000, 180000, (n) => step("write", n));
+    const s2 = await this.serve(ota.link, image, 0xF0000000, 180000, (n, addr, bytes) => step("write", n, bytes));
     ota.link.close();
     return s2;
   }

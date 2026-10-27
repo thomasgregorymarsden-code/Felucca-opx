@@ -1720,9 +1720,11 @@ async function updater() {
   const image = Uint8Array.from({ length: 0x2000 }, (_, i) => (i * 7) & 0xFF);
   const dev = new FakeFM1(image);
   const steps = [];
-  const got = await new Updater(dev.access).install(image, "FM-1_900", (k) => steps.push(k));
+  let wbytes = 0;                                  // (the write's bytes so far: the installer's progress bar)
+  const got = await new Updater(dev.access).install(image, "FM-1_900", (k, n, b) => { steps.push(k); if (k === "write") wbytes = b; });
   ok(got === "FM-1_900" && dev.bad === 0 && steps.includes("write") && steps.at(-1) === "done",
     `fm1ota.js: install: running firmware -> loader -> Felucca (${dev.served} reads)`);
+  ok(wbytes > 0 && wbytes <= image.length, `fm1ota.js: the write reports the bytes sent (${wbytes} of ${image.length})`);
 
   const dev2 = new FakeFM1(image, { unplugAfter: 3 });
   dev2.boot("ota-FM-1_900", "Felucca Update");

@@ -5,6 +5,9 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **Web installer:** the log of an install is a box of its own height that follows its newest line (scroll up to read
+  back), not a page growing by 2,300 lines. The progress bar follows the bytes written (the check 0–3 %, the write
+  3–99 %): it counted 512-byte requests, but the loader asks for 256 bytes at a time, so it reached its end halfway.
 - **The factory patches use the new features.** E.PIANO: PAN (a suitcase tremolo), 3EQ, MOD WHEEL brightening its
   tine. BELL: 3EQ, a slow PAN. FM BASS: LPF 24 plucked by EG2 x velocity, COMP. BRASS: an EG2 swell on LPF 12 x
   velocity, delayed vibrato (LFO1 faded in, PROG PITCH). SAW LEAD: LPF 24 with an EG2 sweep, vibrato on the MOD
