@@ -19,7 +19,7 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | done: user presets (16), the backup, the storage repacked ([OPX_STORAGE.md](OPX_STORAGE.md)), the web editor's OPX tab |
 | M4 | EG1 (pitch), LFO1 and their default routes: each operator's P MOD (EG1, LFO1, VEL), LMOD LFO1, PROG PITCH (LFO1, TRANS, OCT); the CTRL sources | done (pages EG1 and LFO1, the rows in OPERATORS, the web editor; not yet compared with an opsix) |
 | M5a | EG2, EG3, LFO2, LFO3; the virtual patch (V.PATCH 1–12) to the destinations OPX has; every CTRL source live | done (pages EG1-3, LFO1-3, OPERATORS' V.PATCH section, the web editor; INT's scale a guess, see [Assumptions](#assumptions-to-check-by-ear)) |
-| M5b | Main filter (EG2, LFO2, key tracking), as far as the processor time allows | done: one a voice (OPERATORS' FILTER section, the web editor; V.PATCH FILTER CUTOFF and RESO played; device cost to measure: the benchmark's MAIN rows) |
+| M5b | Main filter (EG2, LFO2, key tracking), as far as the processor time allows | done: one a voice (OPERATORS' FILTER section, the web editor; V.PATCH FILTER CUTOFF and RESO played; on the device +9.4 to +11.5 points on six notes, see [Cost](#cost)) |
 | M5c | Effects 1–3 | part 1 done: the chain, the 13 types with no buffer (OPERATORS' FX1-3 section, the web editor); next: the buffered types (memory: see [How M5c works](#how-m5c-works)) |
 
 Confirmed on a device so far: it installs and runs, and six OPX voices at once do not overload the processor. Not
@@ -276,6 +276,18 @@ EG1 on an INT that is on) takes it, and an operator with no P MOD / LMOD INT on 
 modulation arithmetic (on the host: 1.3 % fewer instructions in the render; on the device not yet measured). EG1
 switched on during a held note starts from the note's start, not where it would have been. A patch with a loop back to a lower operator (below) still costs about the old SIN figure,
 ~57 %. M2b–M5 spend the rest.
+
+**2026-10-28, M5c, Felucca-OPX (four parts):** idle 12.4 %, FM6 F1 26.8 % (one note 4.4 %). OPX: SIN 47.9 % (one
+note 7.9 %), SIN 12BIT / 8BIT 50.8 %, TRI 51.8 %, SAW / SAW HD 53.7 / 53.4 %, SQR / SQR HD 63.5 % (10.5 %), ADTV
+52.0 %, NOISE S/H / WHITE 49.2 / 47.8 %, PINK / BLUE 68.3 / 67.4 %. Every row ~4.5 points over M4 (SIN 43.4 to
+47.9 %): EG2/3, LFO2/3, V.PATCH and the main filter's checks, with nothing of them in use. Modes (all six operators):
+RING 66.5 %, WAVE FOLDER 68.3 %, FILTER LPF 143.9 %, FILTER MG24 154.9 %, FILTER FM 195.0 %, EFFECT PEAK EQ 105.7 %,
+PHASER 147.5 %, COMB 87.5 %: one operator in a filter mode ~+16 points (MG ~+18, FILTER FM ~+25), PHASER ~+17, PEAK EQ
+~+10, COMB ~+7, RING / FOLD ~+3. **The main filter** (SIN): LPF12 57.3 %, LPF24 59.4 %, MS-20 57.4 % (one note
+9.5–9.9 %): +9.4 to +11.5 points on six notes, so one a voice fits: 12.4 + 59.4 = 72 % with every voice filtered.
+Room for a patch on six notes: ~72 points (85 less the idle mix). From these figures the factory bank's heaviest
+poly patches were ~80 (AIR PAD: two operators in FILTER) and ~74 (CHOIR); both now use RING / FM operators instead
+(~64, ~58). VOX LEAD (four FILTER operators, ~114 on six notes) is MONO: one voice, ~19.
 
 **The modes** (the mode on all six operators of six notes, SIN, the values typical; "one operator" the cost of one
 operator in that mode over a sine operator, on six notes):

@@ -513,7 +513,7 @@ P("FLUTE", "O", 1, [
     O(92, 1, a=60, rl=150), O(30, 1, a=80, rl=150), O(35, 1, wave="PINK", a=20, d=200, s=20, rl=100, c=6,
                                                        mode="FILTER", flt=("BPF", 12, 40, 0)), OFF, OFF, OFF],
   lfo=[LFO("SIN", 5.0, ks=2, fade=600)], plfo=0.2, plfo_c="MW", sends=(0, 10, 15, 50), mono=1, pat="LEAD",
-  gain=17.8, note="a soft sine, breath through a band-pass (FILTER mode) an octave above the note")
+  gain=20.2, note="a soft sine, breath through a band-pass (FILTER mode) an octave above the note")
 P("OBOE", "O", 1, [
     O(90, 1, a=30, rl=150), O(62, 1, a=40, d=400, s=80, rl=150, c=4, vel=60), O(35, 4, a=30, rl=150),
     OFF, OFF, OFF],
@@ -523,7 +523,7 @@ P("PAN FLUTE", "O", 1, [
     O(92, 1, a=50, rl=250), O(20, 2, a=50, rl=250), O(45, 1, wave="WHITE", a=5, d=90, s=5, rl=80, c=8,
                                                        mode="FILTER", flt=("BPF", 0, 50, 0)), OFF, OFF, OFF],
   lfo=[LFO("SIN", 5.0, ks=2, fade=700)], plfo=0.15, plfo_c="MW", sends=(0, 0, 25, 70), mono=1, pat="LEAD",
-  gain=10.0, note="a breathy sine with a chiff of noise at the note's own pitch")
+  gain=11.2, note="a breathy sine with a chiff of noise at the note's own pitch")
 P("HARMONICA", "O", 1, [
     O(90, 1, a=20, rl=120), O(60, 1, a=30, rl=120, fb=55, vel=60), O(40, 2, a=20, rl=120), OFF, OFF, OFF],
   lfo=[LFO("TRI", 6.0, ks=2)], vp=[VP("LFO1", "PROG.LEVEL", 10, ctrl="MW")], flt=FLT("BPF12", 1800, reso=10, kh=56),
@@ -549,7 +549,7 @@ P("GLASS PAD", "P", 5, [
   gain=5.6, note="three slow FM pairs with glassy 3:1, 7:1, 1.41:1 overtones")
 P("CHOIR", "P", 22, [
     O(85, 1, a=500, rl=1200), O(25, 1, a=600, rl=1200),
-    O(65, 1, det=7, a=550, rl=1200, mode="FILTER", flt=("BPF", 0, 60, 100)),
+    O(65, 1, det=7, a=550, rl=1200),
     O(65, 1, det=-7, a=600, rl=1200), O(45, 2, det=3, a=650, rl=1200), O(35, 1, a=600, rl=1200, wave="SAW")],
   lfo=[LFO("SIN", 4.8, ks=2, fade=800)], plfo=0.12, flt=FLT("LPF12", 2400, kh=32),
   vp=[VP("MW", "OP6.LEVEL", 20)], sends=(0, 80, 10, 80), pat="PAD",
@@ -595,11 +595,11 @@ P("MS STRINGS", "P", 32, [
   gain=4.0, note="string synth through the MS-20 low-pass, a little reso")
 P("AIR PAD", "P", 21, [
     O(70, 1, a=1500, rl=2000, mode="FILTER", flt=("BPF", 12, 50, 0)),
-    O(65, 1, a=1500, rl=2000, mode="FILTER", flt=("BPF", 19, 50, 0)), O(95, 1, wave="WHITE", a=1500, rl=2000),
+    O(65, 3, a=1500, rl=2000, mode="RING", ring=(100, 0)), O(95, 1, wave="WHITE", a=1500, rl=2000),
     O(75, 1, a=1200, rl=2000), O(55, 2, det=4, a=1200, rl=2000), O(25, 1, a=1500, rl=2000)],
   lfo=[None, None, LFO("TRI", 0.1)], vp=[VP("LFO3", "OP1.PITCH", 0.5), VP("MW", "OP3.LEVEL", 15)],
   sends=(0, 60, 40, 90), pat="PAD",
-  gain=6.6, note="noise through band-pass operators tuned an octave and a twelfth up, over soft sines")
+  gain=6.6, note="noise through a band-pass operator an octave up and ringing a twelfth up, over soft sines")
 P("DARK PAD", "P", 32, [
     O(75, 0.5, det=-6, wave="SAW", a=1500, rl=2500), O(75, 0.5, det=6, wave="SAW", a=1500, rl=2500),
     O(60, 1, wave="TRI", a=1800, rl=2500), OFF, OFF, OFF],
