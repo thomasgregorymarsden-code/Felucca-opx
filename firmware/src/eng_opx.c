@@ -24,7 +24,7 @@
  *   ALG   PAT = the patch's algorithm, 1..40 another one, USR the patch's user matrix
  *   ATK   all operators' attack times, longer (+) or shorter (-) (the opsix's HOME ATK)
  *   DEC   all operators' decay and release times (HOME DECAY)
- *   SLOT  F1..F12 (Solo: F126) load a factory patch into the track; OWN the track's own (edited on the operator pages, ui_fm6op.c,
+ *   SLOT  F1..F8 (Solo: F126) load a factory patch into the track; OWN the track's own (edited on the operator pages, ui_fm6op.c,
  *         or loaded with a project, opx_store.c); INIT the INIT patch (the opsix's INITIALIZE). The patch is
  *         opx_patch.c's packed record per track
  * Felucca's FM6-style macros (E3..E6: MLVL, FB, MRAT, DTUN) are not the opsix's: off (OPX_FELUCCA_MACROS 0; the track

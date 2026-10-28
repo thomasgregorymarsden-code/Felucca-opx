@@ -9794,7 +9794,7 @@ static int test_opx_ops(void)
         go_title("ALGO"); frame();
         frames(1600);
         for (k = 0; k < 8u && TSEL->p[P_E7] != (int16_t)OPX_INIT; k++)
-            turn(EN_K4, 40);                         /* (to the end: F1..F12 (Solo F126), OWN, INIT; past the F
+            turn(EN_K4, 40);                         /* (to the end: F1..F8 (Solo F126), OWN, INIT; past the F
                                                       * numbers this firmware lacks) */
         frame();
         ok = TSEL->p[P_E7] == (int16_t)OPX_INIT && opx_slot[tr] == OPX_INIT && opx_get(opx_pk[tr], OPXF_ALGO) == 0 &&

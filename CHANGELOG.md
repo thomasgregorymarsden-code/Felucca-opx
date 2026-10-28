@@ -5,13 +5,13 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
-- **126 factory patches in Felucca-OPX Solo, twelve in Felucca-OPX.** Original sounds in the categories opsix users'
+- **126 factory patches in Felucca-OPX Solo, eight in Felucca-OPX.** Original sounds in the categories opsix users'
   soundsets have: keys (EPs, a piano, clavinet, harpsichord, organs), plucks, bells and mallets, basses, leads, brass
   and winds, pads and strings, drums, effects, chords and sequences. They use the opsix's tricks: operator modes (ring
   modulation, wave folder, band-pass operators as formants, the comb), fixed-frequency operators for drums, chords on
   one key from carrier ratios, fake hard sync from a pitch envelope, tempo-synced gating, sample-and-hold. Every patch
   gives the MOD WHEEL something to do; their levels are matched (`opx_test --audit`). Felucca-OPX has the first
-  twelve (its flash has room for no more): the seven of before, DRAWBARS, PLUCKER, STRINGS, SUB BASS and FM TOM. The
+  eight (its flash has room for no more, with ~1 KB to spare): the seven of before and DRAWBARS. The
   bank is `tools/opx_factory_bank.py` (`tools/opx_factory.py` compiles it to the firmware's tables): the place to
   add or change a factory patch.
 - **SLOT's values are fixed:** F1–F126 0–125, OWN 126, INIT 127, in both firmwares (OWN and INIT followed F7 before).

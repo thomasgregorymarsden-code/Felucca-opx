@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import opx_patch_spec as S  # noqa: E402
 
 MAXN = 126                     # (SLOT: F1..F126, OWN 126, INIT 127: a project byte holds 127 at most)
-NORMAL = 12                    # (the first NORMAL in both firmwares; Felucca-OPX's flash has room for about that many)
+NORMAL = 8                     # (the first NORMAL in both firmwares: Felucca-OPX's flash has room for that many, ~1 KB to spare)
 
 
 class C(int):

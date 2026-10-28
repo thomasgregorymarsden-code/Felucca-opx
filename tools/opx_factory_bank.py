@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""OPX fork: the OPX factory bank (tools/opx_factory.py compiles it). One P() per patch, in SLOT order: F1..F12 in
-every OPX firmware, F13.. in Felucca-OPX Solo only. Original sounds in the usual categories of opsix soundsets
+"""OPX fork: the OPX factory bank (tools/opx_factory.py compiles it). One P() per patch, in SLOT order: the first NORMAL
+(opx_factory.py: 8) in every OPX firmware, the rest in Felucca-OPX Solo only. Original sounds in the usual categories of opsix soundsets
 (keys, plucks and mallets, basses, leads, brass and winds, pads and strings, drums, effects, chords and sequences);
 none is a copy of a Korg program.
 
@@ -73,7 +73,7 @@ P("X-MOD", "F", "USER", [
   fx=[FX("FLTR", 65, 40, 35, 0.5), FX("DEC", 25, 16000, 12.0, 0)], sends=(0, 20, 30, 40), pat="MELODY",
   note="USER: two carriers that modulate each other, a third modulating both")
 
-# ======================================================================= F8..F12: in both firmwares, one per kind ==
+# ================================================ F8..F12: DRAWBARS in both firmwares (NORMAL 8), the rest Solo's ==
 P("DRAWBARS", "K", 32, [
     O(80, 0.5, a=3, rl=40), O(85, 1, a=3, rl=40), O(55, 1.5, a=3, rl=40), O(70, 2, a=3, rl=40),
     O(62, 3, a=1, d=450, s=0, rl=40, c=9, vel=40), O(55, 4, a=3, rl=40)],

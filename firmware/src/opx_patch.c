@@ -11,7 +11,7 @@
  * the main loop decodes into the one the audio ISR is not using, then publishes it (opx_own, one pointer write), so
  * the ISR never sees half a patch.
  *
- * SLOT (P_E7): F1..F12 (Solo F126) load that factory patch into the track (opx_poll, the main loop); OWN (OPX_OWN) is the track's own
+ * SLOT (P_E7): F1..F8 (Solo F126) load that factory patch into the track (opx_poll, the main loop); OWN (OPX_OWN) is the track's own
  * patch: an edited one (the operator pages, ui_fm6op.c), or one a project brought (opx_store.c); INIT (OPX_INIT, after
  * OWN so that stored OWN values keep their meaning) loads the INIT patch: the spec's defaults, as the opsix's
  * INITIALIZE (OP1 alone heard, algorithm 1, ratio 1, no modulation). */

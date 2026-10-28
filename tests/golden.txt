@@ -77,10 +77,6 @@ preset/OPX/04_SAW_LEAD 4902afab39db93cc
 preset/OPX/05_LOOP_PAD 14c07b46069c6e06
 preset/OPX/06_X-MOD a2974a93a1f8a9f4
 preset/OPX/07_DRAWBARS b11734c0897f6d05
-preset/OPX/08_PLUCKER dce0fab111a8e638
-preset/OPX/09_STRINGS a8f9bacae04864c4
-preset/OPX/10_SUB_BASS c6fa066004a19a7c
-preset/OPX/11_FM_TOM 860e287dfec094e8
 drums/drum_gm_kit a88dcac7803e88d4
 drums/kit_80 e3de7e091a481244
 drums/kit_10 0cd4e95937dc519c
