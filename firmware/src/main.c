@@ -155,7 +155,10 @@ static void fm1_main(void)
     settings_init();
     usb_serial_apply();                                 /* (#67: the saved USB SERIAL before usb_start) */
     lcd_init();
-    draw_splash();                                      /* ui_draw.c (1.1.5) */
+    if (ui_prefs & PREF_ANIM_OFF)                       /* ui_draw.c (1.1.5): the still logo */
+        draw_splash();
+    else
+        draw_splash_start();                            /* (OPX fork: the logo animated, its first frame) */
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;
@@ -190,11 +193,23 @@ static void fm1_main(void)
         settings_save();
     }
     autosave_boot(boot_clean);                /* (1.2) the last session's music, under the splash */
-    for (ms = 0; ms < SPLASH_MS; ms += 10u) { /* the splash; the pot followed (MIDI IN plays under it) */
-        fm1_delay_ms(10);
+    spl_polar_ok = 0;                         /* (ui_draw.c: its table again, the canvas may have been drawn in) */
+    ms = fm1_ms;                              /* the splash; the pot followed (MIDI IN plays under it) */
+    for (;;) {                                /* (OPX fork: 3 s, the logo animated by the time, a frame as fast as the
+                                               * display takes it; with ANIM OFF still: the watchdog fed through it) */
+        uint32_t t = fm1_ms - ms;
+        if (t > SPLASH_MS)
+            t = SPLASH_MS;
+        if (ui_prefs & PREF_ANIM_OFF)
+            fm1_delay_ms(10);
+        else
+            splash_frame(t);
         master_poll();
-        fm1_wdt_feed();                       /* (OPX fork: 2 s now, the logo's: the watchdog fed through it) */
+        fm1_wdt_feed();
+        if (t >= SPLASH_MS)
+            break;
     }
+    lcd_sync();
     kb_boot_hold = 0;
     lcd_fill(0, 0, 240, 240, T_BG);
     scrn.idle = fm1_ms;                        /* (MENU > SCREEN OFF: from here) */

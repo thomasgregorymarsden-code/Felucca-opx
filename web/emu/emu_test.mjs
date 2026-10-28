@@ -51,7 +51,7 @@ async function device(saved) {
   return d;
 }
 const colours = (fb) => new Set(fb).size;
-const BOOT = 2100;                                            // ms to the first frame (30 + SPLASH_MS 2000, core.h)
+const BOOT = 3100;                                            // ms to the first frame (30 + SPLASH_MS 3000, core.h)
 
 // ---- boot, keys, screen, LEDs
 const a = await device(null);
@@ -68,7 +68,7 @@ const splash = colours(a.screen());
 }
 a.render(800);
 check("  over by 1 s (~0.70 s)", a.ex.web_anim_levels() === 0);
-a.render(BOOT - 1000);                                        // (OPX fork: the splash stays 2 s, SPLASH_MS)
+a.render(BOOT - 1000);                                        // (OPX fork: the splash stays 3 s, SPLASH_MS)
 const home = a.screen();
 check(`boots: the splash, then HOME (${colours(home)} colours), the HOME LED lit`,
       splash > 1 && colours(home) > 4 && (a.ex.web_lit_buttons() >> B.HOME & 1) === 1);

@@ -1695,6 +1695,72 @@ static void setup(int s)
     default: break;
     }
 }
+/* (OPX fork) the animated splash (ui_draw.c splash_frame): its first frame the disc, OPX and the lines without a ring;
+ * its last draw_splash's logo (the disc's pixels within 3/32 a channel but for 2 % at most: its table and nearest rings
+ * against opx_logo's exact rings); a frame before the end moving (the bends elsewhere); its host cost against
+ * draw_splash's. The scene's screen and boxes kept as draw_splash left them */
+static uint16_t spl_keep[240 * 240];
+static rbox_t spl_kpend[256], spl_kscr[1200];
+static int spl_px_off(const uint16_t *a, const uint16_t *b, int lim)   /* the disc's pixels apart by more than lim/32 */
+{
+    int x, y, n = 0;
+    for (y = 0; y < 184; y++)
+        for (x = SPL_BX; x < SPL_BX + (int)SPL_BW; x++) {
+            uint32_t p = swap16(a[y * 240 + x]), q = swap16(b[y * 240 + x]);
+            int dr = (int)(p >> 11) - (int)(q >> 11), dg = ((int)((p >> 5) & 63u) - (int)((q >> 5) & 63u)) / 2,
+                db = (int)(p & 31u) - (int)(q & 31u);
+            n += abs(dr) > lim || abs(dg) > lim || abs(db) > lim;
+        }
+    return n;
+}
+static void splash_anim_check(void)
+{
+    uint32_t keep_scr = nscr, keep_pend = npend, keep_rules = nrules;
+    char seen[sizeof splash_seen];
+    int off, moved, ringpx = 0, x, y;
+    memcpy(spl_keep, host_screen, sizeof spl_keep);
+    memcpy(spl_kpend, pend, sizeof spl_kpend), memcpy(spl_kscr, scr, sizeof spl_kscr);
+    memcpy(seen, splash_seen, sizeof seen);
+    splash_seen[0] = 0;
+    in_splash = 1;
+    draw_splash_start();
+    in_splash = 0;
+    for (y = 0; y < 186; y++)                      /* (no ring colour: saturated, not the disc's white or BG) */
+        for (x = 0; x < 240; x++) {
+            uint32_t c = swap16(host_screen[y * 240 + x]), r = c >> 11, b = c & 31u, g = (c >> 5) & 63u;
+            ringpx += (r > 20u || b > 20u) && (g < 30u) && host_screen[y * 240 + x] != spl_keep[0];
+        }
+    if (ringpx || strcmp(splash_seen, seen) || spl_px_off(host_screen, spl_keep, 0) == 0) {
+        if (rep) fprintf(rep, "FIND %-26s the animated splash's first frame: %d ring pixels, lines '%s'\n", cur_name, ringpx,
+                         splash_seen);
+        nfind++;
+    }
+    splash_frame(SPLASH_MS);
+    off = spl_px_off(host_screen, spl_keep, 3);
+    splash_frame(SPLASH_MS - 400u);
+    moved = spl_px_off(host_screen, spl_keep, 3);
+    if (off > 186 * 186 / 50 || moved < 1000) {
+        if (rep) fprintf(rep, "FIND %-26s the animated splash: its last frame %d pixels off the logo, 0.4 s before %d\n",
+                         cur_name, off, moved);
+        nfind++;
+    } else {
+        static uint8_t said;
+        if (!said++) {
+            clock_t c0 = clock(), c1;
+            int i;
+            for (i = 0; i < 20; i++) draw_splash();
+            c1 = clock();
+            for (i = 0; i < 20; i++) splash_frame((uint32_t)i * 150u);
+            printf("ui_render: the animated splash ends on the logo (%d pixels off), moves before (%d); a frame costs %.2f x "
+                   "the still splash on the host (%.2f ms a frame)\n", off, moved, (double)(clock() - c1) / (double)(c1 - c0 ? c1 - c0 : 1),
+                   (double)(clock() - c1) * 1000.0 / CLOCKS_PER_SEC / 20.0);
+        }
+    }
+    memcpy(host_screen, spl_keep, sizeof spl_keep);
+    memcpy(splash_seen, seen, sizeof seen);
+    memcpy(pend, spl_kpend, sizeof spl_kpend), memcpy(scr, spl_kscr, sizeof spl_kscr);
+    nscr = keep_scr, npend = keep_pend, nrules = keep_rules;
+}
 static void draw(int s)
 {
     in_splash_scene = s == S_SPLASH;
@@ -1739,6 +1805,7 @@ static void draw(int s)
             static uint8_t said;
             if (!said++) printf("ui_render: the splash shows the version " FELUCCA_VERSION " (FELUCCA_VERSION) and its lines\n");
         }
+        splash_anim_check();
         return;
     }
     ui.force = 1;

@@ -1382,6 +1382,141 @@ static void draw_splash(void)
     lcd_sync();
 }
 
+/* The splash animated (main.c; not with MENU > ANIM OFF: draw_splash's still logo): the rings fade in from the
+ * centre (by ~0.85 s, as circles), take on their six lobes and then the modulator's bends (by ~1.2 s); from then to
+ * the end the modulator's phase runs, so the bends travel round each ring (neighbours opposite ways, rings 3-4 twice
+ * as fast: SPL_TURNS whole turns over SPLASH_MS), arriving at draw_splash's logo at SPLASH_MS. Time, not frames: the
+ * frame rate is what the device manages (each frame the disc's box, 186 x 184: ~68 KB, ~46 ms over the 12 MHz SPI).
+ * Cheaper than opx_logo: the rings' radii are computed once a frame for SPL_NA angles, each pixel's radius and angle
+ * once a splash for one octant (both tables in the canvas's unused tail: no RAM of their own), and a pixel tries the
+ * three rings nearest its radius alone. */
+#define SPL_NA 256u                                 /* angles a turn in the rings' table (linear between) */
+#define SPL_BX 27                                   /* the disc's box: x 27 .. 212, y 0 .. 183 */
+#define SPL_BW 186u
+static const int8_t SPL_TURNS[6] = {1, -1, 2, -2, 1, -1};
+static int32_t spl_ease(int32_t t, int32_t t0, int32_t len)   /* 0 .. 32768: cubic ease-out from t0 over len (ms) */
+{
+    int32_t u = clamp(((t - t0) << 15) / len, 0, 32768), v = 32768 - u;
+    return 32768 - (int32_t)((((int64_t)v * v >> 15) * v) >> 15);
+}
+#define SPL_RMAX 88                                 /* the outer ring's reach (px) */
+#define SPL_NOCT ((SPL_RMAX + 1) * (SPL_RMAX + 2) / 2)   /* one octant's pixels: 0 <= dy <= dx <= SPL_RMAX */
+#define SPL_HALF (SPL_BW * 46u)                     /* a band's half of the canvas (46 rows) */
+static uint8_t spl_polar_ok;                        /* the octant's table built (main.c clears it before the splash:
+                                                     * MENU's panel setup may draw in the canvas between) */
+static uint16_t *spl_rtab(void) { return cv_px + 2u * SPL_HALF + 6u * SPL_NA; }   /* radius (Q4) a pixel of the octant */
+static uint16_t *spl_atab(void) { return spl_rtab() + SPL_NOCT; }              /* its angle (2^16 a turn) */
+static void spl_polar(void)                         /* the octant's radius and angle: once a splash, not a pixel a frame */
+{
+    uint16_t *rt = spl_rtab(), *at = spl_atab();
+    int32_t x, y;
+    _Static_assert(2u * SPL_HALF + 6u * SPL_NA + 2u * SPL_NOCT <= CV_MAX, "the splash's tables fit the canvas's tail");
+    for (x = 0; x <= SPL_RMAX; x++)
+        for (y = 0; y <= x; y++) {
+            uint32_t i = (uint32_t)(x * (x + 1) / 2 + y);
+            rt[i] = (uint16_t)spl_isqrt((uint32_t)(x * x + y * y) << 8);
+            at[i] = (uint16_t)(spl_atan2(y, x) >> 16);
+        }
+    spl_polar_ok = 1;
+}
+static void spl_band(uint16_t *px, const int16_t *tb, const int32_t *ra, uint32_t y0, uint32_t rows)
+{                                                   /* the disc box's rows y0 .. y0 + rows - 1, every pixel, into px */
+    static const uint8_t WHITE[3] = {248, 248, 248};
+    const int32_t rd = 16 * 16, hw = 26;            /* (the disc, the strokes: Q4) */
+    const uint16_t bg = swap16(T_BG), *rt = spl_rtab(), *at = spl_atab();
+    uint32_t i;
+    int32_t x;
+    for (i = 0; i < rows; i++) {
+        int32_t dy = (int32_t)(y0 + i) - SPL_CY, ay = dy < 0 ? -dy : dy;
+        uint16_t *row = px + i * SPL_BW;
+        for (x = 0; x < (int32_t)SPL_BW; x++) {
+            int32_t dx = x + SPL_BX - SPL_CX, ax = dx < 0 ? -dx : dx, r, c, k, kc, lo = ax < ay ? ax : ay, hi = ax ^ ay ^ lo;
+            uint32_t th, j, f, e;
+            if (hi > SPL_RMAX || dx * dx + dy * dy > SPL_RMAX * SPL_RMAX) {
+                row[x] = bg;
+                continue;
+            }
+            e = (uint32_t)(hi * (hi + 1) / 2 + lo);
+            r = rt[e];
+            c = (int32_t)T_BG;
+            if (r >= rd + 16) {
+                th = (uint32_t)at[e] << 16;              /* (spl_atan2's octant folding) */
+                if (ay > ax)
+                    th = 0x40000000u - th;
+                if (dx < 0)
+                    th = 0x80000000u - th;
+                if (dy < 0)
+                    th = 0u - th;
+                j = th >> 24, f = (th >> 16) & 255u;
+                kc = (r - 384 + 84) / 168;               /* (the ring whose circle is nearest) */
+                for (k = kc - 1; k <= kc + 1; k++) {
+                    const int16_t *t;
+                    int32_t rk, d, al;
+                    if (k < 0 || k > 5 || !ra[k])
+                        continue;
+                    t = tb + (uint32_t)k * SPL_NA;
+                    rk = t[j] + (((t[(j + 1u) & (SPL_NA - 1u)] - t[j]) * (int32_t)f) >> 8);
+                    d = r - rk;
+                    d = d < 0 ? -d : d;
+                    al = clamp((hw + 8 - d) * 16, 0, 256);
+                    if (al)
+                        c = (int32_t)spl_mix((uint32_t)c, SPL_RING[k], (al * ra[k]) >> 15);
+                }
+            } else {
+                c = (int32_t)spl_mix((uint32_t)c, WHITE, clamp((rd - r) * 16, 0, 256));
+            }
+            row[x] = swap16((uint32_t)c);
+        }
+    }
+}
+static void splash_frame(uint32_t t)                /* the animated logo at t ms (0 .. SPLASH_MS) */
+{
+    /* five bands of the disc's box (46 rows at most), drawn into two halves of the canvas in turn: one drawn while the
+     * other goes to the display (lcd_blit returns with its transfer running; the next waits for it). OPX's line within
+     * band 2 (half A). The canvas's tail: the rings' table, the octant's */
+    static const uint8_t ROW[6] = {0, 46, 78, 124, 170, 184};
+    uint16_t *half[2] = {cv_px, cv_px + SPL_HALF};
+    int16_t *tb = (int16_t *)(cv_px + 2u * SPL_HALF);
+    int32_t ra[6], k, a = (51 * spl_ease((int32_t)t, 450, 400)) >> 15;   /* (the lobes' depth, Q4 px: 3.2) */
+    int64_t im = ((int64_t)1503900000 * spl_ease((int32_t)t, 600, 600)) >> 15;   /* (the bends' index: 2.2 rad) */
+    uint32_t j, b, ph = (0xFFFFFFFFu / SPLASH_MS + 1u) * (t < SPLASH_MS ? t : 0u);   /* (a turn over the splash) */
+    lcd_sync();                                     /* (the last band may still be going out of a half) */
+    if (!spl_polar_ok)
+        spl_polar();
+    for (k = 0; k < 6; k++) {
+        int16_t *tr = tb + (uint32_t)k * SPL_NA;
+        uint32_t ps = ph * (uint32_t)(int32_t)SPL_TURNS[k];
+        ra[k] = spl_ease((int32_t)t, 80 + 80 * k, 200);
+        for (j = 0; j < SPL_NA; j++) {             /* r_k = 24 + 10.5 k + 3.2 sin(6 th + 2.2 sin((k + 1) th + ps)) */
+            uint32_t th = j << 24;
+            int32_t in = (int32_t)(((int64_t)sine_i(th * (uint32_t)(k + 1) + ps) * im) >> 15);
+            tr[j] = (int16_t)(384 + 168 * k + ((sine_i(th * 6u + (uint32_t)in) * a) >> 15));
+        }
+    }
+    for (b = 0; b < 5u; b++) {
+        uint32_t rows = ROW[b + 1u] - ROW[b];
+        spl_band(half[b & 1u], tb, ra, ROW[b], rows);
+        if (b == 2u) {                              /* (the canvas's text on half A: cv_begin's state, not its sync) */
+            cv_w = SPL_BW, cv_h = rows, cv_cy0 = 0, cv_cy1 = (int16_t)rows, cv_bg = T_BG;
+            cv_text_on(HALF_UP(240 - text_w(&AF_M, SPLASH_LINES[0])) - SPL_BX,
+                       SPL_CY - AF_M_CAP_Y - AF_M_CAP_H / 2 - ROW[2], &AF_M, SPLASH_LINES[0], RGB(32, 32, 32), RGB(248, 248, 248));
+        }
+        lcd_blit(SPL_BX, ROW[b], SPL_BW, rows, half[b & 1u]);
+    }
+}
+static void draw_splash_start(void)                 /* the animated splash's first frame: the disc, OPX, the lines */
+{
+    lcd_fill(0, 0, 240, 240, T_BG);
+    spl_polar_ok = 0;
+    splash_frame(0);
+    cv_begin(240, 56, T_BG);
+    splash_line(184, 193 - AF_M_CAP_Y, &AF_M, SPLASH_LINES[1], T_TEXT, T_BG);
+    splash_line(184, 211 - AF_S_CAP_Y, &AF_S, SPLASH_LINES[2], T_THEME, T_BG);
+    splash_line(184, 225 - AF_S_CAP_Y, &AF_S, SPLASH_LINES[3], T_MID, T_BG);
+    cv_blit(0, 184);
+    lcd_sync();
+}
+
 /* UPDATE MODE countdown (main.c: OCT- + OCT+ held): over everything, the menu and the dialogs too */
 static void draw_uboot(void)
 {

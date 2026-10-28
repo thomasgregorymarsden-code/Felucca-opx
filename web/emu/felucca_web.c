@@ -247,7 +247,7 @@ static void cdc_task(void) {}
 #undef usb_detach
 
 /* --------------------------------------------------------- the device --- */
-static uint32_t web_booted, web_boot_ms, web_last_frame;
+static uint32_t web_booted, web_boot_ms, web_last_frame, web_splash_frame;
 
 /* main.c fm1_main's boot, up to the main loop (no USB, no UART, no panel setup) */
 static void web_power_on(void)
@@ -256,7 +256,10 @@ static void web_power_on(void)
     settings_init();
     usb_serial_apply();
     lcd_init();
-    draw_splash();                        /* main.c: the splash (ui_draw.c) */
+    if (ui_prefs & PREF_ANIM_OFF)         /* main.c: the splash (ui_draw.c), still or animated */
+        draw_splash();
+    else
+        draw_splash_start();
     memset(&felucca_dbg, 0, sizeof felucca_dbg);
     felucca_dbg.magic = DBG_MAGIC;
     fm1_input_init();
@@ -309,6 +312,12 @@ static void web_ms(void)
             ring[i + 1] = (float)o[2u * k + 1u] / 8388608.0f;
         }
         web_half ^= 1u;
+    }
+    if (web_booted && web_boot_ms && !(ui_prefs & PREF_ANIM_OFF) && (int32_t)(fm1_ms - (web_boot_ms - SPLASH_MS)) >= 0 &&
+        fm1_ms - web_splash_frame >= 60u) {                /* main.c: the animated splash (~16 frames a second) */
+        uint32_t t = fm1_ms - (web_boot_ms - SPLASH_MS);
+        web_splash_frame = fm1_ms;
+        splash_frame(t > SPLASH_MS ? SPLASH_MS : t);
     }
     if (!web_booted || (int32_t)(fm1_ms - web_boot_ms) < 0)
         return;
