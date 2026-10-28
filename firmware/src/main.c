@@ -190,9 +190,10 @@ static void fm1_main(void)
         settings_save();
     }
     autosave_boot(boot_clean);                /* (1.2) the last session's music, under the splash */
-    for (ms = 0; ms < 400u; ms += 10u) {      /* the splash; the pot followed (MIDI IN plays under it) */
+    for (ms = 0; ms < SPLASH_MS; ms += 10u) { /* the splash; the pot followed (MIDI IN plays under it) */
         fm1_delay_ms(10);
         master_poll();
+        fm1_wdt_feed();                       /* (OPX fork: 2 s now, the logo's: the watchdog fed through it) */
     }
     kb_boot_hold = 0;
     lcd_fill(0, 0, 240, 240, T_BG);

@@ -11,7 +11,7 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 - **A logo on the power-on screen:** an FM wave disc (six rings, each a sine whose phase another sine bends, cyan to
   red, round a white disc with OPX), the firmware's name, its version and Felucca's maker. Drawn, not stored: no image
-  in flash. In colour in every palette.
+  in flash. In colour in every palette. It stays 2 s (Felucca's splash: 0.4 s), the keys silent under it as before.
 - **A CPU meter in the header:** the audio's share of the processor, after the REC mark, updated four times a second;
   grey, the accent from 70 %, REC's red from 85 % (where the audio drops a voice). The figure alone when a slot letter
   leaves no room for the %.
