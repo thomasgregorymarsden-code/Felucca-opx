@@ -622,6 +622,8 @@ static void mono_check(void)
     if (in_splash_scene) return;                       /* (OPX fork: the splash's logo is in colour in every palette) */
     for (i = 0; i < 240u * 240u; i++) {
         uint16_t c = swap16(host_screen[i]);
+        if (strstr(cur_name, "about") && i % 240u >= 164u && i / 240u >= 20u && i / 240u < 90u)
+            continue;                                  /* (OPX fork: ABOUT's small logo, in colour too) */
         int32_t d = (int32_t)((c >> 5) & 63u) - (int32_t)(c >> 11) * 2;
         if ((c >> 11) != (c & 31u) || (bw ? d < -2 || d > 2 : d != 0)) {
             if (!mono_bad) fprintf(rep, "%s %s: pixel %u,%u = %04x off %s\n", bw ? "MONO" : "GREY", cur_name, i % 240u, i / 240u, c,

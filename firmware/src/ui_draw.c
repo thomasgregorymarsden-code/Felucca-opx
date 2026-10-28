@@ -1326,32 +1326,40 @@ static uint32_t spl_mix(uint32_t bg, const uint8_t *c, int32_t a)   /* c over bg
     b += (uint32_t)(((int32_t)c[2] - (int32_t)b) * a / 256);
     return RGB(r, g, b);
 }
-static void splash_logo(uint32_t y0)                /* the logo's pixels in the canvas (screen rows y0 ..) */
+/* the logo on the canvas, its centre at (cx, cy) (canvas pixels; rows outside the canvas skipped), sq8 its scale (256:
+ * the splash's, the outer ring ~81 px), hw its strokes' half width (Q4 px). Over what the canvas holds there */
+static void opx_logo(int32_t cx, int32_t cy, int32_t sq8, int32_t hw)
 {
     static const uint8_t WHITE[3] = {248, 248, 248};
-    uint32_t x, y, k;
-    for (y = 0; y < cv_h; y++) {
-        int32_t dy = (int32_t)(y0 + y) - SPL_CY;
-        for (x = 0; x < cv_w; x++) {
-            int32_t dx = (int32_t)x - SPL_CX, r2 = dx * dx + dy * dy, r, c = T_BG;
+    int32_t x, y, k, rmax = (92 * sq8) >> 8, rd = (16 * 16 * sq8) >> 8;
+    for (y = cy - rmax < 0 ? 0 : cy - rmax; y <= cy + rmax && y < (int32_t)cv_h; y++) {
+        int32_t dy = y - cy;
+        for (x = cx - rmax < 0 ? 0 : cx - rmax; x <= cx + rmax && x < (int32_t)cv_w; x++) {
+            int32_t dx = x - cx, r2 = dx * dx + dy * dy, r, c;
             uint32_t th;
-            if (r2 > 92 * 92)
+            if (r2 > rmax * rmax)
                 continue;
+            c = (int32_t)swap16(cv_px[(uint32_t)y * cv_w + (uint32_t)x]);
             r = (int32_t)spl_isqrt((uint32_t)r2 << 8);   /* (Q4) */
             th = spl_atan2(dy, dx);
-            for (k = 0; k < 6u; k++) {               /* r_k = 24 + 10.5 k + 3.2 sin(6 th + 2.2 sin((k + 1) th)) */
-                int32_t in = (int32_t)(((int64_t)sine_i(th * (k + 1u)) * 1503900000) >> 15);
-                int32_t rk = 384 + 168 * (int32_t)k + ((sine_i(th * 6u + (uint32_t)in) * 51) >> 15), d = r - rk, a;
+            for (k = 0; k < 6; k++) {                /* r_k = 24 + 10.5 k + 3.2 sin(6 th + 2.2 sin((k + 1) th)), scaled */
+                int32_t in = (int32_t)(((int64_t)sine_i(th * (uint32_t)(k + 1)) * 1503900000) >> 15);
+                int32_t rk = (((384 + 168 * k) * sq8) >> 8) + ((((sine_i(th * 6u + (uint32_t)in) * 51) >> 15) * sq8) >> 8);
+                int32_t d = r - rk, al;
                 d = d < 0 ? -d : d;
-                a = clamp(((26 + 8 - d) * 256) / 16, 0, 256);   /* (the stroke 1.6 px a side, 0.5 px of ramp) */
-                if (a)
-                    c = (int32_t)spl_mix((uint32_t)c, SPL_RING[k], a);
+                al = clamp(((hw + 8 - d) * 256) / 16, 0, 256);   /* (the stroke hw a side, 0.5 px of ramp) */
+                if (al)
+                    c = (int32_t)spl_mix((uint32_t)c, SPL_RING[k], al);
             }
-            if (r < 17 * 16)                         /* the centre's disc, antialiased over its last pixel */
-                c = (int32_t)spl_mix((uint32_t)c, WHITE, clamp((16 * 16 - r) * 16, 0, 256));
-            cv_px[y * cv_w + x] = swap16((uint32_t)c);
+            if (r < rd + 16)                         /* the centre's disc, antialiased over its last pixel */
+                c = (int32_t)spl_mix((uint32_t)c, WHITE, clamp((rd - r) * 16, 0, 256));
+            cv_px[(uint32_t)y * cv_w + (uint32_t)x] = swap16((uint32_t)c);
         }
     }
+}
+static void splash_logo(uint32_t y0)                /* the splash's logo in the canvas (screen rows y0 ..) */
+{
+    opx_logo(SPL_CX, SPL_CY - (int32_t)y0, 256, 26);   /* (strokes 1.6 px a side) */
 }
 static void splash_line(uint32_t y0, int32_t y, const aafont_t *f, const char *s, uint16_t fg, uint16_t bg)
 {

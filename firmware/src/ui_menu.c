@@ -136,6 +136,7 @@ static int32_t menu_document(int32_t y, int draw)
         cv_text(6, y + 214, &AF_S, "gregorymarsden-code", T_MID);
         cv_text(6, y + 232, &AF_S, "/Felucca-opx", T_MID);
         draw_about_qr(156, y + 116);
+        opx_logo(198, y + 30 + cv_oy, 95, 11);       /* (OPX fork: the logo, small: ~60 px, strokes 0.7 px a side) */
     }
     y = menu_text("CREDITS", y + 260, T_THEME, draw) + 8;
     for (i = 0; i < NELEM(MENU_CREDITS); i++) {
