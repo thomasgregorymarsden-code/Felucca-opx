@@ -24,7 +24,7 @@
  *   ALG   PAT = the patch's algorithm, 1..40 another one, USR the patch's user matrix
  *   ATK   all operators' attack times, longer (+) or shorter (-) (the opsix's HOME ATK)
  *   DEC   all operators' decay and release times (HOME DECAY)
- *   SLOT  F1..F7 load a factory patch into the track; OWN the track's own (edited on the operator pages, ui_fm6op.c,
+ *   SLOT  F1..F12 (Solo: F126) load a factory patch into the track; OWN the track's own (edited on the operator pages, ui_fm6op.c,
  *         or loaded with a project, opx_store.c); INIT the INIT patch (the opsix's INITIALIZE). The patch is
  *         opx_patch.c's packed record per track
  * Felucca's FM6-style macros (E3..E6: MLVL, FB, MRAT, DTUN) are not the opsix's: off (OPX_FELUCCA_MACROS 0; the track
@@ -278,88 +278,15 @@ static int32_t opx_level_amp(int32_t l)
 }
 
 /* ------------------------------------------------------ the factory patches --- */
-/* OP(level, coarse index, fine x0.001, detune, atk, dec, rel, sus, curve, fb, vel): a ratio operator */
-#define OP(l, c, fi, dt, a, d, r, s, cv, fb, v) {(l), (c), (fi), (dt), 0, 0, 0, (a), (d), (r), (s), (cv), (fb), (v)}
-#define R1 7                     /* coarse index of ratio 1 (R1 + n - 1: ratio n) */
-#define OFF OP(0, R1, 1000, 0, 0, 0, 0, 0, 0, 0, 0)
-/* (0.2.0: the factory patches use what M4..M5c added; an EG, LFO, filter or virtual patch they leave out is INIT's)
- * EGP(atk, dec, rel, sus, curve): TIME10 codes (100 ms 414, 300 ms 512, 1 s 620); LFOP(wave, speed HZ10 (6 Hz ~711),
- * KSYNC, fade ms); VPP(source, CTRL, INT x0.01, destination); MFLT(type, cutoff CUT10 (1 kHz ~631), reso x0.01 %,
- * EG2 INT x0.01 st, its CTRL, KTRK HIGH, CENTER, LFO2 INT); PFX(type, B, C, E, F) in the type's units, ON */
-#define EGP(a, d, r, s, cv) {(a), (d), (r), (s), (cv)}
-#define LFOP(w, sp, ks, fd) {(w), (sp), 0, 0, (ks), 0, (fd)}
-#define VPP(src, ctl, amt, dst) {(src), (ctl), (amt), (dst)}
-#define MFLT(ty, cut, re, e2, e2c, kh, kc, l2) {(ty), 1, (e2c), 0, (kc), 0, (kh), (cut), (re), (e2), (l2)}
-#define PFX(t, b, c, e, f) {(t), 1, {(b), (c), (e), (f)}}
-#define OPLV(n) (OPX_VD_OP + ((n) - 1) * 39 + OPX_DO_LEVEL)   /* (a virtual patch's destination: OPn LEVEL) */
+/* (0.2.0: tools/opx_factory_bank.py, compiled to opx_factory.h by tools/opx_factory.py: F1..F12 in every OPX build,
+ * F13..F126 in Felucca-OPX Solo. A patch leaves out an EG, LFO, filter or virtual patch: INIT's; its effects: OFF) */
 static const opx_patch_t OPX_FACTORY[] = {
-    {"E.PIANO", 4, 0, {{0}}, 0, {   /* algorithm 5: three pairs, a tine (op 3, 4) and a bell (op 5, 6) */
-        OP(100, R1, 1000, 2, 1, 682, 300, 0, 8, 0, 60), OP(62, R1, 1000, -2, 1, 620, 300, 0, 8, 0, 70),
-        OP(80, R1, 1000, -3, 1, 764, 400, 0, 8, 0, 60), OP(58, R1 + 13, 1000, 3, 1, 450, 300, 0, 8, 0, 80),
-        OP(45, R1, 1000, 0, 1, 806, 400, 0, 8, 0, 60), OP(55, R1 + 13, 1000, 0, 1, 414, 300, 0, 9, 40, 80)},
-        .vp = {VPP(OPX_C_MW, 0, 2500, OPLV(4))},       /* (MOD WHEEL: the tine brighter, OP4 +25) */
-        .fx = {PFX(5, 35, 1, 3500, 500),                /* (a suitcase's tremolo: PAN SINE 3.5 Hz, 35 %, left / right) */
-               PFX(14, 20, -10, 0, 1000)}},             /* (3EQ: LOW +2 dB, HIGH -1 dB) */
-    {"BELL", 4, 0, {{0}}, 0, {      /* algorithm 5, inharmonic modulators */
-        OP(100, R1, 1000, 0, 1, 806, 806, 0, 10, 0, 50), OP(52, R1 + 2, 1410, 0, 1, 764, 764, 0, 10, 0, 60),
-        OP(85, R1, 1000, 4, 1, 764, 764, 0, 10, 0, 50), OP(48, R1 + 5, 1000, 0, 1, 682, 682, 0, 10, 0, 60),
-        OP(70, R1 + 1, 1000, -4, 1, 720, 720, 0, 10, 0, 50), OP(42, R1 + 7, 1414, 0, 1, 600, 600, 0, 10, 0, 60)},
-        .fx = {PFX(14, -30, 20, 0, 1000),               /* (3EQ: LOW -3 dB, HIGH +2 dB) */
-               PFX(5, 20, 1, 300, 500)}},               /* (PAN: a slow 20 % sway, for width) */
-    {"FM BASS", 0, 0, {{0}}, 0, {   /* algorithm 1: a pair and a stack */
-        OP(100, R1 - 1, 1000, 0, 1, 682, 207, 70, 6, 0, 40), OP(78, R1 - 1, 1000, 0, 1, 476, 207, 30, 6, 0, 60),
-        OP(80, R1 - 1, 1000, 1, 1, 620, 207, 60, 6, 0, 40), OP(70, R1, 1000, 0, 1, 414, 207, 20, 6, 0, 60),
-        OP(55, R1 + 2, 1000, 0, 1, 306, 207, 0, 6, 0, 60), OP(50, R1, 1000, 0, 1, 351, 207, 0, 6, 60, 60)},
-        .eg = {EGP(0, 0, 0, 0, 0), EGP(0, 512, 414, 0, 4)},   /* (EG2: the filter's pluck, 300 ms) */
-        .flt = MFLT(OPX_MF_LPF24, 600, 2000, 3600, OPX_C_VEL, 43, 48, 0),   /* (800 Hz, RESO 20 %, EG2 +36 st x VEL,
-                                                                             * KTRK HIGH 0.50 from C2) */
-        .fx = {PFX(20, 100, 40, 30, -60)}},             /* (COMP: SENS 40, ATTACK 30, LEVEL -6 dB: its make-up) */
-    {"BRASS", 21, 0, {{0}}, 0, {    /* algorithm 22: one modulator on three carriers, slow bright attack */
-        OP(100, R1, 1000, 0, 351, 620, 300, 85, 4, 0, 30), OP(72, R1, 1000, 0, 394, 558, 300, 70, 4, 0, 50),
-        OP(90, R1, 1000, 6, 351, 620, 300, 85, 4, 0, 30), OP(90, R1, 1000, -6, 351, 620, 300, 85, 4, 0, 30),
-        OP(70, R1 + 1, 1000, 0, 351, 620, 300, 80, 4, 0, 30), OP(74, R1, 1000, 0, 414, 600, 300, 65, 4, 45, 50)},
-        .eg = {EGP(0, 0, 0, 0, 0), EGP(394, 574, 512, 50, 4)},   /* (EG2: the swell, 80 ms up, 600 ms to half) */
-        .lfo = {LFOP(OPX_L_SIN, 701, 2, 600)},          /* (LFO1: 5.5 Hz a note, faded in over 600 ms) */
-        .prog_lfo1 = 12,                                /* (PROG PITCH LFO1 +0.12 st: the delayed vibrato) */
-        .flt = MFLT(OPX_MF_LPF12, 651, 1000, 3000, OPX_C_VEL, 64, 60, 0),   /* (1.2 kHz, EG2 +30 st x VEL, KTRK 1.00) */
-        .fx = {PFX(14, 0, -20, 30, 1500)}},             /* (3EQ: HIGH -2 dB, 1.5 kHz +3 dB) */
-    {"SAW LEAD", 31, 0, {{0}}, 0, { /* algorithm 32: three detuned carriers at the sawtooth-like feedback */
-        OP(100, R1, 1000, 0, 1, 682, 207, 90, 3, 75, 20), OP(90, R1, 1000, 7, 1, 682, 207, 90, 3, 75, 20),
-        OP(90, R1, 1000, -7, 1, 682, 207, 90, 3, 75, 20), OFF, OFF, OFF},
-        .eg = {EGP(0, 0, 0, 0, 0), EGP(0, 538, 476, 30, 6)},   /* (EG2: 400 ms down to 30 %) */
-        .lfo = {LFOP(OPX_L_SIN, 701, 1, 0)},            /* (LFO1: 5.5 Hz) */
-        .prog_lfo1 = 50, .prog_lfo1_ctrl = OPX_C_MW,    /* (vibrato on the MOD WHEEL, +-0.5 st) */
-        .flt = MFLT(OPX_MF_LPF24, 765, 3000, 1800, 0, 64, 60, 0),   /* (3 kHz, RESO 30 %, EG2 +18 st, KTRK 1.00) */
-        .fx = {PFX(15, 25, -80, 2500, 20)}},            /* (DIST: DRIVE 25, LEVEL -8 dB, 2.5 kHz +2 dB) */
-    {"LOOP PAD", 33, 70, {{0}}, 0, {/* algorithm 34: the 6-operator chain with its 4 -> 6 loop (ALG FB) */
-        OP(100, R1, 1000, 0, 600, 826, 682, 90, 5, 0, 20), OP(55, R1, 1000, 3, 620, 826, 682, 80, 5, 0, 30),
-        OP(50, R1 + 1, 1000, 0, 656, 826, 682, 70, 5, 0, 30), OP(48, R1, 1000, -3, 682, 826, 682, 70, 5, 0, 30),
-        OP(45, R1 + 2, 1000, 0, 682, 826, 682, 60, 5, 0, 30), OP(45, R1, 1000, 0, 718, 826, 682, 60, 5, 0, 30)},
-        .eg = {EGP(0, 0, 0, 0, 0), EGP(656, 718, 656, 60, 5)},   /* (EG2: 1.5 s up, 3 s to 60 %) */
-        .lfo = {LFOP(0, 0, 0, 0), LFOP(OPX_L_TRI, 333, 1, 0)},   /* (LFO2: 0.2 Hz, the part's) */
-        .flt = MFLT(OPX_MF_LPF12, 715, 1500, 1200, 0, 0, 60, 800),   /* (2 kHz, EG2 +12 st, LFO2 +-8 st) */
-        .fx = {PFX(3, 50, 70, 150, 400),                /* (PHA: 0.15 Hz, DEPTH 70, RESO 40 %) */
-               PFX(5, 30, 1, 100, 500)}},               /* (PAN: 0.1 Hz, 30 %) */
-    {"X-MOD", OPX_USER, 0,          /* USER: two carriers that modulate each other, a third modulating both */
-        {{0, 12, 0, 0, 0, 0}, {10, 0, 0, 0, 0, 0}, {35, 35, 0, 0, 0, 0},
-         {0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0}}, 0x03u, {
-        OP(100, R1, 1000, 0, 1, 764, 414, 50, 6, 0, 40), OP(90, R1 + 1, 1005, 0, 1, 764, 414, 50, 6, 0, 40),
-        OP(50, R1 + 2, 1000, 0, 1, 558, 414, 10, 6, 0, 60), OFF, OFF, OFF},
-        .lfo = {LFOP(0, 0, 0, 0), LFOP(0, 0, 0, 0), LFOP(OPX_L_TRI, 378, 2, 0)},   /* (LFO3: 0.3 Hz a note) */
-        .vp = {VPP(OPX_C_MW, 0, 3000, OPLV(3)),         /* (MOD WHEEL: OP3 +30, more cross-modulation) */
-               VPP(OPX_VS_LFO3, 0, 10, OPX_VD_OP + 39 + OPX_DO_PITCH)},   /* (LFO3: OP2 +-0.10 st, a slow beat) */
-        .fx = {PFX(13, 65, 40, 35, 500),                /* (FLTR: CUTOFF 65 %, RESO 40, its LFO 0.5 Hz, DEPTH 35) */
-               PFX(17, 25, 1600, 120, 0)}},             /* (DEC: 16 kHz, 12 bits, MIX 25) */
+#define OPX_FACTORY_PATCHES
+#include "opx_factory.h"
+#undef OPX_FACTORY_PATCHES
 };
-#undef EGP
-#undef LFOP
-#undef VPP
-#undef MFLT
-#undef PFX
-#undef OPLV
-#undef OP
-#undef OFF
 #define OPX_NFACTORY ((uint32_t)NELEM(OPX_FACTORY))
+_Static_assert(NELEM(OPX_FACTORY) <= 126u, "SLOT: F1..F126, then OWN, INIT: a project stores it in a byte (-64..127)");
 
 /* ------------------------------------------------- the patch, per part --- */
 typedef struct {                 /* an LFO as the patch sets it: wave, KSYNC, PHASE RANDOM, on: it reaches something */
@@ -1345,12 +1272,13 @@ static inline int32_t opx_filt(opx_fc_t *c, int32_t *st, int32_t x, int32_t m)
     }
     if (c->type >= 4u && c->type <= 9u) {              /* MG: the ladder */
         /* four trapezoidal one-poles (v = G (x - s), y = v + s, s = y + v; G Q13), the feedback from the last one's
-         * output a sample late; the states (st) to +-2^17, the products under 2^31 */
+         * output a sample late; the states (st) to +-2^17, the products under 2^31. (0.2.0: v rounded, not truncated:
+         * truncated, each stage stopped short of its input, always below it, and a low cutoff held ~1 % DC) */
         int32_t u = clamp(x - (int32_t)(((int64_t)c->kl * st[4]) >> 15), -65535, 65535), g = c->g1 >> 1, v, y1, y2, y3, y4;
-        v = (g * (u - st[0])) >> 13, y1 = v + st[0], st[0] = clamp(y1 + v, -131071, 131071);
-        v = (g * (y1 - st[1])) >> 13, y2 = v + st[1], st[1] = clamp(y2 + v, -131071, 131071);
-        v = (g * (y2 - st[2])) >> 13, y3 = v + st[2], st[2] = clamp(y3 + v, -131071, 131071);
-        v = (g * (y3 - st[3])) >> 13, y4 = v + st[3], st[3] = clamp(y4 + v, -131071, 131071);
+        v = (g * (u - st[0]) + 4096) >> 13, y1 = v + st[0], st[0] = clamp(y1 + v, -131071, 131071);
+        v = (g * (y1 - st[1]) + 4096) >> 13, y2 = v + st[1], st[1] = clamp(y2 + v, -131071, 131071);
+        v = (g * (y2 - st[2]) + 4096) >> 13, y3 = v + st[2], st[2] = clamp(y3 + v, -131071, 131071);
+        v = (g * (y3 - st[3]) + 4096) >> 13, y4 = v + st[3], st[3] = clamp(y4 + v, -131071, 131071);
         st[4] = y4;                                      /* (the feedback's, next sample) */
         switch (c->type) {
         case 4: y = y2; break;                                                         /* LPF12 */
@@ -1918,14 +1846,14 @@ static void __attribute__((noinline)) opx_mflt(const opx_rt_t *r, const opx_fc_t
 {
     const int16_t *mx = r->fmix;
     uint32_t i;
-    if (r->fms == 2u) {                                /* the ladder (opx_filt's) */
+    if (r->fms == 2u) {                                /* the ladder (opx_filt's; v rounded, as there) */
         int32_t g = c->g1 >> 1, kl = c->kl;
         for (i = 0; i < CTL; i++) {
             int32_t u = clamp((in[i] >> 1) - (int32_t)(((int64_t)kl * st[4]) >> 15), -65535, 65535), v, y1, y2, y3, y4;
-            v = (g * (u - st[0])) >> 13, y1 = v + st[0], st[0] = clamp(y1 + v, -131071, 131071);
-            v = (g * (y1 - st[1])) >> 13, y2 = v + st[1], st[1] = clamp(y2 + v, -131071, 131071);
-            v = (g * (y2 - st[2])) >> 13, y3 = v + st[2], st[2] = clamp(y3 + v, -131071, 131071);
-            v = (g * (y3 - st[3])) >> 13, y4 = v + st[3], st[3] = clamp(y4 + v, -131071, 131071);
+            v = (g * (u - st[0]) + 4096) >> 13, y1 = v + st[0], st[0] = clamp(y1 + v, -131071, 131071);
+            v = (g * (y1 - st[1]) + 4096) >> 13, y2 = v + st[1], st[1] = clamp(y2 + v, -131071, 131071);
+            v = (g * (y2 - st[2]) + 4096) >> 13, y3 = v + st[2], st[2] = clamp(y3 + v, -131071, 131071);
+            v = (g * (y3 - st[3]) + 4096) >> 13, y4 = v + st[3], st[3] = clamp(y4 + v, -131071, 131071);
             st[4] = y4;
             out[i] += clamp(mx[0] * u + mx[1] * y1 + mx[2] * y2 + mx[3] * y3 + mx[4] * y4, -65535, 65535) * 2;
         }
@@ -2250,19 +2178,19 @@ static const char *const N_OPX_ALG[] = {"PAT", "1", "2", "3", "4", "5", "6", "7"
                                         "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26",
                                         "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39",
                                         "40", "USR", 0};
-static const char *const N_OPX_SLOT[] = {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "OWN", "INIT", 0};
+static const char *const N_OPX_SLOT[] = {
+#define OPX_FACTORY_SLOTS
+#include "opx_factory.h"
+#undef OPX_FACTORY_SLOTS
+    "OWN", "INIT", 0};
 _Static_assert(NELEM(N_OPX_ALG) == OPX_NALG + 3u, "an ALG name per value");
-_Static_assert(NELEM(N_OPX_SLOT) == NELEM(OPX_FACTORY) + 3u, "a SLOT name per factory patch, then OWN, INIT");
+_Static_assert(NELEM(N_OPX_SLOT) == 129u, "a SLOT name per value (F1..F126, OWN, INIT), then 0");
 
 /* {ALG, ATK, DEC, MLVL, FB, MRAT, DTUN, SLOT}: each factory patch as it is */
 static const preset_t OPX_PRESETS[] = {
-    {"E.PIANO", {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 127, 0}, 0, 0, FX(0, 40, 20, 35), PAT(6)},
-    {"BELL", {0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 127, 0}, 0, 0, FX(0, 10, 30, 70), PAT(7)},
-    {"FM BASS", {0, 0, 0, 0, 0, 0, 0, 2}, {0, 0, 127, 0}, 0, 1, FX(0, 0, 10, 10), PAT(2)},
-    {"BRASS", {0, 0, 0, 0, 0, 0, 0, 3}, {0, 0, 127, 0}, 0, 0, FX(0, 25, 20, 40), PAT(4)},
-    {"SAW LEAD", {0, 0, 0, 0, 0, 0, 0, 4}, {0, 0, 127, 0}, 0, 1, FX(10, 30, 30, 30), PAT(4)},
-    {"LOOP PAD", {0, 0, 0, 0, 0, 0, 0, 5}, {0, 0, 127, 0}, 0, 0, FX(0, 60, 30, 70), PAT(5)},
-    {"X-MOD", {0, 0, 0, 0, 0, 0, 0, 6}, {0, 0, 127, 0}, 0, 0, FX(0, 20, 30, 40), PAT(3)},
+#define OPX_FACTORY_PRESETS
+#include "opx_factory.h"
+#undef OPX_FACTORY_PRESETS
 };
 
 static const engine_t ENG_OPX = {
@@ -2276,7 +2204,7 @@ static const engine_t ENG_OPX = {
         {"FB", F_BIPCT, -64, 63, 0, 0, 0},
         {"MRAT", F_INT, -16, 16, 0, 0, 0},
         {"DTUN", F_PCT, 0, 127, 0, 0, 0},
-        {"SLOT", F_INT, 0, (int16_t)NELEM(OPX_FACTORY) + 1, 0, N_OPX_SLOT, 0},   /* (F1..F7, OWN, INIT) */
+        {"SLOT", F_INT, 0, 127, 0, N_OPX_SLOT, 0},   /* (F1..F126 0..125: this firmware's, the others skipped; OWN, INIT) */
     },
     .presets = OPX_PRESETS,
     .npresets = NELEM(OPX_PRESETS),

@@ -1526,11 +1526,17 @@ static void test_factory(void)
             setup(0, 0);
             trk[0].p[P_E7] = (int16_t)pi;
             engine_render(note, 127, y, FS, FS / 2, 0);
-            for (i = 0; i < FS; i++) {
-                s += y[i];
-                peak = fabs(y[i]) > peak ? fabs(y[i]) : peak;
+            {                                        /* (the mean over whole periods of the note: a second of C1 is 32.7
+                                                      * of them, and the part cycle's own mean is no offset) */
+                double per = FS / (440.0 * pow(2.0, ((double)note - 69.0) / 12.0));
+                uint32_t n = (uint32_t)(floor(FS / per) * per + 0.5);
+                for (i = 0; i < FS; i++) {
+                    if (i < n)
+                        s += y[i];
+                    peak = fabs(y[i]) > peak ? fabs(y[i]) : peak;
+                }
+                s = fabs(s / n);
             }
-            s = fabs(s / FS);
             worst_mean = s > worst_mean ? s : worst_mean;
             ok &= peak <= 2.0 * VOICE_FS;
         }
@@ -1682,12 +1688,97 @@ static void dump(void)
     }
 }
 
+/* --audit (tools/opx_factory.py's bank): each factory patch alone, held 1 s at C2, C4, C6, velocity 100: its peak and
+ * mean (of VOICE_FS; both also C1..C7 at velocity 127, as test_factory), its loudness (the RMS of its loudest 50 ms while held, dB of VOICE_FS), brightness (the RMS slope's frequency: RMS(dy) / RMS(y)
+ * x fs / 2 pi, Hz: the spectral centroid for a sine, above it for richer tones), and how long the release rings to -60
+ * dB of the held level (ms) */
+static void audit(void)
+{
+    static double y[FS * 3];
+    static const uint32_t NOTE[3] = {36, 60, 84};
+    uint32_t pi, k, i;
+    printf("%-3s %-11s %-8s %6s %6s %7s %7s %7s %7s %7s %7s %6s\n", "F", "NAME", "", "PEAK", "MEAN", "LOUD36", "LOUD60",
+           "LOUD84", "BRT36", "BRT60", "BRT84", "REL60");
+    for (pi = 0; pi < OPX_NFACTORY; pi++) {
+        double pk = 0, mn = 0, rms[3], brt[3], rel = 0;
+        for (k = 0; k < 3u; k++) {
+            double s = 0, s2 = 0, d2 = 0, held, tail;
+            setup(0, 0);
+            trk[0].p[P_E7] = (int16_t)pi;
+            engine_render(NOTE[k], 100, y, FS * 3, FS, 0);
+            for (i = 0; i < FS; i++) {
+                s += y[i], s2 += y[i] * y[i];
+                if (i)
+                    d2 += (y[i] - y[i - 1]) * (y[i] - y[i - 1]);
+            }
+            for (i = 0; i < FS * 3; i++)
+                pk = fabs(y[i]) > pk ? fabs(y[i]) : pk;
+            mn = fabs(s / FS) > mn ? fabs(s / FS) : mn;
+            {                                                /* (loudness: the loudest 50 ms of the held second) */
+                double w = 0, wm = 0;
+                for (i = 0; i < FS; i++) {
+                    w += y[i] * y[i];
+                    if (i >= 2205u)
+                        w -= y[i - 2205u] * y[i - 2205u];
+                    wm = w > wm ? w : wm;
+                }
+                rms[k] = 10 * log10(wm / 2205 / ((double)VOICE_FS * VOICE_FS) + 1e-12);
+            }
+            brt[k] = s2 > 0 ? sqrt(d2 / s2) * FS / (2 * M_PI) : 0;
+            held = sqrt(s2 / FS);
+            if (k == 1u) {                                   /* (the release at C4: the last 10 ms block above -60 dB) */
+                for (i = FS; i + 441u <= FS * 3u; i += 441u) {
+                    uint32_t j;
+                    tail = 0;
+                    for (j = 0; j < 441u; j++)
+                        tail += y[i + j] * y[i + j];
+                    if (sqrt(tail / 441) > held * 0.001)
+                        rel = (double)(i + 441u - FS) * 1000 / FS;
+                }
+            }
+        }
+        for (k = 24; k <= 96u; k += 12u) {                  /* (test_factory's check: the mean, C1..C7, velocity 127) */
+            double s = 0, per = FS / (440.0 * pow(2.0, ((double)k - 69.0) / 12.0));
+            uint32_t n = (uint32_t)(floor(FS / per) * per + 0.5);
+            setup(0, 0);
+            trk[0].p[P_E7] = (int16_t)pi;
+            engine_render(k, 127, y, FS, FS / 2, 0);
+            for (i = 0; i < FS; i++) {
+                if (i < n)
+                    s += y[i];
+                pk = fabs(y[i]) > pk ? fabs(y[i]) : pk;
+            }
+            mn = fabs(s / n) > mn ? fabs(s / n) : mn;
+        }
+        printf("F%-3u %-11s %-8s %6.2f %6.3f %7.1f %7.1f %7.1f %7.0f %7.0f %7.0f %6.0f\n", pi + 1, OPX_FACTORY[pi].name,
+               "", pk / VOICE_FS, mn / VOICE_FS, rms[0], rms[1], rms[2], brt[0], brt[1], brt[2], rel);
+    }
+}
+
 int main(int argc, char **argv)
 {
     uint32_t pi;
     opx_wt_build();                                    /* (the waveform tables: the firmware builds them in opx_poll) */
     if (argc > 1 && !strcmp(argv[1], "--dump")) {
         dump();
+        return 0;
+    }
+    if (argc > 1 && !strcmp(argv[1], "--audit")) {
+        audit();
+        return 0;
+    }
+    if (argc > 3 && !strcmp(argv[1], "--trace")) {      /* --trace F NOTE: factory patch F's mean and level each 50 ms */
+        static double y[FS * 2];
+        uint32_t i, j;
+        setup(0, 0);
+        trk[0].p[P_E7] = (int16_t)(atoi(argv[2]) - 1);
+        engine_render((uint32_t)atoi(argv[3]), 100, y, FS * 2, FS, 0);
+        for (i = 0; i + 2205u <= FS * 2u; i += 2205u) {
+            double m = 0, a = 0;
+            for (j = 0; j < 2205u; j++)
+                m += y[i + j], a += fabs(y[i + j]);
+            printf("%5u ms  mean %9.1f  |y| %9.1f\n", i * 1000u / FS, m / 2205, a / 2205);
+        }
         return 0;
     }
     test_reference();

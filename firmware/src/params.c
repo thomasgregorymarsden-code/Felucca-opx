@@ -265,12 +265,21 @@ static int32_t param_fit(const param_desc_t *d, int32_t v)
     v = clamp(v, d->min, d->max);
     if (d->names == N_FM6_PATCH)
         return v > (int32_t)FM6_OWN ? (int32_t)FM6_OWN : v;
+#if FELUCCA_OPX
+    if (d->names == N_OPX_SLOT)                    /* (OPX fork: a factory patch this firmware lacks, F13.. of Solo's in
+                                                    * Felucca-OPX: F1. A sound that brings its patch: OWN, opx_store.c) */
+        return v >= (int32_t)OPX_NFACTORY && v < (int32_t)OPX_OWN ? 0 : v;
+#endif
     return d->names == N_DRUM_KIT ? enum_orig(d, v) : v;
 }
 
 /* v is a value a knob passes over: an alias, or one of FM6's bank slots without a voice */
 static int enum_skip(const param_desc_t *d, int32_t v)
 {
+#if FELUCCA_OPX
+    if (d->names == N_OPX_SLOT && v >= (int32_t)OPX_NFACTORY && v < (int32_t)OPX_OWN)
+        return 1;                                  /* (OPX fork: SLOT past this firmware's factory patches, to OWN) */
+#endif
     return enum_orig(d, v) != v || (d->names == N_FM6_PATCH && !fm6_slot_ok(v));
 }
 /* a knob moved an F_ENUM from `from` to v: past any value it skips in that direction; with none left to the end, the

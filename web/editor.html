@@ -5447,7 +5447,9 @@ $("opxtests").addEventListener("click", () => libOp(async (d, rqf) => {
   if (!n) { sayK("opxTestsNoRoom"); return; }
   if (!(await askYes(t("opxTestsConfirm").replace("{n}", n).replace("{m}", list.length)))) return;
   const pe0 = d.info.pe0, p = dump.p.slice();
-  p[pe0] = 0; p[pe0 + 1] = 0; p[pe0 + 2] = 0; p[pe0 + 7] = d.info.opx.factory;   /* ALG PAT, ATK DEC 0, SLOT OWN */
+  const own = parse[CMD.DESC](await rqf(req.desc(0, pe0 + 7))).max - 1;   /* (SLOT: OWN before INIT, the last: 126 since
+                                                                         * 0.2.0, the factory count before) */
+  p[pe0] = 0; p[pe0 + 1] = 0; p[pe0 + 2] = 0; p[pe0 + 7] = own;   /* ALG PAT, ATK DEC 0, SLOT OWN */
   for (let i = 0; i < n; i++) {
     sayK("opxTestsProgress", ` ${i + 1}/${n}: ${slotName(free[i])} ${list[i].name}`);
     checkRc(await bank.put(rqf, free[i], { name: list[i].name, engine: dump.engine, p, pattern: null, grid: null, opx: list[i].pk }, d.info));

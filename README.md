@@ -55,8 +55,11 @@ the operators' pitch and level. It plays up to six voices. The opsix's EG2, EG3,
 virtual patch are not implemented yet ([plan](docs/OPX_PLAN.md)).
 
 To use it, hold **EDIT** and press **A3**, the third white key from F3 (ANALOG, FM6, OPX, …; the layer's map shows
-them). PRESETS lists its seven factory sounds: E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD and X-MOD. Since
-0.2.0 they use the newer parts of OPX: E.PIANO a suitcase-style auto-pan and the MOD WHEEL on its tine, BELL an EQ and a
+them). PRESETS lists its factory sounds: twelve in Felucca-OPX (E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD,
+X-MOD, DRAWBARS, PLUCKER, STRINGS, SUB BASS, FM TOM), 126 in Felucca-OPX Solo, in categories (keys, plucks, bells and
+mallets, basses, leads, brass and winds, pads and strings, drums, effects, chords and sequences; PRESETS > LIST filters
+them). The bank is [tools/opx_factory_bank.py](tools/opx_factory_bank.py), one entry per patch in ms, Hz and ratios;
+every patch gives the MOD WHEEL something to do. Since 0.2.0 the first seven use the newer parts of OPX: E.PIANO a suitcase-style auto-pan and the MOD WHEEL on its tine, BELL an EQ and a
 slow pan, FM BASS a velocity-plucked LPF 24 and a compressor, BRASS a velocity swell on its filter and a delayed
 vibrato, SAW LEAD a filter envelope, vibrato on the MOD WHEEL and light distortion, LOOP PAD a filter swept by LFO2, a
 phaser and a pan, X-MOD more cross-modulation on the MOD WHEEL, a beating LFO3, the LFO filter and the decimator.
@@ -85,8 +88,8 @@ phaser and a pan, X-MOD more cross-modulation on the MOD WHEEL, a beating LFO3, 
   (a random level held for each cycle of the operator), NOISE WHITE, PINK and BLUE. SAW and SQR are band-limited to
   10 kHz, the HD versions to 20 kHz. **WIDTH** (FM mode; OFF, 1–99 %) squeezes the whole wave into that part of each
   cycle and leaves the rest silent. A noise ignores pitch, FM, FB and WIDTH.
-- **A patch** is all of that for six operators plus the algorithm. Each track has its own. SLOT F1–F7 loads a
-  factory patch, **SLOT INIT** the INIT patch (as the opsix's INITIALIZE: OP1 alone at LEVEL 100, algorithm 1, ratio
+- **A patch** is all of that for six operators plus the algorithm. Each track has its own. SLOT F1–F12 (Solo: F1–F126)
+  loads a factory patch, **SLOT INIT** the INIT patch (as the opsix's INITIALIZE: OP1 alone at LEVEL 100, algorithm 1, ratio
   1, no modulation; turn past OWN to reach it); editing any value makes it the track's own (**SLOT OWN**).
 
 ### The pages
@@ -103,7 +106,7 @@ shows two periods of the note the track is playing (or the last note played).
 | 1 | ALG: PAT (the patch's own algorithm), 1–40, USR | ALG |
 | 2 | ATK: every operator's attack, shorter or longer | the matrix's row (the operator receiving, 1–6, then OUT) |
 | 3 | DEC: every operator's decay and release | the column (the operator sending, 1–6) |
-| 4 | SLOT: F1–F7 load a factory patch; OWN is the track's own | the amount, 0–100 % (the diagonal: self feedback). On OUT: the operator's output level, 0–100, and below 0 OFF (not heard; turning up again restores its level) |
+| 4 | SLOT: F1–F12 (Solo F1–F126) load a factory patch; OWN is the track's own | the amount, 0–100 % (the diagonal: self feedback). On OUT: the operator's output level, 0–100, and below 0 OFF (not heard; turning up again restores its level) |
 
 ALG, ATK and DEC change the sound on top of the patch without changing it; automation and step locks reach them.
 HOME's four knobs on an OPX track are ALG, ATK, DEC and SLOT. Felucca's FM6-style macros (MLVL, FB, MRAT, DTUN) and

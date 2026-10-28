@@ -18,8 +18,9 @@
  *   FLTR     a low-pass (state-variable) at CUTOFF (20 Hz x 2^(10 x %)), the triangle LFO +-4 octaves x DEPTH
  *   3EQ      shelves at 250 Hz and 4 kHz (first order, as the operators' SHELV EQ) and a peaking EQ (Q 1) at 2 FREQ
  *   DIST     DRIVE x1 .. x50 into a cubic soft clip, a ~40 Hz high-pass (its DC), a peaking EQ (Q 1) at EQFREQ, LEVEL
- *   G.AMP    a 100 Hz high-pass, the type's gain x DRIVE into an asymmetric soft clip, HEQ a 3 kHz shelf (+-12 dB), the
- *            type's cabinet (a two-pole low-pass at its corner), VOLUME; the 16 types are gains and corners, not models
+ *   G.AMP    a 100 Hz high-pass, the type's gain x DRIVE into an asymmetric soft clip, a ~40 Hz high-pass (its DC),
+ *            HEQ a 3 kHz shelf (+-12 dB), the type's cabinet (a two-pole low-pass at its corner), VOLUME; the 16 types
+ *            are gains and corners, not models
  *   DEC      held at FREQ, quantised to BIT bits of full scale (fractional bits: the step between), DAMP a low-pass
  *            20 kHz .. ~1 kHz
  *   LIMIT    a peak follower (instant attack, REL) on both channels; gain min(CEIL / THRE, CEIL / level), at most CEIL
@@ -102,6 +103,14 @@ static inline int32_t opx_fxlp(int32_t *s, int32_t x, int32_t g)
     *s = clamp(y + v, -OPX_FXLIM, OPX_FXLIM);
     return y;
 }
+/* a one-pole high-pass (x less opx_fxlp's low-pass, the same g), its state 6 bits finer: opx_fxlp's truncation leaves a dead band
+ * (|x - st| x g < 2^15: no move) where a high-pass after a clip held up to ~1 % of full scale as DC (0.2.0) */
+static inline int32_t opx_fxhp(int32_t *st, int32_t x, int32_t g)
+{
+    int32_t v = (int32_t)(((int64_t)g * ((int64_t)x * 64 - *st)) >> 14), y = v + *st;
+    *st = clamp(y + v, -OPX_FXLIM * 64, OPX_FXLIM * 64);
+    return x - (y >> 6);
+}
 static int32_t opx_fxg1(uint32_t f) { int32_t g1; opx_tanq(f, &g1); return g1; }
 /* a state-variable filter step: st[0..1], c's a1 a2 a3 (Q16); *bp the band-pass; returns the low-pass */
 static inline int32_t opx_fxsvf(int32_t *st, const opx_fc_t *c, int32_t x, int32_t *bp)
@@ -126,10 +135,14 @@ static void opx_fxpeq(int32_t *c, uint32_t f, int32_t db10)
     c[3] = c[1];
     c[4] = (32768 - ai) * 16384 / a0;
 }
-static inline int32_t opx_fxbq(int32_t *st, const int32_t *c, int32_t x)   /* st: x1 x2 y1 y2 */
+/* (0.2.0: with the rounding's remainder carried to the next sample, st[6]: a filter low in frequency has its poles
+ * near 1, and without it the truncation held a constant output after the input had stopped, e.g. DIST's EQ at 80 Hz) */
+static inline int32_t opx_fxbq(int32_t *st, const int32_t *c, int32_t x)   /* st: x1 x2 y1 y2, [6] the remainder */
 {
-    int32_t y = (int32_t)(((int64_t)c[0] * x + (int64_t)c[1] * st[0] + (int64_t)c[2] * st[1] - (int64_t)c[3] * st[2] -
-                           (int64_t)c[4] * st[3]) >> 14);
+    int64_t a = (int64_t)c[0] * x + (int64_t)c[1] * st[0] + (int64_t)c[2] * st[1] - (int64_t)c[3] * st[2] -
+                (int64_t)c[4] * st[3] + st[6];
+    int32_t y = (int32_t)(a >> 14);
+    st[6] = (int32_t)(a & 16383);
     y = clamp(y, -OPX_FXLIM, OPX_FXLIM);
     st[1] = st[0], st[0] = x, st[3] = st[2], st[2] = y;
     return y;
@@ -273,7 +286,7 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
                 } else {                             /* (a ~40 Hz high-pass after the clip: an uneven wave clipped
                                                       * has DC) */
                     y = opx_fxsat(clamp((int32_t)(((int64_t)x * dr) >> 8), -OPX_FXLIM, OPX_FXLIM), OPX_FXFS, il);
-                    y -= opx_fxlp(&q[4], y, 47);
+                    y = opx_fxhp(&q[4], y, 47);
                     y = opx_fxbq(q, s->c, y * 3 / 2);
                     y = (int32_t)(((int64_t)y * lv) >> 15);
                 }
@@ -296,6 +309,7 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
                 int32_t x = b[i] - opx_fxlp(&q[0], b[i], ghp), y;
                 y = clamp((int32_t)(((int64_t)x * dr) >> 11), -OPX_FXLIM, OPX_FXLIM);
                 y = y >= 0 ? opx_fxsat(y, OPX_FXFS, il) : opx_fxsat(y, lneg, iln);
+                y = opx_fxhp(&q[4], y, 47);              /* (0.2.0: ~40 Hz high-pass: the uneven clip's DC, as DIST) */
                 y += (int32_t)(((int64_t)gh * (y - opx_fxlp(&q[1], y, g3k))) >> 15);
                 y = opx_fxsvf(&q[2], &c, y, &bp);
                 b[i] = (int32_t)(((int64_t)y * vol) >> 15);

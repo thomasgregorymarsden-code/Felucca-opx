@@ -11,7 +11,7 @@
  * the main loop decodes into the one the audio ISR is not using, then publishes it (opx_own, one pointer write), so
  * the ISR never sees half a patch.
  *
- * SLOT (P_E7): F1..F7 load that factory patch into the track (opx_poll, the main loop); OWN (OPX_OWN) is the track's own
+ * SLOT (P_E7): F1..F12 (Solo F126) load that factory patch into the track (opx_poll, the main loop); OWN (OPX_OWN) is the track's own
  * patch: an edited one (the operator pages, ui_fm6op.c), or one a project brought (opx_store.c); INIT (OPX_INIT, after
  * OWN so that stored OWN values keep their meaning) loads the INIT patch: the spec's defaults, as the opsix's
  * INITIALIZE (OP1 alone heard, algorithm 1, ratio 1, no modulation). */
@@ -282,8 +282,12 @@ static void opx_encode(const opx_patch_t *p, uint8_t *pk)
 }
 
 /* ----------------------------------------------------------- per track --- */
-#define OPX_OWN OPX_NFACTORY     /* SLOT: the track's own patch (F1..F7 before it) */
-#define OPX_INIT (OPX_OWN + 1u)  /* SLOT: the INIT patch (opx_defaults) */
+/* SLOT's values: F1..F126 0..125 (a firmware has the first OPX_NFACTORY of them), OWN 126, INIT 127: the same in both
+ * firmwares and for any number of factory patches (0.2.0; up to then OWN, INIT followed F7: 7, 8. A sound of then that
+ * brings its own patch is OWN again, opx_track_stored) */
+#define OPX_OWN 126u             /* SLOT: the track's own patch */
+#define OPX_INIT 127u            /* SLOT: the INIT patch (opx_defaults) */
+_Static_assert(OPX_NFACTORY <= OPX_OWN, "the factory patches below OWN");
 static uint8_t opx_pk[NTRK][OPX_PK_BYTES] __attribute__((section(".pool")));   /* the tracks' patches (main loop) */
 static opx_patch_t opx_tp[NTRK][2] __attribute__((section(".pool")));          /* decoded: the ISR's and the next */
 static uint8_t opx_slot[NTRK] = {0xFFu, 0xFFu, 0xFFu, 0xFFu};   /* the SLOT value last loaded; 0xFF none yet */

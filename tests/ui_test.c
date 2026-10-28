@@ -9793,7 +9793,9 @@ static int test_opx_ops(void)
         uint32_t k;
         go_title("ALGO"); frame();
         frames(1600);
-        turn(EN_K4, 20);                             /* (to the end: F1..F7, OWN, INIT) */
+        for (k = 0; k < 8u && TSEL->p[P_E7] != (int16_t)OPX_INIT; k++)
+            turn(EN_K4, 40);                         /* (to the end: F1..F12 (Solo F126), OWN, INIT; past the F
+                                                      * numbers this firmware lacks) */
         frame();
         ok = TSEL->p[P_E7] == (int16_t)OPX_INIT && opx_slot[tr] == OPX_INIT && opx_get(opx_pk[tr], OPXF_ALGO) == 0 &&
              opx_get(opx_pk[tr], OPXF_OP(0, OPXF_OP1_LEVEL)) == 100 && opx_get(opx_pk[tr], OPXF_OP(0, OPXF_OP1_COARSE)) == 7;
@@ -9805,6 +9807,28 @@ static int test_opx_ops(void)
         opx_edit(tr, OPXF_OP(1, OPXF_OP1_LEVEL), 40);
         ok &= TSEL->p[P_E7] == (int16_t)OPX_OWN && opx_slot[tr] == OPX_OWN;
         bad += check("OPX: SLOT INIT loads the opsix's INIT (OP1 alone at 100, ALG 1, ratio 1); an edit makes it OWN", ok);
+        opx_load_factory(tr, 0);
+        TSEL->p[P_E7] = 0;
+        frame();
+    }
+    {   /* 0.2.0: SLOT's values fixed (F1..F126 0..125, OWN 126, INIT 127) in both firmwares: a factory patch this one
+         * lacks is F1 (a project or preset from Felucca-OPX Solo) or skipped by the knob; a stored patch that is not
+         * its SLOT's factory patch is OWN (a sound of 0.1.0, with OWN at 7; Solo's F n here) */
+        const param_desc_t *d = track_desc(TSEL, P_E7);
+        uint8_t pk[OPX_PK_BYTES];
+        int32_t last = (int32_t)OPX_NFACTORY - 1;
+        ok = OPX_OWN == 126u && OPX_INIT == 127u && d->min == 0 && d->max == 127;
+        ok &= param_fit(d, 40) == (FELUCCA_OPX_ONLY ? 40 : 0) && param_fit(d, 126) == 126 && param_fit(d, 127) == 127;
+        ok &= param_turn(d, last, 1) == (int32_t)OPX_OWN && param_turn(d, (int32_t)OPX_OWN, -1) == last;
+        opx_encode(&OPX_FACTORY[1], pk);                 /* (F2's patch under SLOT 7: F8 in this bank, not F2) */
+        TSEL->p[P_E7] = 7;
+        opx_track_stored(tr, pk);
+        ok &= TSEL->p[P_E7] == (int16_t)OPX_OWN && opx_slot[tr] == OPX_OWN && !memcmp(opx_pk[tr], pk, OPX_PK_BYTES);
+        TSEL->p[P_E7] = 1;                               /* (F2's patch under F2: F2) */
+        opx_track_stored(tr, pk);
+        ok &= TSEL->p[P_E7] == 1 && opx_slot[tr] == 1u;
+        bad += check("OPX: SLOT F1..F126 / OWN / INIT fixed; a missing F n: F1, skipped; a stored patch not its F n: OWN",
+                     ok);
         opx_load_factory(tr, 0);
         TSEL->p[P_E7] = 0;
         frame();

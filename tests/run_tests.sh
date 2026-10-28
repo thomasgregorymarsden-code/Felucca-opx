@@ -172,6 +172,7 @@ $CC -o "$OUT/flashscan_test" tests/flashscan_test.c
 run "OPX fork: FLASH_SCAN against a simulated NOR (erased / used sectors, CRC, range, read-only)" "$OUT/flashscan_test"
 run "OPX fork: patch format (tools/opx_patch_spec.py): pack / unpack round trips" python3 tools/opx_patch_spec.py --test
 run "OPX fork: the web editor's field table (web/opx_fields.js) is the spec's" python3 tools/opx_patch_spec.py --check-js web/opx_fields.js
+run "OPX fork: the factory bank's tables (firmware/src/opx_factory*.h) are tools/opx_factory_bank.py's" python3 tools/opx_factory.py --check
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"

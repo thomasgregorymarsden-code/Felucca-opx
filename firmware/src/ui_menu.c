@@ -461,6 +461,9 @@ static void info_rows(void)                            /* (in screen rows: cv_oy
         if (k == 2u) {                                 /* CPU: the value and its unit, as HOLD's */
             GFX_HOOK_ALIGN(0, 0, 0, vy + AF_M.asc, AL_B, "info row unit on its value's baseline");
             cv_text_r(cv_text_r(MR_VR, vy + AF_M.asc - AF_S.asc, &AF_S, "%", T_MID, T_SURF) - 3, vy, &AF_M, cpu, T_THEME, T_SURF);
+        } else if (!k && sizeof FELUCCA_VERSION > 13u) {   /* (OPX fork: a long version, "v0.2.0-dev-opx-solo": in S
+                                                         * on M's baseline, clear of FIRMWARE) */
+            cv_text_r(MR_VR, vy + AF_M.asc - AF_S.asc, &AF_S, FELUCCA_VERSION, T_THEME, T_SURF);
         } else {
             cv_text_r(MR_VR, vy, &AF_M, k == 3u ? FELUCCA_BUILD : k ? USB_N[info_usb()] : FELUCCA_VERSION, T_THEME, T_SURF);
         }

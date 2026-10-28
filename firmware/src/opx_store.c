@@ -76,12 +76,25 @@ static void opx_track_factory(uint32_t tr)
     if (trk[tr].eng_req == ENGI_OPX && s == (int32_t)OPX_OWN)
         opx_slot[tr] = (uint8_t)OPX_OWN;
 }
-/* track tr plays pk (a stored patch), SLOT as the sound has it (OWN, or F n with its edits) */
+/* track tr plays pk (a stored patch). SLOT stays F n or INIT while pk is that patch; any other patch is the track's own:
+ * OWN (0.2.0: a sound of 0.1.0 or before had OWN at 7, INIT at 8, now F8, F9; a sound of Felucca-OPX Solo a factory
+ * patch this firmware lacks: they keep their sound, as OWN) */
 static void opx_track_stored(uint32_t tr, const uint8_t *pk)
 {
     int32_t s = trk[tr].p[P_E7];
+    uint8_t f[OPX_PK_BYTES];
+    if (s >= 0 && s < (int32_t)OPX_NFACTORY)
+        opx_encode(&OPX_FACTORY[s], f);
+    else
+        opx_defaults(f);
+    if (!(s >= 0 && s < (int32_t)OPX_NFACTORY) && s != (int32_t)OPX_INIT)
+        s = (int32_t)OPX_OWN;
+    else if (memcmp(f, pk, OPX_PK_BYTES))
+        s = (int32_t)OPX_OWN;
+    if (trk[tr].eng_req == ENGI_OPX)
+        trk[tr].p[P_E7] = (int16_t)s;
     opx_set_pk(tr, pk);
-    opx_slot[tr] = (uint8_t)(s >= 0 && s <= (int32_t)OPX_INIT ? s : (int32_t)OPX_OWN);   /* (opx_poll: it stays) */
+    opx_slot[tr] = (uint8_t)s;                       /* (opx_poll: it stays) */
 }
 /* after any restore (a project, the autosave, a backup): each track's patch by its SLOT, before an entry (if one
  * matches) puts the project's own back */

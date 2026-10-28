@@ -5,6 +5,27 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **126 factory patches in Felucca-OPX Solo, twelve in Felucca-OPX.** Original sounds in the categories opsix users'
+  soundsets have: keys (EPs, a piano, clavinet, harpsichord, organs), plucks, bells and mallets, basses, leads, brass
+  and winds, pads and strings, drums, effects, chords and sequences. They use the opsix's tricks: operator modes (ring
+  modulation, wave folder, band-pass operators as formants, the comb), fixed-frequency operators for drums, chords on
+  one key from carrier ratios, fake hard sync from a pitch envelope, tempo-synced gating, sample-and-hold. Every patch
+  gives the MOD WHEEL something to do; their levels are matched (`opx_test --audit`). Felucca-OPX has the first
+  twelve (its flash has room for no more): the seven of before, DRAWBARS, PLUCKER, STRINGS, SUB BASS and FM TOM. The
+  bank is `tools/opx_factory_bank.py` (`tools/opx_factory.py` compiles it to the firmware's tables): the place to
+  add or change a factory patch.
+- **SLOT's values are fixed:** F1–F126 0–125, OWN 126, INIT 127, in both firmwares (OWN and INIT followed F7 before).
+  Felucca-OPX's knob skips the F numbers it lacks. A project or preset from Solo whose SLOT is one of those comes back
+  with its own copy of the patch as OWN (every project with an OPX track carries its patches), or F1 without one. A
+  sound of 0.1.0 or before with its own patch (OWN was 7) is OWN again; one without its patch plays F8.
+- **Fix: DIST and G.AMP could leave a constant offset after the sound stopped** (a high-pass's rounding: up to ~1 %
+  of full scale); the 3-band EQ and DIST's EQ could hold one too at low frequencies (their filter carries its rounding
+  now). G.AMP has DIST's DC high-pass. The main filter's 24 dB types (and the operators' MG filters) round instead of
+  truncating: at a low cutoff they held ~1 % DC.
+- **MENU > INFO:** a long version string (Solo's "v0.2.0-dev-opx-solo") is shown smaller, clear of FIRMWARE.
+- **ABOUT:** the copyright lines are "OPX (C) 2026 Tom Marsden" and Felucca's "(C) 2026 Leo Kuroshita, Hügelton
+  Instruments" (kept, as the GPL asks); Solo's title fits the screen.
+
 - **Fix: the installers did not find an FM-1 running an `FM-1_OPX-…` build.** They read the identity as letters, an
   underscore and digits (`FM-1_900`), so the new identities failed: an install ended with "did not come back", and the
   next one with "not found". The web installer and `tools/fm1_install.py` now take letters, digits, dots and dashes.
@@ -17,7 +38,8 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
   and editor (`felucca-opx-X.Y.Z-web.zip`), so the release's pages are the release's own; Solo has a simulator.
 - **Web installer:** the log of an install is a box of its own height that follows its newest line (scroll up to read
   back), not a page growing by 2,300 lines. The progress bar follows the bytes written (the check 0–3 %, the write
-  3–99 %): it counted 512-byte requests, but the loader asks for 256 bytes at a time, so it reached its end halfway.
+  3–99 %): the update loader reads the image about twice (measured on an FM-1: 1.95 times its size in 2,323
+  requests), so a bar of one image's worth was full halfway. The log's last line of the write says what was sent.
 - **The factory patches use the new features.** E.PIANO: PAN (a suitcase tremolo), 3EQ, MOD WHEEL brightening its
   tine. BELL: 3EQ, a slow PAN. FM BASS: LPF 24 plucked by EG2 x velocity, COMP. BRASS: an EG2 swell on LPF 12 x
   velocity, delayed vibrato (LFO1 faded in, PROG PITCH). SAW LEAD: LPF 24 with an EG2 sweep, vibrato on the MOD

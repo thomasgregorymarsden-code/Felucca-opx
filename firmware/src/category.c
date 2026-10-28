@@ -18,6 +18,7 @@ static uint32_t cat_of_engine(uint32_t e) { return e == 10u || e == 13u ? CAT_DR
  * L LEAD, P PAD, U PLUCK, K KEYS, D DRUM, F FX, O OTHER); a preset past its string (DIGITAL's, FELUCCA_FM4 builds
  * only; SAMPLE's retired PERC, past SMP_NPRESETS): its engine's (cat_of_engine). tests/ui_test.c checks every string
  * against its engine's preset count. A preset's category is a hint for browsing: nothing else reads it */
+#include "opx_factory_cat.h"
 static const char *const PRESET_CAT[16] = {
     "LPBPBKLBULLP",              /* 0 ANALOG: SAW LEAD, SOFT PAD, SQR BASS, PWM STR, ACID, SINE KEY, RAVE, SUB BASS,
                                   * PLUCK, BRASS, WIND, STRINGS */
@@ -36,7 +37,8 @@ static const char *const PRESET_CAT[16] = {
     "KUBLPUKU",                  /* 12 FM6: TINE EP, BELL, FM BASS, BRASS, PAD, MARIMBA, ORGAN, PLUCK */
     "DD",                        /* 13 SLICE: CHOP, STUTTER */
     "",                          /* 14 (OPX fork: reserved) */
-    "KUBLLPF",                   /* 15 OPX (OPX fork): E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD, X-MOD */
+    OPX_CAT,                     /* 15 OPX (OPX fork): opx_factory_cat.h, generated with the
+                                  * patches (tools/opx_factory.py) */
 };
 static uint32_t preset_cat(uint32_t e, uint32_t k)    /* factory preset k of engine e */
 {
