@@ -614,10 +614,12 @@ static void font_scene(const char *mode, const char *name)
 /* GREY: every pixel RGB565 gray (R = B, G = 2 R); MONO (black and white, its edges blended per channel): neutral
  * (R = B, G within 2 of 2 R, the 5-6-5 rounding). Other palettes: nothing */
 static uint32_t mono_bad;
+static uint8_t in_splash_scene;                        /* (the scene drawn is the splash: mono_check passes it) */
 static void mono_check(void)
 {
     uint32_t i, bw = settings.palette == UI_BW_INDEX;
     if (settings.palette != UI_GREY_INDEX && !bw) return;
+    if (in_splash_scene) return;                       /* (OPX fork: the splash's logo is in colour in every palette) */
     for (i = 0; i < 240u * 240u; i++) {
         uint16_t c = swap16(host_screen[i]);
         int32_t d = (int32_t)((c >> 5) & 63u) - (int32_t)(c >> 11) * 2;
@@ -1693,6 +1695,7 @@ static void setup(int s)
 }
 static void draw(int s)
 {
+    in_splash_scene = s == S_SPLASH;
     nscr = npend = nrules = 0;
     ntight = 0;
     tight[0] = 0;
@@ -1704,33 +1707,26 @@ static void draw(int s)
     }
     if (s == S_SPLASH) {                          /* the power-on splash (main.c, before the UI): its lines, the version
                                                    * shown FELUCCA_VERSION (run_tests.sh: src/felucca.c's) */
-        static const char WANT[] = "Felucca|" FELUCCA_VERSION "|H\xFCgelton Instruments|with community";
+        static const char WANT[] = "OPX|" SPL_NAME "|" FELUCCA_VERSION "|Felucca: H\xFCgelton Instruments";
         splash_seen[0] = 0;
         in_splash = 1;
         draw_splash();
         in_splash = 0;
-        {   /* the square whole on the screen (176 x 176 at 32,32, more than the canvas): its edges and square corners
-             * RAISE, BG just outside; its text's ink 16 px in from the left and the top (the bottom: AL_B, the hook) */
-            const int32_t q0 = 32, q1 = 32 + 176 - 1;
-            uint16_t bg = host_screen[0], ra = host_screen[(uint32_t)(q0 + 1) * 240u + (uint32_t)q0 + 1];
-            int32_t i, x, y, ix = 999, iy = 999, bad = ra == bg;
-            for (i = q0 - 1; i <= q1 + 1; i++) {
-                int32_t in = i >= q0 && i <= q1;
-                bad |= host_screen[(uint32_t)(q0 - 1) * 240u + (uint32_t)i] != bg || host_screen[(uint32_t)(q1 + 1) * 240u + (uint32_t)i] != bg
-                    || host_screen[(uint32_t)i * 240u + (uint32_t)(q0 - 1)] != bg || host_screen[(uint32_t)i * 240u + (uint32_t)(q1 + 1)] != bg;
-                if (in)
-                    bad |= host_screen[(uint32_t)q0 * 240u + (uint32_t)i] != ra || host_screen[(uint32_t)q1 * 240u + (uint32_t)i] != ra
-                        || host_screen[(uint32_t)i * 240u + (uint32_t)q0] != ra || host_screen[(uint32_t)i * 240u + (uint32_t)q1] != ra;
+        {   /* (OPX fork, 0.2.0) the logo: its six rings in colour (a red-ish pixel at its rim on the right, a cyan one
+             * on the inner ring), the white disc at its centre, BG past it */
+            const uint16_t bg = host_screen[0], ctr = swap16(host_screen[(uint32_t)(SPL_CY - 13) * 240u + SPL_CX]);
+            int32_t x, red = 0, cyan = 0;
+            for (x = SPL_CX + 70; x < SPL_CX + 90; x++) {
+                uint32_t c = swap16(host_screen[(uint32_t)SPL_CY * 240u + (uint32_t)x]);
+                red |= (c >> 11) > 24u && ((c >> 5) & 63u) < 24u;
             }
-            for (y = q0; y <= q1; y++)
-                for (x = q0; x <= q1; x++)
-                    if (host_screen[(uint32_t)y * 240u + (uint32_t)x] != ra) {
-                        if (x - q0 < ix) ix = x - q0;
-                        if (y - q0 < iy) iy = y - q0;
-                    }
-            if (bad || ix != 16 || iy != 16) {
-                if (rep) fprintf(rep, "FIND %-26s the splash square not whole (edges %s) or its text not 16 px in (left %d, top %d)\n",
-                                 cur_name, bad ? "off" : "ok", (int)ix, (int)iy);
+            for (x = SPL_CX + 18; x < SPL_CX + 34; x++) {
+                uint32_t c = swap16(host_screen[(uint32_t)SPL_CY * 240u + (uint32_t)x]);
+                cyan |= (c >> 11) < 12u && (c & 31u) > 24u;
+            }
+            if (!red || !cyan || (ctr >> 11) < 28u || host_screen[(uint32_t)SPL_CY * 240u + 2u] != bg) {
+                if (rep) fprintf(rep, "FIND %-26s the splash logo not drawn (red %d, cyan %d, centre %04x)\n", cur_name, red, cyan,
+                                 (unsigned)ctr);
                 nfind++;
             }
         }

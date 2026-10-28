@@ -313,6 +313,35 @@ static void head_group(void)
     GFX_HOOK_ALIGN(0, 0, 0, H_HEAD, AL_V, "header text on its middle");
     cv_text(x + 4, HEAD_MY, &AF_M, b, T_THEME);
 }
+/* OPX fork: the audio's share of the processor (audio.c song.cpu_q8, its average), in S after the REC mark: MID, the
+ * accent from 70 %, REC's from 85 % (where the audio drops a voice). Shown a value at most 4 times a second (as
+ * MENU > INFO), so the header redraws no more for it. 0: the place has no room (a slot letter and a short BPM) */
+#define HEAD_CPU_X 38                                  /* its ink after the REC mark's cell (or where it would be) */
+static uint8_t head_cpu = 0xFFu;                       /* the value shown */
+static uint32_t head_cpu_ms;
+static uint32_t head_cpu_now(void)
+{
+    uint32_t v = song.cpu_q8 * 100u / 256u;
+    if (head_cpu == 0xFFu || fm1_ms - head_cpu_ms >= 250u) {
+        head_cpu = (uint8_t)(v > 199u ? 199u : v);
+        head_cpu_ms = fm1_ms;
+    }
+    return head_cpu;
+}
+static void head_cpu_draw(int32_t x, int32_t right)
+{
+    char b[8];
+    uint32_t v = head_cpu_now(), n;
+    fmt_int(b, (int32_t)v);
+    n = str_len(b);
+    b[n] = '%', b[n + 1] = 0;
+    if (x + text_w(&AF_S, b) > right)
+        b[n] = 0;                                      /* (no room for the %: the figure alone) */
+    if (x + text_w(&AF_S, b) > right)
+        return;
+    GFX_HOOK_ALIGN(0, 0, 0, H_HEAD, AL_V, "header text on its middle");
+    cv_text(x, HEAD_SY, &AF_S, b, v >= 85u ? T_REC : v >= 70u ? T_ACCENT : T_MID);
+}
 static void draw_head(void)
 {
     static int16_t metro_x = -1;                       /* the metronome's ink as drawn (-1: hidden), its beat */
@@ -327,7 +356,7 @@ static void draw_head(void)
                    (ui.msg_t ? str_hash(7u, ui.msg) : ui.layer * 7919u + (uint32_t)layer_locked() * 3u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
                    (uint32_t)seq_counting() * 7u + (ui_prefs & PREF_BPM_LOCK) * 4099u +
                    (uint32_t)batt_shown() * 7777u + (chain.running ? (chain.row + 1u) * 104729u : 0u) +
-                   (slot ? str_hash(11u, sl) : 0u);
+                   (slot ? str_hash(11u, sl) : 0u) + head_cpu_now() * 6151u;
     int msg = ui.msg_t || ui.layer;
     int centre = !msg || ui.bpm_t || ui.layer == LAYER_GLO;   /* the BPM being changed: it stays, the message right */
     int32_t rx = HEAD_REC_X;
@@ -379,6 +408,8 @@ static void draw_head(void)
                                                         * accent's, about to play), stop */
         cv_icon_mid(g.mx0 - HEAD_PLAY_GAP - ib[2], H_HEAD / 2, 16, id,
                     song.playing ? T_THEME : seq_counting() ? T_ACCENT : T_MID, T_BG);
+        head_cpu_draw(rx + 17 > HEAD_CPU_X ? rx + 17 : HEAD_CPU_X, g.mx0 - HEAD_PLAY_GAP - ib[2] + ib[0] - 3);
+                                                       /* (OPX fork: the CPU meter, clear of the play state) */
         head_metro(g.mx0, beat);
         metro_x = (int16_t)g.mx0;
         metro_beat = (int8_t)beat;
@@ -1243,40 +1274,103 @@ static void draw_columns(void)
 }
 
 
-/* The power-on splash (main.c fm1_main, web/emu felucca_web.c; 1.1.5): a RAISE square centred on the screen, square
- * corners (in every style; LINE too: RAISE from the palette's SURF), in it in AF_M, the ink SPL_PAD in from the left:
- * at the top the name and the version, the first line's capitals' top SPL_PAD down; at the bottom the maker and
- * "with community", the last line's capitals' bottom (its baseline) SPL_PAD up from the square's bottom. Both
- * margins are measured to the capitals (the descender of "community" hangs into the bottom one, as off a baseline).
- * The square (176 x 176) is more than the canvas (CV_MAX, 240 x 124): it is filled straight on the screen and its
- * two text bands drawn on it as canvases, the top one from the square's top edge, the bottom one to its bottom edge.
- * In the saved palette (settings_init before it) */
-#define SPL_SQ 176                                  /* the square (even: centred exactly) */
-#define SPL_X0 ((240u - SPL_SQ) / 2u)               /* its top-left on the screen (x and y) */
-#define SPL_PAD 16                                  /* the text's inset: left (its ink), top and bottom (the capitals) */
-#define SPL_PITCH 20                                /* line to line */
-static const char *const SPLASH_LINES[] = {"Felucca", FELUCCA_VERSION, "H\xFCgelton Instruments", "with community"};
-/* a band of two lines, h tall, at y on the screen: the first line's top at ly; the two lines' capitals declared
- * against al0..al1 (mode: AL_V the band centred there, AL_B the last baseline on al1) */
-static void splash_band(uint32_t y, uint32_t h, int32_t ly, const char *const *l, uint32_t mode, int32_t al0,
-                        int32_t al1, const char *tag)
+/* The power-on splash (main.c fm1_main, web/emu felucca_web.c; OPX fork, 0.2.0): the logo, an FM wave disc (six rings,
+ * each a sine whose phase another sine modulates, from cyan to red, round a white disc with OPX), the firmware's name,
+ * its version and Felucca's maker. The logo is drawn, not stored (no image in flash): each pixel's distance from each
+ * ring at its angle, antialiased over the palette's BG; its colours are the logo's in every palette (GREY and MONO
+ * too: the one coloured thing there, ui_render's gray check passes the splash). Two canvases of
+ * 240 x 120 (CV_MAX holds 124 rows) */
+#define SPL_CX 120                                  /* the disc's centre */
+#define SPL_CY 92
+static const uint8_t SPL_RING[6][3] = {             /* the rings, inside out: hue 0.55 .. 1.0, S 0.8 */
+    {51, 204, 255}, {51, 107, 255}, {112, 51, 255}, {209, 51, 255}, {255, 51, 204}, {255, 51, 51}};
+#if FELUCCA_OPX_ONLY
+#define SPL_NAME "FELUCCA-OPX SOLO"
+#else
+#define SPL_NAME "FELUCCA-OPX"
+#endif
+static const char *const SPLASH_LINES[] = {"OPX", SPL_NAME, FELUCCA_VERSION, "Felucca: H\xFCgelton Instruments"};
+static uint32_t spl_isqrt(uint32_t v)               /* floor(sqrt(v)) */
 {
-    cv_begin(SPL_SQ, h, T_RAISE);
-    GFX_HOOK_ALIGN(0, al0, 0, al1, mode | AL_N(2), tag);
-    cv_text_on(SPL_PAD, ly, &AF_M, l[0], T_TEXT, T_RAISE);
-    cv_text_on(SPL_PAD, ly + SPL_PITCH, &AF_M, l[1], T_TEXT, T_RAISE);
-    cv_blit(SPL_X0, y);
+    uint32_t r = 0, b = 1u << 30;
+    while (b > v)
+        b >>= 2;
+    for (; b; b >>= 2)
+        if (v >= r + b)
+            v -= r + b, r = (r >> 1) + b;
+        else
+            r >>= 1;
+    return r;
+}
+static uint32_t spl_atan2(int32_t y, int32_t x)     /* the angle as a phase (2^32 a turn), within ~0.2 degree */
+{
+    int32_t ax = x < 0 ? -x : x, ay = y < 0 ? -y : y, z, a;
+    uint32_t ph;
+    if (!ax && !ay)
+        return 0;
+    z = ax >= ay ? (ay << 15) / ax : (ax << 15) / ay;   /* (Q15, 0..1) */
+    a = (z >> 3) + ((((z * (32768 - z)) >> 15) * 1424) >> 15);   /* atan z / 2 pi, Q15: z / 8 + 0.04345 z (1 - z) */
+    ph = (uint32_t)a << 17;
+    if (ay > ax)
+        ph = 0x40000000u - ph;
+    if (x < 0)
+        ph = 0x80000000u - ph;
+    if (y < 0)
+        ph = 0u - ph;
+    return ph;
+}
+static uint32_t spl_mix(uint32_t bg, const uint8_t *c, int32_t a)   /* c over bg (RGB565) at a (0..256) */
+{
+    uint32_t r = (bg >> 11) << 3, g = ((bg >> 5) & 63u) << 2, b = (bg & 31u) << 3;
+    r += (uint32_t)(((int32_t)c[0] - (int32_t)r) * a / 256), g += (uint32_t)(((int32_t)c[1] - (int32_t)g) * a / 256);
+    b += (uint32_t)(((int32_t)c[2] - (int32_t)b) * a / 256);
+    return RGB(r, g, b);
+}
+static void splash_logo(uint32_t y0)                /* the logo's pixels in the canvas (screen rows y0 ..) */
+{
+    static const uint8_t WHITE[3] = {248, 248, 248};
+    uint32_t x, y, k;
+    for (y = 0; y < cv_h; y++) {
+        int32_t dy = (int32_t)(y0 + y) - SPL_CY;
+        for (x = 0; x < cv_w; x++) {
+            int32_t dx = (int32_t)x - SPL_CX, r2 = dx * dx + dy * dy, r, c = T_BG;
+            uint32_t th;
+            if (r2 > 92 * 92)
+                continue;
+            r = (int32_t)spl_isqrt((uint32_t)r2 << 8);   /* (Q4) */
+            th = spl_atan2(dy, dx);
+            for (k = 0; k < 6u; k++) {               /* r_k = 24 + 10.5 k + 3.2 sin(6 th + 2.2 sin((k + 1) th)) */
+                int32_t in = (int32_t)(((int64_t)sine_i(th * (k + 1u)) * 1503900000) >> 15);
+                int32_t rk = 384 + 168 * (int32_t)k + ((sine_i(th * 6u + (uint32_t)in) * 51) >> 15), d = r - rk, a;
+                d = d < 0 ? -d : d;
+                a = clamp(((26 + 8 - d) * 256) / 16, 0, 256);   /* (the stroke 1.6 px a side, 0.5 px of ramp) */
+                if (a)
+                    c = (int32_t)spl_mix((uint32_t)c, SPL_RING[k], a);
+            }
+            if (r < 17 * 16)                         /* the centre's disc, antialiased over its last pixel */
+                c = (int32_t)spl_mix((uint32_t)c, WHITE, clamp((16 * 16 - r) * 16, 0, 256));
+            cv_px[y * cv_w + x] = swap16((uint32_t)c);
+        }
+    }
+}
+static void splash_line(uint32_t y0, int32_t y, const aafont_t *f, const char *s, uint16_t fg, uint16_t bg)
+{
+    cv_text_on(HALF_UP(240 - text_w(f, s)), y - (int32_t)y0, f, s, fg, bg);
 }
 static void draw_splash(void)
 {
-    int32_t h = SPL_PAD - AF_M_CAP_Y + SPL_PITCH + AF_M.h;     /* a band: its two lines, the descenders in */
-    int32_t lb = h - SPL_PAD - AF_M_CAP_H - AF_M_CAP_Y;         /* the bottom band's last line: its top */
-    lcd_fill(0, 0, 240, 240, T_BG);
-    lcd_fill(SPL_X0, SPL_X0, SPL_SQ, SPL_SQ, T_RAISE);
-    splash_band(SPL_X0, (uint32_t)h, SPL_PAD - AF_M_CAP_Y, SPLASH_LINES, AL_V, SPL_PAD,
-                SPL_PAD + SPL_PITCH + AF_M_CAP_H, "splash name + version SPL_PAD from the top");
-    splash_band(SPL_X0 + SPL_SQ - (uint32_t)h, (uint32_t)h, lb - SPL_PITCH, SPLASH_LINES + 2, AL_B, 0, h - SPL_PAD,
-                "splash maker's baseline SPL_PAD from the bottom");
+    cv_begin(240, 120, T_BG);
+    splash_logo(0);
+    GFX_HOOK_ALIGN(0, SPL_CY - 8, 240, SPL_CY + 8, AL_HV, "splash OPX on the disc's centre");
+    splash_line(0, SPL_CY - AF_M_CAP_Y - AF_M_CAP_H / 2, &AF_M, SPLASH_LINES[0], RGB(32, 32, 32), RGB(248, 248, 248));
+    cv_blit(0, 0);
+    cv_begin(240, 120, T_BG);
+    splash_logo(120);
+    GFX_HOOK_ALIGN(0, 0, 240, 0, AL_H | AL_N(3), "splash lines centred");
+    splash_line(120, 193 - AF_M_CAP_Y, &AF_M, SPLASH_LINES[1], T_TEXT, T_BG);
+    splash_line(120, 211 - AF_S_CAP_Y, &AF_S, SPLASH_LINES[2], T_THEME, T_BG);
+    splash_line(120, 225 - AF_S_CAP_Y, &AF_S, SPLASH_LINES[3], T_MID, T_BG);
+    cv_blit(0, 120);
     lcd_sync();
 }
 
