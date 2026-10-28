@@ -397,7 +397,7 @@ static uint32_t opx_post(track_t *t, int32_t *out, int32_t *left, uint32_t n, ui
     uint32_t tr = (uint32_t)(t - trk) % NTRK, k, i, st, made = 0, any = 0;
     const opx_patch_t *p = opx_own[tr];
     if (!p)                                          /* (no own copy yet: the factory patch SLOT names, as opx_build) */
-        p = &OPX_FACTORY[(uint32_t)clamp(t->p[P_E7], 0, (int32_t)OPX_NFACTORY - 1)];
+        p = &OPX_FACTORY[(uint32_t)clamp(t->p[P_E7], 0, (int32_t)OPX_NSTRUCT - 1)];
     if (n != CTL)
         return 0;
     for (k = 0; k < 3u; k++)

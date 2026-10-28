@@ -19,6 +19,7 @@
  *    (no instruction counter here; the device budget is FM6's, which runs six voices).
  * 7. demos into DEMODIR: every factory preset playing its suggested pattern. */
 #define OPX_FIELD_NAMES 1        /* (--dump: every field by name) */
+#define OPX_FACTORY_CHECK 1      /* (F1..F8's records too: test_factory checks them against their structs) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -50,6 +51,18 @@ static void setup(const opx_patch_t *p, const int16_t *e)
     memset(opx_fxtail, 0, sizeof opx_fxtail);
     trk[0].p[P_VOICE] = V_POLY;
     trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = 0;
+}
+
+/* track 1 on factory patch pi, decoded as opx_poll would (F9..: records, not structs: the render's fallback has F1..F8
+ * only) */
+static opx_patch_t opx_t_fp;
+static void factory_track(uint32_t pi)
+{
+    uint8_t pk[OPX_PK_BYTES];
+    trk[0].p[P_E7] = (int16_t)pi;
+    opx_factory_pk(pi, pk);
+    opx_decode(pk, &opx_t_fp);
+    opx_own[0] = &opx_t_fp;
 }
 
 static int32_t opx_t_cut, opx_t_shape;          /* (Felucca's FLT / SHP routes: test_macros_off) */
@@ -1513,6 +1526,27 @@ static void test_factory(void)
     static double y[FS], z[FS];
     uint32_t pi, note, i, ok = 1, same;
     double peak = 0, worst_mean = 0;
+    {                                                /* (the records tools/opx_factory.py writes: F1..F8's as their
+                                                      * structs encode, every one valid, named as its PRESETS entry) */
+        uint8_t a[OPX_PK_BYTES], b[OPX_PK_BYTES];
+        char nm[17];
+        for (pi = 0; pi < OPX_NSTRUCT; pi++) {
+            opx_encode(&OPX_FACTORY[pi], a);
+            opx_rec_pk(OPX_FREC_CHECK + OPX_FOFF_CHECK[pi], OPX_FREC_CHECK + OPX_FOFF_CHECK[pi + 1], b);
+            ok &= !memcmp(a, b, OPX_PK_BYTES);
+        }
+        for (pi = 0; pi < OPX_NFACTORY; pi++) {
+            opx_factory_pk(pi, a);
+            for (i = 0; i < 16u; i++)
+                nm[i] = (char)opx_get(a, OPXF_PROG_NAME0 + i);
+            for (i = 16; i && nm[i - 1] == ' '; i--)
+                ;
+            nm[i] = 0;
+            ok &= opx_pk_ok(a) && !strcmp(nm, ENG_OPX.presets[pi].name);
+        }
+        check("factory records: F1..F8 as their structs encode; all valid, named as PRESETS", ok);
+        ok = 1;
+    }
     setup(0, 0);
     trk[0].p[P_E7] = 0;
     engine_render(60, 100, y, FS / 2, 0, 0);
@@ -1524,7 +1558,7 @@ static void test_factory(void)
         for (note = 24; note <= 96; note += 12) {
             double s = 0;
             setup(0, 0);
-            trk[0].p[P_E7] = (int16_t)pi;
+            factory_track(pi);
             engine_render(note, 127, y, FS, FS / 2, 0);
             {                                        /* (the mean over whole periods of the note: a second of C1 is 32.7
                                                       * of them, and the part cycle's own mean is no offset) */
@@ -1630,7 +1664,7 @@ static void demo(const char *dir, uint32_t pi)
     memset(eng_mem, 0, sizeof eng_mem);
     host_tracks_init();
     host_preset(&trk[0], ENGI_OPX, pi);
-    opx_own[0] = 0;
+    factory_track((uint32_t)trk[0].p[P_E7]);
     for (s = 0; s < 48u; s++) {                       /* three times through the pattern's 16 steps, 120 BPM 1/16 */
         uint32_t k = s % 16u, note = PATTERNS[pat].note[k], fl = PATTERNS[pat].flags[k];
         if (!(fl & 4u) && held) {
@@ -1671,7 +1705,7 @@ static void dump(void)
     uint32_t i, f, k, seed = 12345;
     for (i = 0; i <= OPX_NFACTORY + 2u; i++) {
         if (i < OPX_NFACTORY)
-            opx_encode(&OPX_FACTORY[i], pk);
+            opx_factory_pk(i, pk);
         else if (i == OPX_NFACTORY)
             opx_defaults(pk);
         else
@@ -1704,7 +1738,7 @@ static void audit(void)
         for (k = 0; k < 3u; k++) {
             double s = 0, s2 = 0, d2 = 0, held, tail;
             setup(0, 0);
-            trk[0].p[P_E7] = (int16_t)pi;
+            factory_track(pi);
             engine_render(NOTE[k], 100, y, FS * 3, FS, 0);
             for (i = 0; i < FS; i++) {
                 s += y[i], s2 += y[i] * y[i];
@@ -1741,7 +1775,7 @@ static void audit(void)
             double s = 0, per = FS / (440.0 * pow(2.0, ((double)k - 69.0) / 12.0));
             uint32_t n = (uint32_t)(floor(FS / per) * per + 0.5);
             setup(0, 0);
-            trk[0].p[P_E7] = (int16_t)pi;
+            factory_track(pi);
             engine_render(k, 127, y, FS, FS / 2, 0);
             for (i = 0; i < FS; i++) {
                 if (i < n)
@@ -1750,7 +1784,7 @@ static void audit(void)
             }
             mn = fabs(s / n) > mn ? fabs(s / n) : mn;
         }
-        printf("F%-3u %-11s %-8s %6.2f %6.3f %7.1f %7.1f %7.1f %7.0f %7.0f %7.0f %6.0f\n", pi + 1, OPX_FACTORY[pi].name,
+        printf("F%-3u %-11s %-8s %6.2f %6.3f %7.1f %7.1f %7.1f %7.0f %7.0f %7.0f %6.0f\n", pi + 1, ENG_OPX.presets[pi].name,
                "", pk / VOICE_FS, mn / VOICE_FS, rms[0], rms[1], rms[2], brt[0], brt[1], brt[2], rel);
     }
 }
@@ -1771,7 +1805,7 @@ int main(int argc, char **argv)
         static double y[FS * 2];
         uint32_t i, j;
         setup(0, 0);
-        trk[0].p[P_E7] = (int16_t)(atoi(argv[2]) - 1);
+        factory_track((uint32_t)(atoi(argv[2]) - 1));
         engine_render((uint32_t)atoi(argv[3]), 100, y, FS * 2, FS, 0);
         for (i = 0; i + 2205u <= FS * 2u; i += 2205u) {
             double m = 0, a = 0;

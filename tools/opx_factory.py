@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import opx_patch_spec as S  # noqa: E402
 
 MAXN = 126                     # (SLOT: F1..F126, OWN 126, INIT 127: a project byte holds 127 at most)
+NSTRUCT = 8                    # (F1..F8 as opx_patch_t: a track plays them before it has its own copy; the rest records)
 NORMAL = 8                     # (the first NORMAL in both firmwares: Felucca-OPX's flash has room for that many, ~1 KB to spare)
 
 
@@ -259,6 +260,89 @@ def P(name, cat, algo, ops, *, fb=0, ua=None, out=None, eg=(), lfo=(), vp=(), fl
                  "note": note})
 
 
+# ------------------------------------------------------------------------------------ the packed record (sparse) --
+def encode(p):
+    """the record firmware/src/opx_patch.c opx_encode makes of the patch, as {field name: value} (the spec's names)"""
+    S.build_fields() if not S.FIELDS else None
+    r = S.defaults()
+    r["algo"], r["prog.alg_fb"] = p["algo"], p["alg_fb"]
+    for k, o in enumerate(p["ops"]):
+        n = f"op{k + 1}."
+        g = lambda key, d=0: o.get(key, d)  # noqa: E731
+        r.update({n + "level": g("level"), n + "coarse": g("coarse"), n + "fine": g("fine"), n + "detune": g("detune"),
+                  n + "trans": g("trans"), n + "freq_fixed": g("fixed"),
+                  n + "fixed_freq": g("fixed_freq") if g("fixed") else 44000, n + "eg_atk": g("atk"),
+                  n + "eg_dec": g("dec"), n + "eg_rel": g("rel"), n + "eg_sus": g("sus"), n + "eg_curve": g("curve"),
+                  n + "fm_fb": g("fb"), n + "lmod_vel": g("vel"), n + "wave": g("wave"), n + "fm_width": g("width"),
+                  n + "mode": g("mode")})
+        md = MODES[g("mode")]
+        if md == "RING":
+            r.update({n + "ring_depth": g("ring_depth"), n + "ring_shape": g("ring_shape")})
+        elif md in ("FILTER", "FILTER_FM"):
+            r.update({n + "flt_type": g("flt_type"), n + "flt_reso": g("flt_reso"), n + "flt_oscmix": g("flt_oscmix"),
+                      n + "flt_cutoff": g("flt_cutoff")})
+        elif md == "EFFECT":
+            r.update({n + "fx_type": g("fx_type"), n + "fx_oscmix": g("fx_oscmix"), n + "fx_e": g("fx_e"),
+                      n + "fx_f": g("fx_f")})
+        elif md == "FOLD":
+            r.update({n + "fold_gain": g("fold_gain"), n + "fold_oscmix": g("fold_oscmix"), n + "fold_bias": g("fold_bias")})
+        if g("ktrk_center"):
+            r.update({n + "ktrk_low": g("ktrk_low"), n + "ktrk_high": g("ktrk_high"), n + "ktrk_center": g("ktrk_center"),
+                      n + "ktrk_lcrv": g("ktrk_lcrv"), n + "ktrk_hcrv": g("ktrk_hcrv")})
+        r.update({n + "pmod_eg1": g("pm_eg1"), n + "pmod_eg1_ctrl": g("pm_eg1_ctrl"), n + "pmod_lfo1": g("pm_lfo1"),
+                  n + "pmod_lfo1_ctrl": g("pm_lfo1_ctrl"), n + "pmod_vel": g("pm_vel"), n + "pmod_vel_dest": g("pm_dest"),
+                  n + "lmod_lfo1": g("lm_lfo1"), n + "lmod_lfo1_ctrl": g("lm_lfo1_ctrl")})
+        for j in range(6):
+            r[f"ua.op{k + 1}_self" if j == k else f"ua.op{k + 1}_to_op{j + 1}"] = p["ua"][k][j]
+        r[f"ua.op{k + 1}_out"] = p["ua_out"] >> k & 1
+    for k in range(3):
+        e = p["eg"][k] if k < len(p["eg"]) else None
+        if e and any(e.values()):
+            r.update({f"eg{k + 1}.{x}": e[x] for x in ("atk", "dec", "rel", "sus", "curve")})
+        l = p["lfo"][k] if k < len(p["lfo"]) else None
+        if l and (l["speed"] or l["tempo"]):
+            r.update({f"lfo{k + 1}.{x}": l[x] for x in ("wave", "speed", "sync", "ksync", "phase", "tempo", "fade")})
+    for k, v in enumerate(p["vp"]):
+        if v["src"]:
+            r.update({f"vp{k + 1}.src": v["src"], f"vp{k + 1}.int": v["amt"], f"vp{k + 1}.ctrl": v["ctrl"],
+                      f"vp{k + 1}.dst": v["dst"]})
+    f = p["flt"]
+    if f:
+        r.update({"flt.type": f["type"], "flt.enable": 1, "flt.cutoff": f["cutoff"], "flt.reso": f["reso"],
+                  "flt.eg2": f["eg2"], "flt.eg2_ctrl": f["eg2_ctrl"], "flt.ktrk_low": f["kl"], "flt.ktrk_high": f["kh"],
+                  "flt.ktrk_center": f["kc"] or 60, "flt.lfo2": f["lfo2"], "flt.lfo2_ctrl": f["lfo2_ctrl"]})
+    r["prog.lfo1"], r["prog.lfo1_ctrl"], r["prog.trans"], r["prog.oct"] = (p["prog_lfo1"], p["prog_lfo1_ctrl"],
+                                                                         p["trans"], p["oct"])
+    for k in range(3):
+        x = p["fx"][k] if k < len(p["fx"]) else {"type": 0, "on": 0, "v": []}
+        knobs = S.FX_TYPES[x["type"]][3]
+        r[f"fx{k + 1}.type"], r[f"fx{k + 1}.enable"] = x["type"], x["on"]
+        for j, kn in enumerate(knobs):
+            r[f"fx{k + 1}.{'bcef'[j]}"] = x["v"][j] - kn[1]
+    for i in range(16):
+        r[f"prog.name{i}"] = ord(p["name"][i]) if i < len(p["name"]) else 32
+    return r
+
+
+def sparse(p):
+    """the record as (field index, value) for the fields off their defaults: field deltas and zigzag values as
+    varints (opx_patch.c opx_factory_pk reads them)"""
+    rec, d, out, last = encode(p), S.defaults(), bytearray(), 0
+    for i, (_, name, _, lo, hi, _) in enumerate(S.FIELDS):
+        v = rec[name]
+        assert lo <= v <= hi, (p["name"], name, v)
+        if v == d[name]:
+            continue
+        for x in (i - last, (-v << 1) - 1 if v < 0 else v << 1):
+            while True:
+                out.append((x & 0x7F) | (0x80 if x > 0x7F else 0))
+                x >>= 7
+                if not x:
+                    break
+        last = i
+    return bytes(out)
+
+
 # ------------------------------------------------------------------------------------------------------ the output --
 OPF = ["level", "coarse", "fine", "detune", "trans", "fixed", "fixed_freq", "atk", "dec", "rel", "sus", "curve", "fb",
        "vel", "wave", "width", "mode", "ring_depth", "ring_shape", "fold_gain", "fold_oscmix", "fold_bias", "flt_type",
@@ -316,29 +400,53 @@ HEAD = ("/* SPDX-License-Identifier: GPL-3.0-only */\n"
         "/* GENERATED by tools/opx_factory.py from tools/opx_factory_bank.py: edit the bank there, then run it. */\n")
 
 
+def c_bytes(b, ind="    "):
+    return "".join(ind + ", ".join(str(x) for x in b[i:i + 24]) + ",\n" for i in range(0, len(b), 24))
+
+
 def outputs():
     import opx_factory as M        # (the bank fills the module's BANK, also when this file runs as __main__)
     import opx_factory_bank  # noqa: F401
     BANK = M.BANK
-    assert len(BANK) <= MAXN, len(BANK)
+    S.build_fields() if not S.FIELDS else None
+    assert len(BANK) <= MAXN and NSTRUCT <= NORMAL <= len(BANK), len(BANK)
     n = len(BANK)
-    pat, pre, slot = [], [], []
+    pat = [c_patch(p) for p in BANK[:NSTRUCT]]
+    pre = []
+    rec, off, chk, coff = [], [0], [], [0]
     for i, p in enumerate(BANK):
         if i == NORMAL:
-            for L in (pat, pre):
-                L.append("#if FELUCCA_OPX_ONLY          /* (the rest: Felucca-OPX Solo's) */")
-        pat.append(c_patch(p))
+            pre.append("#if FELUCCA_OPX_ONLY          /* (the rest: Felucca-OPX Solo's) */")
         pre.append(c_preset(i, p))
+        sp = sparse(p)
+        if i < NSTRUCT:
+            chk.append(sp)
+            coff.append(coff[-1] + len(sp))
+        else:
+            rec.append((i, sp))
+            off.append(off[-1] + len(sp))
     if n > NORMAL:
-        pat.append("#endif")
         pre.append("#endif")
+    k = NORMAL - NSTRUCT                 # (records in both firmwares; the rest Solo's)
+    recs = "".join(f"    /* F{i + 1} {BANK[i]['name']} */\n" + c_bytes(b, "    ") for i, b in rec[:k])
+    recs_solo = "".join(f"    /* F{i + 1} {BANK[i]['name']} */\n" + c_bytes(b, "    ") for i, b in rec[k:])
     def slots(k):
         v = [f'"F{i + 1}"' for i in range(k)] + ['"-"'] * (MAXN - k)
         return "".join("    " + ", ".join(v[i:i + 16]) + ",\n" for i in range(0, MAXN, 16))
-    h = (HEAD + "/* The OPX factory patches (eng_opx.c OPX_FACTORY: an opx_patch_t each; the first "
-         f"{NORMAL} in every OPX build, all {n} in Felucca-OPX Solo), their PRESETS entries (eng_opx.c OPX_PRESETS: "
-         "SLOT = the patch) and the SLOT names. */\n"
+    h = (HEAD + f"/* The OPX factory patches: F1..F{NSTRUCT} as opx_patch_t (eng_opx.c OPX_FACTORY: what a track plays "
+         f"before it has its own copy), the rest as records of their fields off the defaults (OPX_FREC, OPX_FOFF: "
+         f"opx_patch.c opx_factory_pk; {sum(len(b) for _, b in rec)} bytes for {len(rec)}, ~440 each as structs); the first "
+         f"{NORMAL} in every OPX build, all {n} in Felucca-OPX Solo. Their PRESETS entries (eng_opx.c OPX_PRESETS: SLOT "
+         "= the patch) and the SLOT names. */\n"
          "#ifdef OPX_FACTORY_PATCHES\n" + "\n".join(pat) + "\n#endif\n"
+         "#ifdef OPX_FACTORY_RECORDS        /* (each field: its index less the last one's, then the value zigzagged; "
+         "varints) */\n"
+         "static const uint8_t OPX_FREC[] = {\n" + recs + "#if FELUCCA_OPX_ONLY\n" + recs_solo + "#endif\n    0,   /* (an end: never empty) */\n};\n"
+         "static const uint16_t OPX_FOFF[] = {\n" + c_bytes(off[:k + 1]) + "#if FELUCCA_OPX_ONLY\n" + c_bytes(off[k + 1:])
+         + "#endif\n};\n#endif\n"
+         "#if defined OPX_FACTORY_CHECK && defined OPX_FACTORY_RECORDS   /* (host tests: F1..F" + str(NSTRUCT) + "'s records) */\n"
+         "static const uint8_t OPX_FREC_CHECK[] = {\n" + c_bytes(b"".join(chk)) + "};\n"
+         "static const uint16_t OPX_FOFF_CHECK[] = {\n" + c_bytes(coff) + "};\n#endif\n"
          "#ifdef OPX_FACTORY_PRESETS\n" + "\n".join(pre) + "\n#endif\n"
          "#ifdef OPX_FACTORY_SLOTS          /* (a name per value 0..125; the ones a firmware lacks: -) */\n"
          + "#if FELUCCA_OPX_ONLY\n" + slots(n) + "#else\n" + slots(min(n, NORMAL)) + "#endif\n#endif\n")

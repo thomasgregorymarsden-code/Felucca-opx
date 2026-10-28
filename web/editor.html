@@ -1844,11 +1844,11 @@ function makeMockDevice(opt = {}) {
     { name: "-", titles: ["-", "-"], edit: [NONE, NONE, NONE, NONE, NONE, NONE, NONE, NONE], presets: [] },
     { name: "OPX", titles: ["ALGO", "MOD"], edit: [D("ALG", F.INT, 0, 41, 0), D("ATK", F.BIPCT, -64, 63, 0),
         D("DEC", F.BIPCT, -64, 63, 0), D("MLVL", F.BIPCT, -64, 63, 0), D("FB", F.BIPCT, -64, 63, 0), D("MRAT", F.INT, -16, 16, 0),
-        D("DTUN", F.PCT, 0, 127, 0), D("SLOT", F.INT, 0, 8, 0)],   /* (F1..F7, OWN, INIT) */
+        D("DTUN", F.PCT, 0, 127, 0), D("SLOT", F.INT, 0, 127, 0)],   /* (F1..F126 0..125: Felucca-OPX's F1..F8, OWN 126, INIT 127) */
       presets: [P("E.PIANO", [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 127, 0], 0, 6), P("BELL", [0, 0, 0, 0, 0, 0, 0, 1], [0, 0, 127, 0], 0, 7),
         P("FM BASS", [0, 0, 0, 0, 0, 0, 0, 2], [0, 0, 127, 0], 1, 2), P("BRASS", [0, 0, 0, 0, 0, 0, 0, 3], [0, 0, 127, 0], 0, 4),
         P("SAW LEAD", [0, 0, 0, 0, 0, 0, 0, 4], [0, 0, 127, 0], 1, 4), P("LOOP PAD", [0, 0, 0, 0, 0, 0, 0, 5], [0, 0, 127, 0], 0, 5),
-        P("X-MOD", [0, 0, 0, 0, 0, 0, 0, 6], [0, 0, 127, 0], 0, 3)] },
+        P("X-MOD", [0, 0, 0, 0, 0, 0, 0, 6], [0, 0, 127, 0], 0, 3), P("DRAWBARS", [0, 0, 0, 0, 0, 0, 0, 7], [0, 0, 127, 0], 0, 6)] },
   ];
   const FM6_E = ENG.findIndex((e) => e.name === "FM6"), FM6_OWN = FM6.FACTORY_PK.length, DRUM_E = ENG.findIndex((e) => e.name === "DRUM");
   /* factory PATTERNS[] (engines.c; the device loads them from SAVE > PHRASES, presets only suggest one): absolute
@@ -2152,7 +2152,7 @@ function makeMockDevice(opt = {}) {
           if (st.uiCaps) { b(0x55); b(1); b(st.uiCaps); b(0x4d); b(1); b(64); b(1); if (!opt.noFm6) { b(0x46); b(1); b(FM6.FACTORY_PK.length); b(0); }
             if (syncCaps()) { b(0x53); b(1); b(syncCaps()); if (!opt.noFm6) { b(0x50); b(1); b(3); } if (ratchetOn()) { b(0x52); b(1); b(4); } } }   /* (FM6 v2: no bank, preset patches) */
         }
-        if (opt.opx) { b(0x4F); b(1); b(1); b(434 & 127); b(434 >> 7); b(7); b(opt.opx.engine); }   /* (OPX fork, last) */
+        if (opt.opx) { b(0x4F); b(1); b(1); b(434 & 127); b(434 >> 7); b(opt.opx.factory ? opt.opx.factory.length : 8); b(opt.opx.engine); }   /* (OPX fork, last) */
         break;
       case CMD.GET: case CMD.SET: {
         if (a.length < 2) return null;

@@ -307,11 +307,40 @@ static void opx_set_pk(uint32_t tr, const uint8_t *pk)
     opx_own[tr] = n;
     opx_pgen[tr]++;
 }
+/* factory patch i's record: F1..F8 from their structs; the rest from their records (eng_opx.c OPX_FREC: each field off
+ * its default, its index less the last one's then its value zigzagged, as varints: tools/opx_factory.py sparse) */
+static uint32_t opx_varint(const uint8_t **s)
+{
+    uint32_t v = 0, sh = 0;
+    do
+        v |= (uint32_t)(**s & 0x7Fu) << sh, sh += 7u;
+    while (*(*s)++ & 0x80u && sh < 35u);
+    return v;
+}
+static void opx_rec_pk(const uint8_t *s, const uint8_t *e, uint8_t *pk)
+{
+    uint32_t f = 0, z;
+    opx_defaults(pk);
+    while (s < e) {
+        f += opx_varint(&s);
+        z = opx_varint(&s);
+        if (f < OPXF_COUNT)
+            opx_put(pk, f, (int32_t)(z >> 1) ^ -(int32_t)(z & 1u));
+    }
+}
+static void opx_factory_pk(uint32_t i, uint8_t *pk)
+{
+    i = i < OPX_NFACTORY ? i : 0u;
+    if (i < OPX_NSTRUCT)
+        opx_encode(&OPX_FACTORY[i], pk);
+    else
+        opx_rec_pk(OPX_FREC + OPX_FOFF[i - OPX_NSTRUCT], OPX_FREC + OPX_FOFF[i - OPX_NSTRUCT + 1u], pk);
+}
 static void opx_load_factory(uint32_t tr, uint32_t i)
 {
     uint8_t pk[OPX_PK_BYTES];
     i = i < OPX_NFACTORY ? i : 0u;
-    opx_encode(&OPX_FACTORY[i], pk);
+    opx_factory_pk(i, pk);
     opx_set_pk(tr, pk);
     opx_slot[tr % NTRK] = (uint8_t)i;
 }

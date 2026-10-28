@@ -84,7 +84,7 @@ static void opx_track_stored(uint32_t tr, const uint8_t *pk)
     int32_t s = trk[tr].p[P_E7];
     uint8_t f[OPX_PK_BYTES];
     if (s >= 0 && s < (int32_t)OPX_NFACTORY)
-        opx_encode(&OPX_FACTORY[s], f);
+        opx_factory_pk((uint32_t)s, f);
     else
         opx_defaults(f);
     if (!(s >= 0 && s < (int32_t)OPX_NFACTORY) && s != (int32_t)OPX_INIT)

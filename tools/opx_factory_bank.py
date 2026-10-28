@@ -272,13 +272,13 @@ P("FUZZ GTR", "U", 1, [
     O(55, 2, det=6, d=2500, s=30, rl=200, c=7, vel=30), O(45, 1, d=800, s=20, rl=200, c=7, vel=60), OFF, OFF],
   lfo=[LFO("SIN", 5.5, ks=2, fade=700)], plfo=0.25, plfo_c="MW",
   fx=[FX("G.AMP", 70, "UK 80S", 55, -8), FX("3EQ", -2, -3, 3, 1500)], sends=(0, 30, 20, 30), mono=1, pat="LEAD",
-  gain=-21.1, note="a sawtooth-like pair through a high-gain amp; MW a guitarist's vibrato")
+  gain=-26.7, note="a sawtooth-like pair through a high-gain amp; MW a guitarist's vibrato")
 P("KOTO", "U", 5, [
     O(92, 1, d=1800, s=0, rl=300, c=9, vel=50, pe=0.6), O(55, 3, d=200, s=0, rl=150, c=9, vel=80, pe=0.6),
     O(40, 2, d=900, s=0, rl=200, c=9), O(30, 1, d=100, s=0, rl=100, c=9, fb=40), OFF, OFF],
   eg=[EG(d=70, s=0, rl=70, c=8)], lfo=[LFO("SIN", 6.0, ks=2, fade=500)], plfo=0.3, plfo_c="MW",
   fx=[FX("3EQ", -1, 2, 0, 1000)], sends=(0, 10, 15, 45), pat="MELODY",
-  gain=17.8, note="a pressed silk string: a pitch flick at the attack (EG1); MW a bent vibrato")
+  gain=19.0, note="a pressed silk string: a pitch flick at the attack (EG1); MW a bent vibrato")
 P("PIZZICATO", "U", 32, [
     O(85, 1, d=350, s=0, rl=200, c=9, vel=50), O(70, 1, det=-7, d=320, s=0, rl=200, c=9, vel=50, fb=35),
     O(60, 2, det=5, d=250, s=0, rl=200, c=9, vel=50), OFF, OFF, OFF],
@@ -456,7 +456,7 @@ P("VOX LEAD", "L", 21, [
 P("SOFT LEAD", "L", 1, [
     O(90, 1, a=20, rl=250), O(40, 1, a=60, rl=250, fb=20), O(30, 2, a=20, rl=250), OFF, OFF, OFF],
   lfo=[LFO("SIN", 5.2, ks=2, fade=700)], plfo=0.3, vp=[VP("MW", "OP2.LEVEL", 20)], sends=(0, 30, 40, 45),
-  mono=1, pat="LEAD", gain=28.3, note="a rounded sine lead with a delayed vibrato; MW brighter")
+  mono=1, pat="LEAD", gain=28.8, note="a rounded sine lead with a delayed vibrato; MW brighter")
 P("SCREAMER", "L", 1, [
     O(90, 1, rl=200), O(70, 1, rl=200, fb=88), O(50, 2, rl=200, fb=40), OFF, OFF, OFF],
   flt=FLT("LPF24", 2500, reso=30, kh=48), lfo=[LFO("SIN", 6.0, ks=2, fade=400)], plfo=0.35, plfo_c="MW",
@@ -489,7 +489,7 @@ P("FRENCH HRN", "O", 1, [
     O(95, 1, a=60, rl=300), O(50, 1, a=120, d=500, s=80, rl=300, c=4, vel=60), O(30, 2, a=60, rl=300),
     OFF, OFF, OFF],
   lfo=[LFO("SIN", 5.0, ks=2, fade=800)], plfo=0.1, plfo_c="MW", flt=FLT("LPF12", 1200, kh=48),
-  vp=[VP("MW", "OP2.LEVEL", 12)], sends=(0, 20, 10, 70), pat="PAD", gain=25.2, note="a mellow horn in a hall")
+  vp=[VP("MW", "OP2.LEVEL", 12)], sends=(0, 20, 10, 70), pat="PAD", gain=26.6, note="a mellow horn in a hall")
 P("TROMBONE", "O", 1, [
     O(95, 1, a=40, rl=200, pe=-1), O(68, 1, a=90, d=400, s=75, rl=200, c=4, vel=70, fb=35, pe=-1),
     O(40, 2, a=40, rl=200), OFF, OFF, OFF],
@@ -502,7 +502,7 @@ P("SAXOPHONE", "O", 1, [
     OFF, OFF],
   lfo=[LFO("SIN", 5.2, ks=2, fade=500)], plfo=0.2, plfo_c="MW", flt=FLT("LPF12", 2800, reso=15, kh=48),
   vp=[VP("VEL", "FLT.CUTOFF", 6)], sends=(0, 0, 20, 40), mono=1, pat="LEAD",
-  gain=11.4, note="a reedy pair with a 3:1 edge and breath noise")
+  gain=11.9, note="a reedy pair with a 3:1 edge and breath noise")
 P("CLARINET", "O", 1, [
     O(92, 1, a=40, rl=150), O(55, 2, a=50, d=400, s=85, rl=150, c=4, vel=60), O(25, 1, a=30, rl=150),
     OFF, OFF, OFF],
@@ -513,7 +513,7 @@ P("FLUTE", "O", 1, [
     O(92, 1, a=60, rl=150), O(30, 1, a=80, rl=150), O(35, 1, wave="PINK", a=20, d=200, s=20, rl=100, c=6,
                                                        mode="FILTER", flt=("BPF", 12, 40, 0)), OFF, OFF, OFF],
   lfo=[LFO("SIN", 5.0, ks=2, fade=600)], plfo=0.2, plfo_c="MW", sends=(0, 10, 15, 50), mono=1, pat="LEAD",
-  gain=14.2, note="a soft sine, breath through a band-pass (FILTER mode) an octave above the note")
+  gain=17.8, note="a soft sine, breath through a band-pass (FILTER mode) an octave above the note")
 P("OBOE", "O", 1, [
     O(90, 1, a=30, rl=150), O(62, 1, a=40, d=400, s=80, rl=150, c=4, vel=60), O(35, 4, a=30, rl=150),
     OFF, OFF, OFF],
@@ -523,7 +523,7 @@ P("PAN FLUTE", "O", 1, [
     O(92, 1, a=50, rl=250), O(20, 2, a=50, rl=250), O(45, 1, wave="WHITE", a=5, d=90, s=5, rl=80, c=8,
                                                        mode="FILTER", flt=("BPF", 0, 50, 0)), OFF, OFF, OFF],
   lfo=[LFO("SIN", 5.0, ks=2, fade=700)], plfo=0.15, plfo_c="MW", sends=(0, 0, 25, 70), mono=1, pat="LEAD",
-  gain=8.2, note="a breathy sine with a chiff of noise at the note's own pitch")
+  gain=10.0, note="a breathy sine with a chiff of noise at the note's own pitch")
 P("HARMONICA", "O", 1, [
     O(90, 1, a=20, rl=120), O(60, 1, a=30, rl=120, fb=55, vel=60), O(40, 2, a=20, rl=120), OFF, OFF, OFF],
   lfo=[LFO("TRI", 6.0, ks=2)], vp=[VP("LFO1", "PROG.LEVEL", 10, ctrl="MW")], flt=FLT("BPF12", 1800, reso=10, kh=56),
@@ -565,7 +565,7 @@ P("SWEEP PAD", "P", 32, [
     O(55, 2, wave="SQR", a=600, rl=1500), OFF, OFF, OFF],
   lfo=[None, LFO("TRI", 0.12)], flt=FLT("LPF24", 800, reso=55, lfo2=24, kh=32),
   vp=[VP("MW", "LFO2.SPEED", 30)], sends=(0, 60, 30, 70), pat="PAD",
-  gain=15.2, note="a resonant filter swept slowly by LFO2; MW speeds the sweep")
+  gain=15.6, note="a resonant filter swept slowly by LFO2; MW speeds the sweep")
 P("RANDOM PAD", "P", 32, [
     O(75, 1, det=-5, wave="SAW", a=300, rl=1500), O(75, 1, det=5, wave="SAW", a=300, rl=1500),
     O(50, 0.5, wave="TRI", a=300, rl=1500), OFF, OFF, OFF],
@@ -581,7 +581,7 @@ P("CELLO", "O", 1, [
     O(95, 1, a=150, rl=300), O(62, 1, a=200, d=600, s=80, rl=300, c=4, vel=60, fb=40), O(35, 2, a=150, rl=300),
     OFF, OFF, OFF],
   oct=-1, lfo=[LFO("SIN", 5.2, ks=2, fade=500)], plfo=0.2, plfo_c="MW", flt=FLT("LPF12", 2000, reso=10, kh=48),
-  sends=(0, 10, 10, 60), mono=1, pat="LEAD", gain=12.3, note="a bowed solo string: a bloom of brightness after the bow")
+  sends=(0, 10, 10, 60), mono=1, pat="LEAD", gain=14.0, note="a bowed solo string: a bloom of brightness after the bow")
 P("VIOLINS", "P", 32, [
     O(70, 1, det=-9, wave="SAW", a=250, rl=700), O(70, 1, det=9, wave="SAW", a=280, rl=700),
     O(60, 1, det=-3, wave="SAW", a=300, rl=700), O(45, 2, det=4, wave="SAW", a=300, rl=700), OFF, OFF],
@@ -661,7 +661,7 @@ P("CLAP", "D", 32, [
     O(95, 1, hz=1000, wave="WHITE", d=220, s=0, rl=150, c=8, vel=50, ll=-90, ll_c="EG3"), OFF, OFF, OFF, OFF, OFF],
   eg=[None, None, EG(d=70, s=0, rl=50, c=0)], lfo=[LFO("SAWD", 40.0, ks=2)], flt=FLT("BPF12", 1200, reso=20),
   vp=[VP("MW", "OP1.DEC", 15)], fx=[FX("DIST", 30, -5, 1500, 3)], sends=(0, 0, 0, 40), pat="BEAT",
-  gain=-0.5, note="band-passed noise; LFO1 (a fast sawtooth) chops its first 70 ms (LMOD, its CTRL EG3): the hands' flam")
+  gain=1.4, note="band-passed noise; LFO1 (a fast sawtooth) chops its first 70 ms (LMOD, its CTRL EG3): the hands' flam")
 P("COWBELL", "D", 32, [
     O(70, 1, hz=540, wave="SQR", d=350, s=0, rl=150, c=9), O(60, 1, hz=800, wave="SQR", d=300, s=0, rl=150, c=9),
     OFF, OFF, OFF, OFF],

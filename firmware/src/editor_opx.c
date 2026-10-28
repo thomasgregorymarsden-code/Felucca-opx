@@ -37,7 +37,7 @@ static int ed_opx_handle(uint32_t cmd, const uint8_t *a, uint32_t n)
             memcpy(ed_opx_pk, opx_pk[a[1]], OPX_PK_BYTES);
             rc = 0;
         } else if (n == 2u && a[0] == ED_OPX_FACTORY && a[1] < OPX_NFACTORY) {
-            opx_encode(&OPX_FACTORY[a[1]], ed_opx_pk);
+            opx_factory_pk(a[1], ed_opx_pk);
             rc = 0;
         } else if (n == 2u && a[0] == ED_OPX_USER && a[1] < UP_SLOTS) {
             const uint8_t *pk = upx_find(a[1]);
@@ -55,7 +55,7 @@ static int ed_opx_handle(uint32_t cmd, const uint8_t *a, uint32_t n)
             uint32_t f = 0;
             uint8_t fp[OPX_PK_BYTES];
             for (; f < OPX_NFACTORY; f++) {                /* (a factory patch unchanged: SLOT F n, as FM6_PUT) */
-                opx_encode(&OPX_FACTORY[f], fp);
+                opx_factory_pk(f, fp);
                 if (!memcmp(fp, ed_opx_pk, OPX_PK_BYTES))
                     break;
             }

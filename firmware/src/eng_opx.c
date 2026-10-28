@@ -280,13 +280,17 @@ static int32_t opx_level_amp(int32_t l)
 /* ------------------------------------------------------ the factory patches --- */
 /* (0.2.0: tools/opx_factory_bank.py, compiled to opx_factory.h by tools/opx_factory.py: F1..F12 in every OPX build,
  * F13..F126 in Felucca-OPX Solo. A patch leaves out an EG, LFO, filter or virtual patch: INIT's; its effects: OFF) */
-static const opx_patch_t OPX_FACTORY[] = {
+static const opx_patch_t OPX_FACTORY[] = {       /* (F1..F8: a track plays these before it has its own copy) */
 #define OPX_FACTORY_PATCHES
 #include "opx_factory.h"
 #undef OPX_FACTORY_PATCHES
 };
-#define OPX_NFACTORY ((uint32_t)NELEM(OPX_FACTORY))
-_Static_assert(NELEM(OPX_FACTORY) <= 126u, "SLOT: F1..F126, then OWN, INIT: a project stores it in a byte (-64..127)");
+#define OPX_FACTORY_RECORDS                       /* (F9..: as records, opx_patch.c opx_factory_pk) */
+#include "opx_factory.h"
+#undef OPX_FACTORY_RECORDS
+#define OPX_NSTRUCT ((uint32_t)NELEM(OPX_FACTORY))
+#define OPX_NFACTORY (OPX_NSTRUCT + (uint32_t)NELEM(OPX_FOFF) - 1u)
+_Static_assert(OPX_NSTRUCT + NELEM(OPX_FOFF) - 1u <= 126u, "SLOT: F1..F126, then OWN, INIT: a project stores it in a byte (-64..127)");
 
 /* ------------------------------------------------- the patch, per part --- */
 typedef struct {                 /* an LFO as the patch sets it: wave, KSYNC, PHASE RANDOM, on: it reaches something */
@@ -499,7 +503,7 @@ static void opx_build(const track_t *t, opx_rt_t *r)
     uint32_t a = (uint32_t)(alg - 1) > OPX_USER ? OPX_USER : (uint32_t)(alg - 1);   /* (ALG PAT: below) */
     int32_t self[OPX_NOP];
     if (!pt)
-        pt = &OPX_FACTORY[(uint32_t)clamp(t->p[P_E7], 0, (int32_t)OPX_NFACTORY - 1)];
+        pt = &OPX_FACTORY[(uint32_t)clamp(t->p[P_E7], 0, (int32_t)OPX_NSTRUCT - 1)];   /* (before opx_poll's first) */
     if (alg <= 0)
         a = pt->algo;
     /* (USER plays the patch's matrix as it is: one without a heard operator is silent, as the opsix's; the EDIT 1 page
