@@ -154,11 +154,13 @@ const log = (t) => {
   el.append(t + "\n");
   if (follow) el.scrollTop = el.scrollHeight;
 };
-/* the bar: the check (step 1, ~74 short requests) 0..3 %, the write 3..99 % by the bytes sent of the image (the loader's
-   requests are not all one size: 2323 of them for a 594 KB image), 100 at done */
-const VERIFY_REQS = 74;
+/* the bar: the check (step 1, ~74 short requests) 0..3 %, the write 3..99 % by the bytes sent, 100 at done. The loader
+   reads the image twice, it seems (2323 requests for a 594 KB image; a bar by one image's bytes was full at ~1100),
+   so the write is WRITE_PASSES images; the log's last line of the write says what was sent, to check that */
+const VERIFY_REQS = 74, WRITE_PASSES = 2;
 const barOf = (k, n, bytes, size) => k === "verify" ? Math.min(3, n / VERIFY_REQS * 3)
-  : 3 + Math.min(96, (bytes ?? 0) / Math.max(1, size) * 96);
+  : 3 + Math.min(96, (bytes ?? 0) / Math.max(1, size * WRITE_PASSES) * 96);
+const sentNote = (n, bytes, size) => `write: ${n} requests, ${bytes} bytes = ${(bytes / Math.max(1, size)).toFixed(2)}× the image`;
 let image = null;
 const meta = /*META*/;
 
@@ -187,7 +189,10 @@ $("go").addEventListener("click", async () => {
   catch (e) { sayK("denied"); lockInstaller(false); return; }
   try {
     const up = new Updater(midi, log);
+    let wn = 0, wb = 0;
     const step = (k, a, bytes) => {
+      if (k === "write") { wn = a; wb = bytes ?? 0; }
+      if (k === "reboot" && wn) log(sentNote(wn, wb, image.length));
       log(`${k} ${a ?? ""}`);
       if (k === "start") sayK("start");
       if (k === "verify") { sayK("verify"); $("bar").value = barOf(k, a, 0, image.length); }
@@ -261,7 +266,10 @@ $("stock-go").addEventListener("click", async () => {
     let midi;
     try { midi = await navigator.requestMIDIAccess({sysex:true}); } catch (e) { sayK("denied"); return; }
     const up = new Updater(midi, log);
+    let wn = 0, wb = 0;
     const step = (k, n, bytes) => {
+      if (k === "write") { wn = n; wb = bytes ?? 0; }
+      if (k === "reboot" && wn) log(sentNote(wn, wb, selected.image.length));
       log(`${k} ${n ?? ""}`);
       if (["start","verify","loader","write","reboot","done"].includes(k)) sayK(k);
       if (k === "verify" || k === "write") $("bar").value = barOf(k, n, bytes, selected.image.length);

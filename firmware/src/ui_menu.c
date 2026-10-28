@@ -121,8 +121,9 @@ static int32_t menu_document(int32_t y, int draw)
 {
     uint32_t i;
     if (draw) {
-        cv_text(6, y + 2, &AF_L, FELUCCA_OPX_ONLY ? "FELUCCA-OPX SOLO" : "FELUCCA-OPX", T_THEME);
-        cv_text(6, y + 38, &AF_S, FELUCCA_OPX_ONLY ? "Altered-FM synthesizer" : "Multi-engine synthesizer", T_TEXT);
+        cv_text(6, y + 2, &AF_L, "FELUCCA-OPX", T_THEME);   /* (Solo: on the line below, the title has no room) */
+        cv_text(FELUCCA_OPX_ONLY ? cv_text(6, y + 38, &AF_S, "SOLO", T_THEME) + 6 : 6, y + 38, &AF_S,
+                FELUCCA_OPX_ONLY ? "Altered-FM synthesizer" : "Multi-engine synthesizer", T_TEXT);
         cv_text(6, y + 58, &AF_M, FELUCCA_VERSION, T_THEME);
         cv_text_r(232, y + 61, &AF_S, __DATE__, T_MID, T_BG);
         cv_text(6, y + 82, &AF_S, "BUILD " FELUCCA_BUILD, T_MID);   /* (OPX fork: the commit it was built from) */
