@@ -8,7 +8,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Felucca-OPX Editor</title>
+<title>OPX Editor</title>
 <style>
   /* Fukiai: Hügelton Instruments' icon font (MIT, FUKIAI-LICENSE.txt). Icons are text in .ic spans;
      they stay hidden until the face has loaded (html.fk), so a missing font never shows boxes. */
@@ -161,7 +161,7 @@
 <body>
 <main>
   <button class="lang" id="lang"></button>
-  <h1>Felucca-OPX Editor</h1>
+  <h1>OPX Editor</h1>
   <p class="dim"><a href="../installer/" style="color:inherit" data-t="installer"></a></p>
   <!-- always visible: connection, version, sync mode, the tabs and (Sound / Sequencer / Tracks) the track selector -->
   <header class="top">
@@ -1844,7 +1844,7 @@ function makeMockDevice(opt = {}) {
     { name: "-", titles: ["-", "-"], edit: [NONE, NONE, NONE, NONE, NONE, NONE, NONE, NONE], presets: [] },
     { name: "OPX", titles: ["ALGO", "MOD"], edit: [D("ALG", F.INT, 0, 41, 0), D("ATK", F.BIPCT, -64, 63, 0),
         D("DEC", F.BIPCT, -64, 63, 0), D("MLVL", F.BIPCT, -64, 63, 0), D("FB", F.BIPCT, -64, 63, 0), D("MRAT", F.INT, -16, 16, 0),
-        D("DTUN", F.PCT, 0, 127, 0), D("SLOT", F.INT, 0, 127, 0)],   /* (F1..F126 0..125: Felucca-OPX's F1..F8, OWN 126, INIT 127) */
+        D("DTUN", F.PCT, 0, 127, 0), D("SLOT", F.INT, 0, 127, 0)],   /* (F1..F126 0..125: OPX's F1..F8, OWN 126, INIT 127) */
       presets: [P("E.PIANO", [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 127, 0], 0, 6), P("BELL", [0, 0, 0, 0, 0, 0, 0, 1], [0, 0, 127, 0], 0, 7),
         P("FM BASS", [0, 0, 0, 0, 0, 0, 0, 2], [0, 0, 127, 0], 1, 2), P("BRASS", [0, 0, 0, 0, 0, 0, 0, 3], [0, 0, 127, 0], 0, 4),
         P("SAW LEAD", [0, 0, 0, 0, 0, 0, 0, 4], [0, 0, 127, 0], 1, 4), P("LOOP PAD", [0, 0, 0, 0, 0, 0, 0, 5], [0, 0, 127, 0], 0, 5),
@@ -2647,7 +2647,7 @@ const TEXT = {
     opxTestsConfirm: "テスト音色 {m} 個のうち {n} 個を空きユーザープリセットに書き込みます。よろしいですか？", opxTestsNeedOpx: "FM-1 で OPX のトラックを選んでください",
     opxTestsNoRoom: "空きユーザープリセットがありません（OPX は 16 個まで）", opxTestsProgress: "テスト音色を書き込み中", opxTestsDone: "テスト音色を書き込みました", opxTestsLeft: "は空きがなく書き込めませんでした",
     opxEg1: "EG1（ピッチ）・EG2（フィルター）・EG3", opxLfo1: "LFO1（オペレーター）・LFO2（フィルター）・LFO3",
-    opxFx: "エフェクト FX1–3", opxFxHelp: "直列に FX1 → FX2 → FX3。「not available」のタイプは Felucca-OPX ではメモリが足りません。パッチには保存されます（予定の OPX 専用ファームウェア用）が、ここでは音をそのまま通します。数値はそのタイプの単位（入力欄は内部の値、右に表示値）。",
+    opxFx: "エフェクト FX1–3", opxFxHelp: "直列に FX1 → FX2 → FX3。「not available」のタイプは OPX ではメモリが足りません。パッチには保存されます（予定の OPX 専用ファームウェア用）が、ここでは音をそのまま通します。数値はそのタイプの単位（入力欄は内部の値、右に表示値）。",
     opxFlt: "フィルター", opxFltHelp: "ボイスごとに1基。LPF 12 が全開・RESO 0・モジュレーションなし（INIT）のときは処理を省きます。KTRK の傾き: 1.00 で1半音につき1半音。",
     opxVp: "バーチャル・パッチ 1–12", opxVpHelp: "* の付いたデスティネーションはパッチに保存されますが、まだ効きません（エフェクトなど）。INT の単位はデスティネーションの全範囲に対する割合です（PITCH は半音）。", opxProg: "プログラム ピッチ", opxMod: "モジュレーション（P MOD・L MOD、INT は 0.01 半音単位）",
     opxLfoHelp: "FADE は KSYNC が OFF のときは効きません。CTRL は選んだソースの値を INT に掛けます（OFF: INT のまま）。",
@@ -2656,7 +2656,7 @@ const TEXT = {
     opxSent: "トラックへ送りました:", opxRead: "トラックから読みました", opxLoaded: "読み込みました",
     opxBadFile: "OPX の音色ファイルではありません（434 バイト、このファームウェアの形式）",
     opxNeedDevice: "FM-1 を接続すると OPX の音色を編集してトラックへ送れます。",
-    opxNoFw: "このファームウェアには OPX がありません。Felucca-OPX 0.2 以降に更新すると使えます。",
+    opxNoFw: "このファームウェアには OPX がありません。OPX 0.2 以降に更新すると使えます。",
     motion: "オートメーション", motionOn: "再生", motionClear: "オートメーションを消去", motionConfirm: "選択トラックのオートメーションを消しますか？", chance: "確率 %", ratchet: "ラチェット", motionStep: "ステップ", motionParam: "パラメーター", motionValue: "値",
     backupTitle: "全体バックアップ", backupExport: "バックアップ保存", backupImport: "バックアップ復元", backupHelp: "現在の曲・A〜D・音色バンク・ユーザーサンプル・設定を、このパソコンへ保存。", backupOld: "全体バックアップには対応版への更新が必要です。", backupConfirm: "全体バックアップを復元しますか？ 現在の曲、保存データとサンプルを置き換えます。USBを抜かないでください。", backupWorking: "バックアップ処理中 ", backupDone: "バックアップを保存しました", backupRestored: "全体バックアップを復元しました",
     deviceDisplay: "本体の画面",
@@ -2770,7 +2770,7 @@ const TEXT = {
     opxTestsConfirm: "Write {n} of the {m} test patches into empty user presets?", opxTestsNeedOpx: "Select an OPX track on the FM-1 first",
     opxTestsNoRoom: "No room: no empty user preset, or 16 OPX user presets already", opxTestsProgress: "Writing the test patches", opxTestsDone: "Test patches written", opxTestsLeft: "did not fit",
     opxEg1: "EG1 (pitch), EG2 (filter), EG3", opxLfo1: "LFO1 (operators), LFO2 (filter), LFO3",
-    opxFx: "Effects FX1–3", opxFxHelp: "In series, FX1 → FX2 → FX3. Types marked “not available” need more memory than Felucca-OPX has: they are kept in the patch (for the OPX-only firmware, planned) and pass the sound unchanged here. The box holds the stored step; the value in the type's units is beside it.",
+    opxFx: "Effects FX1–3", opxFxHelp: "In series, FX1 → FX2 → FX3. Types marked “not available” need more memory than OPX has: they are kept in the patch (for the OPX-only firmware, planned) and pass the sound unchanged here. The box holds the stored step; the value in the type's units is beside it.",
     opxFlt: "Filter", opxFltHelp: "One per voice. An LPF 12 wide open, RESO 0, with nothing moving it (the INIT) costs nothing. KTRK slopes: 1.00 moves the cutoff one semitone per semitone.",
     opxVp: "Virtual patch 1–12", opxVpHelp: "Destinations marked * are kept in the patch but do nothing yet (the effects and others). INT is a share of the destination's whole range (PITCH: semitones).", opxProg: "Program pitch", opxMod: "Modulation (P MOD, L MOD; INT in 0.01 semitones)",
     opxLfoHelp: "FADE has no effect with KSYNC OFF. CTRL multiplies the INT by the chosen source (OFF: the INT as it is).",
@@ -2779,7 +2779,7 @@ const TEXT = {
     opxSent: "Sent to track", opxRead: "Read from track", opxLoaded: "Loaded",
     opxBadFile: "Not an OPX patch file (434 bytes, this firmware's format)",
     opxNeedDevice: "Connect the FM-1 to edit OPX patches and send them to a track.",
-    opxNoFw: "This firmware has no OPX. Update to Felucca-OPX 0.2 or later to use it.",
+    opxNoFw: "This firmware has no OPX. Update to OPX 0.2 or later to use it.",
     motion: "Automation", motionOn: "Play automation", motionClear: "Clear automation", motionConfirm: "Clear this track's automation?", chance: "Chance %", ratchet: "Ratchet", motionStep: "Step", motionParam: "Parameter", motionValue: "Value",
     backupTitle: "Complete backup", backupExport: "Save backup", backupImport: "Restore backup", backupHelp: "Save the current music, A–D, sound banks, user samples and settings to this computer.", backupOld: "Complete backups need firmware with archive support.", backupConfirm: "Restore this complete backup? Current music, saved data and samples will be replaced. Keep USB connected.", backupWorking: "Backing up / restoring ", backupDone: "Backup saved", backupRestored: "Complete backup restored",
     deviceDisplay: "Device display",

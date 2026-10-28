@@ -72,7 +72,7 @@ ok([0, 1, 2, 6].every((id) => target.objs.get(id).every((v, i) => v === objs.fin
      [10, 11, 12, 13, 14].every((id) => file.objects.some((o) => o.id === id)),
     "backup: 18 objects: id 8 (the retired FM6 bank, empty), 9 (the user presets' FM6 patches), OPX's 10..14");
   const v3 = JSON.parse(JSON.stringify(file)); v3.objects = v3.objects.filter((o) => o.id < 10 || o.id > 14);
-  ok(readBackup(v3).objects.length === 13, "backup: an archive of Felucca 1.0.3..1.5.1 / Felucca-OPX 0.1.0 (13 objects) still reads");
+  ok(readBackup(v3).objects.length === 13, "backup: an archive of Felucca 1.0.3..1.5.1 / OPX 0.1.0 (13 objects) still reads");
   const v2 = JSON.parse(JSON.stringify(v3)); v2.objects = v2.objects.filter((o) => o.id !== 9);
   ok(readBackup(v2).objects.length === 12, "backup: an archive of 1.0..1.0.2 (12 objects, the bank as id 8) still reads");
   const old = JSON.parse(JSON.stringify(v3)); old.objects = old.objects.filter((o) => o.id !== 8 && o.id !== 9);

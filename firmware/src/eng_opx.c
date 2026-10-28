@@ -279,7 +279,7 @@ static int32_t opx_level_amp(int32_t l)
 
 /* ------------------------------------------------------ the factory patches --- */
 /* (0.2.0: tools/opx_factory_bank.py, compiled to opx_factory.h by tools/opx_factory.py: F1..F12 in every OPX build,
- * F13..F126 in Felucca-OPX Solo. A patch leaves out an EG, LFO, filter or virtual patch: INIT's; its effects: OFF) */
+ * F13..F126 in OPX Solo. A patch leaves out an EG, LFO, filter or virtual patch: INIT's; its effects: OFF) */
 static const opx_patch_t OPX_FACTORY[] = {       /* (F1..F8: a track plays these before it has its own copy) */
 #define OPX_FACTORY_PATCHES
 #include "opx_factory.h"

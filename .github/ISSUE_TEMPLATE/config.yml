@@ -2,4 +2,4 @@ blank_issues_enabled: true
 contact_links:
   - name: A bug that also happens on upstream Felucca
     url: https://github.com/hugelton/Felucca/issues
-    about: Only for bugs you can reproduce on Felucca itself (installed from its own installer), not on Felucca-OPX.
+    about: Only for bugs you can reproduce on Felucca itself (installed from its own installer), not on OPX.

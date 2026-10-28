@@ -1,4 +1,4 @@
-# Building Felucca-OPX
+# Building OPX
 
 The build is upstream Felucca's; the fork adds the OPX engine (`FELUCCA_OPX`, below) and the release process at the
 end. Building needs a Linux x86-64 machine or Docker, but nobody has to build locally: every push to `opx-engine`
@@ -49,11 +49,11 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
 
 `./build.sh --release 0.2.0` makes a release build: the version string `v0.2.0` (the identity is `FM-1_9001`, as every
-build's); the package is `build/felucca-opx-0.2.0.fwsc`, and
+build's); the package is `build/opx-0.2.0.fwsc`, and
 `build/release-0.2.0/` holds what a release ships: the package, the app
-(`felucca-opx-0.2.0-app.bin`), `SHA256SUMS`, the sample attribution, `LICENSE`, `LICENSING.md` and
+(`opx-0.2.0-app.bin`), `SHA256SUMS`, the sample attribution, `LICENSE`, `LICENSING.md` and
 `LICENSES/` (the package contains Apache-2.0 SDK files, so the licence texts travel with it).
-`FELUCCA_OPX_ONLY=1 ./build.sh --release 0.2.0`, run after it, adds Felucca-OPX Solo's (`felucca-opx-solo-0.2.0.fwsc`,
+`FELUCCA_OPX_ONLY=1 ./build.sh --release 0.2.0`, run after it, adds OPX Solo's (`opx-solo-0.2.0.fwsc`,
 identity `FM-1_9002`, version `v0.2.0-opx-solo`) to the same folder; CI builds both for a release.
 
 Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`, `core.h` and `icons.c`):
@@ -148,10 +148,10 @@ starts, recovery needs [FM-1-transporter](https://github.com/kurogedelic/FM-1-tr
 
 ## Versions and releases
 
-Felucca-OPX has its own version numbers, starting at **`0.0.1`** (the first release, on Felucca 1.5.1); 0.x while the
+OPX has its own version numbers, starting at **`0.0.1`** (the first release, on Felucca 1.5.1); 0.x while the
 OPX engine is incomplete. Which Felucca release a version is based on is in [CHANGELOG.md](CHANGELOG.md).
 Development builds say the next release + `-dev`, e.g. `v0.0.2-dev` (`firmware/src/felucca.c`); raise it after each
-release. The package identity is one per firmware, the same for every build: Felucca-OPX `FM-1_9001`, Solo
+release. The package identity is one per firmware, the same for every build: OPX `FM-1_9001`, Solo
 `FM-1_9002` (numeric: the FM-1 tools read `FM-1_` and digits); releases up to 0.1.0 had Felucca's `FM-1_9XY`. The installers use it to confirm, after an install, that the FM-1 runs the package just written; the
 device answers the identity request with it.
 
@@ -160,7 +160,7 @@ To make a release, from the GitHub web page (no local build is needed):
 1. Make sure the last run of **Build and publish** on `opx-engine` is green, and that [CHANGELOG.md](CHANGELOG.md)
    has the release's entry.
 2. **Releases > Draft a new release**. Tag: `v` + the version, e.g. `v0.0.2`, created on `opx-engine`. Title:
-   `Felucca-OPX 0.0.2`. Paste the release's CHANGELOG entry as the description.
+   `OPX 0.0.2`. Paste the release's CHANGELOG entry as the description.
 3. **Publish release.** The workflow builds `--release` with that version, runs the tests, attaches the package, the
    app, `SHA256SUMS` and the licence files to the release, then runs on `opx-engine` again so that the site's
    installer offers the new release. If the tests fail, nothing is attached: delete the release and its tag, fix,

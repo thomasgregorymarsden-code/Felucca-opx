@@ -49,7 +49,7 @@ SDK_SHA256 = {
     "cfg/eq_cfg_hw.bin": "41167491bffed4651750719c973d2758adeb9021a5670d02d6a53c85ed80ea7d",
 }
 
-PRODUCT = "FM-1_9001"               # package identity (OPX fork: one per firmware, every build: Felucca-OPX FM-1_9001,
+PRODUCT = "FM-1_9001"               # package identity (OPX fork: one per firmware, every build: OPX FM-1_9001,
                                     # Solo FM-1_9002; numeric, as the FM-1 tools read it). Upstream Felucca's: FM-1_9XY
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/felucca.c)
 
@@ -357,7 +357,7 @@ def main():
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     a = ap.parse_args()
     solo = os.environ.get("FELUCCA_OPX_ONLY") == "1"   # OPX fork: the OPX-only firmware, its own package name
-    name = "felucca-opx-solo.fwsc" if solo else "felucca.fwsc"
+    name = "opx-solo.fwsc" if solo else "felucca.fwsc"
     if solo:
         PRODUCT = "FM-1_9002"
     if a.release:                   # (the identity: 20 characters at most, fm1pkg_make checks)
@@ -365,7 +365,7 @@ def main():
         if not m:
             raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z, X.Y.Z.W or X.Y.Z-suffix")
         VERSION = "v" + a.release.lower() + ("-opx-solo" if solo else "")   # e.g. v0.2.0, v0.2.0-opx-solo
-        name = f"felucca-opx-{'solo-' if solo else ''}{a.release}.fwsc"
+        name = f"opx-{'solo-' if solo else ''}{a.release}.fwsc"
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
@@ -397,10 +397,10 @@ def main():
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")
     if a.release:                   # what a release carries: the package, the app and every licence they need
         rel = OUT / f"release-{a.release}"
-        if not solo:                # (Solo's files join Felucca-OPX's, built first: CI)
+        if not solo:                # (Solo's files join OPX's, built first: CI)
             shutil.rmtree(rel, ignore_errors=True)
         (rel / "LICENSES").mkdir(parents=True, exist_ok=True)
-        app = f"felucca-opx-{'solo-' if solo else ''}{a.release}-app.bin"
+        app = f"opx-{'solo-' if solo else ''}{a.release}-app.bin"
         (rel / name).write_bytes(pkg)
         (rel / app).write_bytes(img)
         sums = (rel / "SHA256SUMS").read_text() if solo and (rel / "SHA256SUMS").exists() else ""

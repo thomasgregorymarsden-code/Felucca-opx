@@ -1285,9 +1285,9 @@ static void draw_columns(void)
 static const uint8_t SPL_RING[6][3] = {             /* the rings, inside out: hue 0.55 .. 1.0, S 0.8 */
     {51, 204, 255}, {51, 107, 255}, {112, 51, 255}, {209, 51, 255}, {255, 51, 204}, {255, 51, 51}};
 #if FELUCCA_OPX_ONLY
-#define SPL_NAME "FELUCCA-OPX SOLO"
+#define SPL_NAME "OPX SOLO"
 #else
-#define SPL_NAME "FELUCCA-OPX"
+#define SPL_NAME "OPX"
 #endif
 static const char *const SPLASH_LINES[] = {"OPX", SPL_NAME, FELUCCA_VERSION, "Felucca: H\xFCgelton Instruments"};
 static uint32_t spl_isqrt(uint32_t v)               /* floor(sqrt(v)) */

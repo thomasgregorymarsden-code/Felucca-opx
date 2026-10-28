@@ -1,15 +1,15 @@
 name: Bug report
-description: Something in Felucca-OPX doesn't work as it should (one bug per issue)
+description: Something in OPX doesn't work as it should (one bug per issue)
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        One bug per issue. For an idea, open a blank issue instead. Please report Felucca-OPX problems here, not to upstream Felucca.
+        One bug per issue. For an idea, open a blank issue instead. Please report OPX problems here, not to upstream Felucca.
   - type: input
     id: version
     attributes:
-      label: Felucca-OPX version
+      label: OPX version
       description: MENU (hold HOME) > SYSTEM > ABOUT on the FM-1
       placeholder: "v0.0.1"
     validations:

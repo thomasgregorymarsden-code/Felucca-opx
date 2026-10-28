@@ -77,7 +77,7 @@ static void opx_track_factory(uint32_t tr)
         opx_slot[tr] = (uint8_t)OPX_OWN;
 }
 /* track tr plays pk (a stored patch). SLOT stays F n or INIT while pk is that patch; any other patch is the track's own:
- * OWN (0.2.0: a sound of 0.1.0 or before had OWN at 7, INIT at 8, now F8, F9; a sound of Felucca-OPX Solo a factory
+ * OWN (0.2.0: a sound of 0.1.0 or before had OWN at 7, INIT at 8, now F8, F9; a sound of OPX Solo a factory
  * patch this firmware lacks: they keep their sound, as OWN) */
 static void opx_track_stored(uint32_t tr, const uint8_t *pk)
 {

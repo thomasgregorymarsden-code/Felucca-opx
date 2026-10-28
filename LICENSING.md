@@ -1,8 +1,8 @@
-# Felucca-OPX licensing
+# OPX licensing
 
-Felucca-OPX is a fork of Felucca and is licensed exactly as Felucca is: GPL-3.0-only, with the bundled and
+OPX is a fork of Felucca and is licensed exactly as Felucca is: GPL-3.0-only, with the bundled and
 ported parts below keeping their own licences. The fork's additions are listed at the end
-([Felucca-OPX's additions](#felucca-opxs-additions)).
+([OPX's additions](#opxs-additions)).
 
 Felucca is free software, licensed under the GNU General Public License, version 3 only
 (`GPL-3.0-only`, full text in `LICENSE`). That covers the code and its own assets. A few
@@ -104,9 +104,9 @@ by those owners.
 
 Felucca never enables the Bluetooth / Wi-Fi radio of the hardware.
 
-## Felucca-OPX's additions
+## OPX's additions
 
-Copyright (C) 2026 the Felucca-OPX contributors. GPL-3.0-only, like the rest of the tree.
+Copyright (C) 2026 the OPX contributors. GPL-3.0-only, like the rest of the tree.
 
 | What | Where |
 | --- | --- |
@@ -118,8 +118,8 @@ Copyright (C) 2026 the Felucca-OPX contributors. GPL-3.0-only, like the rest of 
 
 The OPX engine is written from the Korg opsix's published Owner's Manual: its algorithm charts and
 parameter ranges follow them. No Korg code, data or sounds are used, and the factory patches are the fork's own.
-Korg and opsix are trademarks of Korg Inc.; Felucca-OPX is not affiliated with or endorsed by Korg, by
+Korg and opsix are trademarks of Korg Inc.; OPX is not affiliated with or endorsed by Korg, by
 Hügelton Instruments or by M-VAVE.
 
-As with Felucca: if you distribute Felucca-OPX, or firmware derived from it, give your recipients its complete
+As with Felucca: if you distribute OPX, or firmware derived from it, give your recipients its complete
 corresponding source under the same licence. Each release on GitHub carries the source archive of its tag.

@@ -7,7 +7,7 @@ firmware's tables.
     python3 tools/opx_factory.py --check  # fails if those files are not what the bank makes (tests/run_tests.sh)
 
 The patches are in tools/opx_factory_bank.py (one call of P() each). The first NORMAL of them are in both firmwares;
-the rest only in Felucca-OPX Solo (FELUCCA_OPX_ONLY), whose flash has the room. SLOT stores the patch's number in a
+the rest only in OPX Solo (FELUCCA_OPX_ONLY), whose flash has the room. SLOT stores the patch's number in a
 project byte (project.c: -64..127) with OWN and INIT after the factory patches, so there are at most 126.
 
 The conversions follow the firmware (eng_opx.c):
@@ -27,7 +27,7 @@ import opx_patch_spec as S  # noqa: E402
 
 MAXN = 126                     # (SLOT: F1..F126, OWN 126, INIT 127: a project byte holds 127 at most)
 NSTRUCT = 8                    # (F1..F8 as opx_patch_t: a track plays them before it has its own copy; the rest records)
-NORMAL = 8                     # (the first NORMAL in both firmwares: Felucca-OPX's flash has room for that many, ~1 KB to spare)
+NORMAL = 8                     # (the first NORMAL in both firmwares: OPX's flash has room for that many, ~1 KB to spare)
 
 
 class C(int):
@@ -201,7 +201,7 @@ def FX(ty, *vals):
     Only the types both firmwares play (kind 0)"""
     t = FXN.index(ty)
     _, _, kind, knobs = S.FX_TYPES[t]
-    assert kind == 0, f"{ty}: not played by Felucca-OPX (kind {kind})"
+    assert kind == 0, f"{ty}: not played by OPX (kind {kind})"
     assert len(vals) == len(knobs), (ty, vals)
     v = []
     for x, (lab, lo, hi, dp, unit, dflt, names) in zip(vals, knobs):
@@ -416,7 +416,7 @@ def outputs():
     rec, off, chk, coff = [], [0], [], [0]
     for i, p in enumerate(BANK):
         if i == NORMAL:
-            pre.append("#if FELUCCA_OPX_ONLY          /* (the rest: Felucca-OPX Solo's) */")
+            pre.append("#if FELUCCA_OPX_ONLY          /* (the rest: OPX Solo's) */")
         pre.append(c_preset(i, p))
         sp = sparse(p)
         if i < NSTRUCT:
@@ -436,7 +436,7 @@ def outputs():
     h = (HEAD + f"/* The OPX factory patches: F1..F{NSTRUCT} as opx_patch_t (eng_opx.c OPX_FACTORY: what a track plays "
          f"before it has its own copy), the rest as records of their fields off the defaults (OPX_FREC, OPX_FOFF: "
          f"opx_patch.c opx_factory_pk; {sum(len(b) for _, b in rec)} bytes for {len(rec)}, ~440 each as structs); the first "
-         f"{NORMAL} in every OPX build, all {n} in Felucca-OPX Solo. Their PRESETS entries (eng_opx.c OPX_PRESETS: SLOT "
+         f"{NORMAL} in every OPX build, all {n} in OPX Solo. Their PRESETS entries (eng_opx.c OPX_PRESETS: SLOT "
          "= the patch) and the SLOT names. */\n"
          "#ifdef OPX_FACTORY_PATCHES\n" + "\n".join(pat) + "\n#endif\n"
          "#ifdef OPX_FACTORY_RECORDS        /* (each field: its index less the last one's, then the value zigzagged; "
@@ -471,7 +471,7 @@ def main():
     for f, t in out.items():
         with open(os.path.join(ROOT, f), "w") as fh:
             fh.write(t)
-    print(f"opx_factory: {len(BANK)} patches ({NORMAL} in Felucca-OPX) -> " + ", ".join(out))
+    print(f"opx_factory: {len(BANK)} patches ({NORMAL} in OPX) -> " + ", ".join(out))
 
 
 if __name__ == "__main__":

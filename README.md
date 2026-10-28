@@ -1,8 +1,9 @@
-# Felucca-OPX
+# OPX
 
-**Felucca-OPX** is custom firmware for the M-VAVE FM-1: [Felucca](https://github.com/hugelton/Felucca) 1.5.1, the
-multi-engine synthesizer firmware by Hügelton Instruments, with one more engine, **OPX**, an altered-FM engine
-after the Korg opsix. Everything Felucca does is here unchanged; OPX is added beside it.
+**OPX** is custom firmware for the M-VAVE FM-1: [Felucca](https://github.com/hugelton/Felucca) 1.5.1, the
+multi-engine synthesizer firmware by Hügelton Instruments, with one more engine, the OPX engine, an altered-FM engine
+after the Korg opsix. Everything Felucca does is here unchanged; the OPX engine is added beside it. **OPX Solo** is
+the same firmware with the OPX engine alone (one part, every effect type): more room for it.
 
 This is an unofficial fork, not affiliated with Hügelton Instruments, M-VAVE or Korg ("opsix" names the instrument
 OPX follows; OPX contains no Korg code or data). Please report its problems [here](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues),
@@ -15,12 +16,12 @@ not to Felucca's authors, who did not write the OPX engine.
 - **Install:** connect the FM-1 by USB, open the [web installer](https://thomasgregorymarsden-code.github.io/Felucca-opx/)
   in Chrome or Edge and press Install. No extra hardware is needed. Read [Before you install](#before-you-install)
   first. The installer's **Return to official V15** goes back to M-VAVE's firmware.
-- **Try it first:** [Felucca-OPX in your browser](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/try/),
+- **Try it first:** [OPX in your browser](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/try/),
   the same firmware compiled to WebAssembly, with the panel on screen (mouse, touch, computer keyboard, Web MIDI in).
 - **Editor:** [web editor](https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/editor/): Felucca's, with an
   OPX tab for the whole OPX patch (operators, EGs, LFOs, filter, effects, virtual patches).
 - **Every build's pages:** each installer, editor and simulator page has a bar at the top linking the others, for the
-  latest release and the development build of Felucca-OPX and of Felucca-OPX Solo (the OPX-only firmware:
+  latest release and the development build of OPX and of OPX Solo (the OPX-only firmware:
   [its development installer](https://thomasgregorymarsden-code.github.io/Felucca-opx/dev/opx-solo/webapp/installer/)).
 - **Releases:** [Releases](https://github.com/thomasgregorymarsden-code/Felucca-opx/releases) (packages and
   checksums), [CHANGELOG.md](CHANGELOG.md).
@@ -30,8 +31,8 @@ Installing custom firmware is at your own risk.
 
 ## Before you install
 
-- **Projects and user presets without an OPX track** move between Felucca 1.5.1 and Felucca-OPX both ways.
-- **A project with an OPX track opens only on Felucca-OPX.** On Felucca or the official firmware its slot shows
+- **Projects and user presets without an OPX track** move between Felucca 1.5.1 and OPX both ways.
+- **A project with an OPX track opens only on OPX.** On Felucca or the official firmware its slot shows
   EMPTY; the data stays in flash until something is saved into that slot there. The same holds for a user preset of
   an OPX sound, and for the autosave (RESTORE LAST) when it holds an OPX track.
 - **User sample slot 3 holds 40 KB** (about 3.7 s) instead of 80 KB: the OPX patches use the other half. A longer
@@ -55,8 +56,8 @@ the operators' pitch and level. It plays up to six voices. The opsix's EG2, EG3,
 virtual patch are not implemented yet ([plan](docs/OPX_PLAN.md)).
 
 To use it, hold **EDIT** and press **A3**, the third white key from F3 (ANALOG, FM6, OPX, …; the layer's map shows
-them). PRESETS lists its factory sounds: eight in Felucca-OPX (E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD,
-X-MOD, DRAWBARS), 126 in Felucca-OPX Solo, in categories (keys, plucks, bells and
+them). PRESETS lists its factory sounds: eight in OPX (E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD,
+X-MOD, DRAWBARS), 126 in OPX Solo, in categories (keys, plucks, bells and
 mallets, basses, leads, brass and winds, pads and strings, drums, effects, chords and sequences; PRESETS > LIST filters
 them). The bank is [tools/opx_factory_bank.py](tools/opx_factory_bank.py), one entry per patch in ms, Hz and ratios;
 every patch gives the MOD WHEEL something to do. Since 0.2.0 the first seven use the newer parts of OPX: E.PIANO a suitcase-style auto-pan and the MOD WHEEL on its tine, BELL an EQ and a
@@ -158,7 +159,7 @@ following the key, ±INF), LFO2 and its CTRL. INIT has LPF 12 on and wide open, 
 **FX1-3** (OPERATORS' section after FILTER): the program's three effects in series after the voices, as the opsix's
 EFFECT page: the first row picks FX1–3, then TYPE (the opsix's 30, named as on its list, the BPM ones without the
 space: PHABPM …), ENABLE, and the type's own knobs (B C E F) in its units. A new TYPE starts at its knobs' defaults.
-Felucca-OPX plays PHA, PHABPM, PAN, PANBPM, A.WAH, EXC, FLTR, 3EQ, DIST, G.AMP, DEC, LIMIT and COMP. The other 17
+OPX plays PHA, PHABPM, PAN, PANBPM, A.WAH, EXC, FLTR, 3EQ, DIST, G.AMP, DEC, LIMIT and COMP. The other 17
 (chorus, flanger, ensemble, rotary, enhancer; the delays, reverbs and GRAIN) need more memory than this firmware has:
 they read **NOT AVAILABLE**, dimmed, their knobs kept in the patch and the sound passed unchanged. They are for the
 planned OPX-only firmware (one part, no other engines), so a patch moves between the two unchanged. PAN makes the part stereo. INIT has
@@ -390,11 +391,11 @@ In the order the device lists them:
   web editor (which imports .syx files) or on the device: EDIT > OPERATOR (ratio or fixed frequency, fine, level),
   OP ENV (each stage's rate and level, drawn as the envelope) and OPERATOR 2 (mode, detune, velocity), one
   operator at a time on the algorithm chart; macros on top; SLOT picks a factory patch (F1–F8), the track's own (OWN) or a voice of the bank the web editor sent (B1–B32)
-- **OPX** (Felucca-OPX): altered FM after the Korg opsix, six operators, 40 algorithms and a USER matrix; see
+- **OPX** (OPX): altered FM after the Korg opsix, six operators, 40 algorithms and a USER matrix; see
   [The OPX engine](#the-opx-engine)
 - **PHASE**: phase distortion (ported from CrispyZebra)
 - **LOFI**: chiptune; pulse, triangle, saw, noise and a 4-bit wave RAM, stepped envelope, sweep, arpeggio
-- **SAMPLE**: multisampled instruments (PIANO, FLUTE, SAX) and 3 user sample slots (on Felucca-OPX slot 3 holds 40 KB)
+- **SAMPLE**: multisampled instruments (PIANO, FLUTE, SAX) and 3 user sample slots (on OPX slot 3 holds 40 KB)
 - **VOICE**: formant oscillator, sung vowels
 - **TRIO**: 3 oscillators with ring modulation and sync, multimode filter
 - **WHEEL**: tonewheel-style organ; drawbar registrations, percussion, key click, drive, rotary speaker
@@ -479,7 +480,7 @@ the FM-1 can be brought back:
 Felucca itself is the work of Hügelton Instruments. If it is useful to you, [sponsoring its author on GitHub](https://github.com/sponsors/hugelton)
 or a donation on [itch.io](https://hugelton.itch.io/felucca) helps keep its development going.
 
-Felucca-OPX's [Issues](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues) are for bugs you can
+OPX's [Issues](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues) are for bugs you can
 reproduce (one per issue) and ideas for OPX. A bug that also happens on Felucca 1.5.1 itself belongs in
 [Felucca's Issues](https://github.com/hugelton/Felucca/issues). Pull requests are welcome: see
 [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -494,7 +495,7 @@ artwork.
 
 ## Credits
 
-- **Felucca-OPX:** the OPX engine, its pages and storage, by the Felucca-OPX contributors. The algorithms and
+- **OPX:** the OPX engine, its pages and storage, by the OPX contributors. The algorithms and
   parameters follow the Korg opsix Owner's Manual; no Korg code, data or sounds are used
 - **[Hügelton Instruments](https://hugelton.com)** (Leo Kuroshita, [@kurogedelic](https://github.com/kurogedelic)):
   Felucca itself; the PHASE engine's waveforms (a C port of the oscillator of
@@ -519,11 +520,11 @@ artwork.
 
 ## Licence
 
-Free software: [GPL-3.0-only](LICENSE), the Hügelton Sample Pack included, Felucca-OPX's additions too. The bundled fonts and the
+Free software: [GPL-3.0-only](LICENSE), the Hügelton Sample Pack included, OPX's additions too. The bundled fonts and the
 ported DSP keep their own licences ([LICENSES/](LICENSES/)); details in [LICENSING.md](LICENSING.md).
 
-M-VAVE, FM-1, Korg and opsix are trademarks of their respective owners. Felucca and Felucca-OPX are not affiliated
-with or endorsed by them, and Felucca-OPX is not affiliated with or endorsed by Hügelton Instruments.
+M-VAVE, FM-1, Korg and opsix are trademarks of their respective owners. Felucca and OPX are not affiliated
+with or endorsed by them, and OPX is not affiliated with or endorsed by Hügelton Instruments.
 
 Felucca: Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments.
-Felucca-OPX's additions: Copyright (C) 2026 the Felucca-OPX contributors.
+OPX's additions: Copyright (C) 2026 the OPX contributors.

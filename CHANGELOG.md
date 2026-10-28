@@ -5,6 +5,10 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **Renamed: Felucca-OPX is now OPX, Felucca-OPX Solo OPX Solo** (the firmware's screens, the web pages, the
+  documents; the release files `opx-X.Y.Z.fwsc`, `opx-solo-X.Y.Z.fwsc`). The repository keeps its name, the package
+  identities (FM-1_9001, 9002) and the version strings stay.
+
 - **A logo on the power-on screen:** an FM wave disc (six rings, each a sine whose phase another sine bends, cyan to
   red, round a white disc with OPX), the firmware's name, its version and Felucca's maker. Drawn, not stored: no image
   in flash. In colour in every palette.
@@ -12,17 +16,17 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
   grey, the accent from 70 %, REC's red from 85 % (where the audio drops a voice). The figure alone when a slot letter
   leaves no room for the %.
 
-- **126 factory patches in Felucca-OPX Solo, eight in Felucca-OPX.** Original sounds in the categories opsix users'
+- **126 factory patches in OPX Solo, eight in OPX.** Original sounds in the categories opsix users'
   soundsets have: keys (EPs, a piano, clavinet, harpsichord, organs), plucks, bells and mallets, basses, leads, brass
   and winds, pads and strings, drums, effects, chords and sequences. They use the opsix's tricks: operator modes (ring
   modulation, wave folder, band-pass operators as formants, the comb), fixed-frequency operators for drums, chords on
   one key from carrier ratios, fake hard sync from a pitch envelope, tempo-synced gating, sample-and-hold. Every patch
-  gives the MOD WHEEL something to do; their levels are matched (`opx_test --audit`). Felucca-OPX has the first
+  gives the MOD WHEEL something to do; their levels are matched (`opx_test --audit`). OPX has the first
   eight (its flash has room for no more, with ~1 KB to spare): the seven of before and DRAWBARS. The
   bank is `tools/opx_factory_bank.py` (`tools/opx_factory.py` compiles it to the firmware's tables): the place to
   add or change a factory patch.
 - **SLOT's values are fixed:** F1–F126 0–125, OWN 126, INIT 127, in both firmwares (OWN and INIT followed F7 before).
-  Felucca-OPX's knob skips the F numbers it lacks. A project or preset from Solo whose SLOT is one of those comes back
+  OPX's knob skips the F numbers it lacks. A project or preset from Solo whose SLOT is one of those comes back
   with its own copy of the patch as OWN (every project with an OPX track carries its patches), or F1 without one. A
   sound of 0.1.0 or before with its own patch (OWN was 7) is OWN again; one without its patch plays F8.
 - **Fix: DIST and G.AMP could leave a constant offset after the sound stopped** (a high-pass's rounding: up to ~1 %
@@ -36,13 +40,13 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 - **Fix: the installers did not find an FM-1 running an `FM-1_OPX-…` build.** They read the identity as letters, an
   underscore and digits (`FM-1_900`), so the new identities failed: an install ended with "did not come back", and the
   next one with "not found". The web installer and `tools/fm1_install.py` now take letters, digits, dots and dashes.
-- **Fix: the benchmark crashed Felucca-OPX Solo** (FELUCCA CRASH, vector 1: a divide by zero). It set track 1 to FM6
+- **Fix: the benchmark crashed OPX Solo** (FELUCCA CRASH, vector 1: a divide by zero). It set track 1 to FM6
   for the idle mix, which in Solo is a reserved engine with no presets. It now uses OPX there, and an engine without
   presets is handled.
 - **The site links its builds:** every installer, editor and simulator page has a bar linking the installer, editor
-  and simulator of the latest release and of the development build, for Felucca-OPX and Felucca-OPX Solo (the
+  and simulator of the latest release and of the development build, for OPX and OPX Solo (the
   development builds under dev/, Solo under opx-solo/; each with its version). A release now carries its simulators
-  and editor (`felucca-opx-X.Y.Z-web.zip`), so the release's pages are the release's own; Solo has a simulator.
+  and editor (`opx-X.Y.Z-web.zip`), so the release's pages are the release's own; Solo has a simulator.
 - **Web installer:** the log of an install is a box of its own height that follows its newest line (scroll up to read
   back), not a page growing by 2,300 lines. The progress bar follows the bytes written (the check 0–3 %, the write
   3–99 %): the update loader reads the image about twice (measured on an FM-1: 1.95 times its size in 2,323
@@ -52,10 +56,10 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
   velocity, delayed vibrato (LFO1 faded in, PROG PITCH). SAW LEAD: LPF 24 with an EG2 sweep, vibrato on the MOD
   WHEEL, DIST. LOOP PAD: LPF 12 with a slow EG2 and LFO2, PHA, PAN. X-MOD: MOD WHEEL -> OP3 LEVEL, LFO3 -> OP2 PITCH,
   FLTR, DEC. A project or preset that saved a factory patch as its own copy keeps the copy as it was.
-- **Package identity `FM-1_9001`** (Felucca-OPX Solo `FM-1_9002`), the same for every build and version, this
+- **Package identity `FM-1_9001`** (OPX Solo `FM-1_9002`), the same for every build and version, this
   firmware's own: releases up to 0.1.0 used Felucca's `FM-1_9XY`. (Development builds briefly reported
   `FM-1_OPX-dev`; the installers now also accept letters there.)
-  Release packages are `felucca-opx-X.Y.Z.fwsc` (and `felucca-opx-solo-X.Y.Z.fwsc`).
+  Release packages are `opx-X.Y.Z.fwsc` (and `opx-solo-X.Y.Z.fwsc`).
 - **MENU > INFO and ABOUT show the build** (the commit it was built from; "+" when built with local changes).
 - **ABOUT points to this project:** its QR code and address are github.com/thomasgregorymarsden-code/Felucca-opx
   (Felucca's own stay in the credits).
@@ -63,14 +67,14 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
   range with resonance (KTRK on high notes). Their cutoff now stops at 12.3 kHz and their resonance eases above 4.4 kHz.
 - **Fix: a track still on a factory patch played its effects only once it had its own copy.**
 - **DIST:** a ~40 Hz high-pass after the clipper takes out the DC an uneven wave leaves.
-- **The OPX-only firmware (first step).** A second firmware from the same source, `felucca-opx-solo.fwsc`
+- **The OPX-only firmware (first step).** A second firmware from the same source, `opx-solo.fwsc`
   (version "…-opx-solo"): track 1 plays OPX, the other tracks and engines are silent and cannot be picked, and all 30 effect types
   are enabled (the 17 buffered ones pass the sound until they are built). Projects and patches move between it and
-  Felucca-OPX unchanged. CI builds both; the OPX-only one's installer page is the site's /dev/opx-solo/ (a release's: /opx-solo/).
+  OPX unchanged. CI builds both; the OPX-only one's installer page is the site's /dev/opx-solo/ (a release's: /opx-solo/).
 - **OPX M5c, part 1: the program effects FX1–3.** Three effects in series on each OPX part after its voices, in a
   new **FX1-3** section of OPERATORS and the web editor's OPX tab: TYPE (the opsix's 30), ENABLE and the type's four
   knobs in its own units. 13 types play: PHA, PHABPM, PAN, PANBPM (the part in stereo), A.WAH, EXC, FLTR, 3EQ, DIST,
-  G.AMP, DEC, LIMIT, COMP. The other 17 need more memory than Felucca-OPX has: they read NOT AVAILABLE (dimmed, their
+  G.AMP, DEC, LIMIT, COMP. The other 17 need more memory than OPX has: they read NOT AVAILABLE (dimmed, their
   knobs kept, the sound passed) and are for the planned OPX-only firmware, so patches move between the two. INIT carries the opsix's
   FX1 CHORUS, FX2 3-BAND EQ, FX3 REVERB, all ON (the flat EQ costs nothing); factory patches keep their effects off.
 - **OPERATORS:** the USER section is now **ROUTE** (it holds what the operator sends to each operator in the USER

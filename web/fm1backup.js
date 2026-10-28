@@ -7,7 +7,7 @@
 // OPX patches now (restored after the live music, 0)
 export const BACKUP_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 32, 33, 34];
 const OPX_IDS = [10, 11, 12, 13, 14];
-const BACKUP_IDS_V3 = BACKUP_IDS.filter((id) => !OPX_IDS.includes(id)); // Felucca 1.0.3 .. 1.5.1, Felucca-OPX 0.1.0
+const BACKUP_IDS_V3 = BACKUP_IDS.filter((id) => !OPX_IDS.includes(id)); // Felucca 1.0.3 .. 1.5.1, OPX 0.1.0
 const BACKUP_IDS_V2 = BACKUP_IDS_V3.filter((id) => id !== 9);           // 1.0..1.0.2, and their archives
 const BACKUP_IDS_V1 = BACKUP_IDS_V2.filter((id) => id !== 8);           // firmware before FM6, and its archives
 const idsOf = (n) => [BACKUP_IDS, BACKUP_IDS_V3, BACKUP_IDS_V2, BACKUP_IDS_V1].find((ids) => ids.length === n) || null;

@@ -267,7 +267,7 @@ static int32_t param_fit(const param_desc_t *d, int32_t v)
         return v > (int32_t)FM6_OWN ? (int32_t)FM6_OWN : v;
 #if FELUCCA_OPX
     if (d->names == N_OPX_SLOT)                    /* (OPX fork: a factory patch this firmware lacks, F13.. of Solo's in
-                                                    * Felucca-OPX: F1. A sound that brings its patch: OWN, opx_store.c) */
+                                                    * OPX: F1. A sound that brings its patch: OWN, opx_store.c) */
         return v >= (int32_t)OPX_NFACTORY && v < (int32_t)OPX_OWN ? 0 : v;
 #endif
     return d->names == N_DRUM_KIT ? enum_orig(d, v) : v;

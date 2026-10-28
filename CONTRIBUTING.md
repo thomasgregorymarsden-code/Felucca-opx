@@ -1,12 +1,12 @@
-# Contributing to Felucca-OPX
+# Contributing to OPX
 
-Felucca-OPX is a fork of [Felucca](https://github.com/hugelton/Felucca) that adds the OPX engine. Please report
+OPX is a fork of [Felucca](https://github.com/hugelton/Felucca) that adds the OPX engine. Please report
 problems with this firmware here, not to upstream Felucca: its maintainers did not write the OPX engine and cannot
 support it.
 
 | What | Where |
 |---|---|
-| A bug in the OPX engine, its pages or its storage, or anything that only happens on Felucca-OPX | [Issues](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues/new/choose): one issue per bug |
+| A bug in the OPX engine, its pages or its storage, or anything that only happens on OPX | [Issues](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues/new/choose): one issue per bug |
 | A feature idea or request for OPX | [Issues](https://github.com/thomasgregorymarsden-code/Felucca-opx/issues/new/choose), as an idea |
 | A bug that also happens on upstream Felucca 1.5.1 (installed from its own installer) | [Felucca's Issues](https://github.com/hugelton/Felucca/issues) |
 

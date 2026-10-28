@@ -1730,7 +1730,7 @@ async function updater() {
     const g = await new Updater(d.access).install(image, "FM-1_9001").then((x) => x, (e) => e);
     ok(g === "FM-1_9001" && d.bad === 0, `fm1ota.js: install over FM-1_OPX-SOLO-dev, back as FM-1_9001 (${g})`);
   }
-  {                                                // (OPX fork: Solo over Felucca-OPX)
+  {                                                // (OPX fork: Solo over OPX)
     const d = new FakeFM1(image, { start: "FM-1_9001", after: "FM-1_9002" });
     const g = await new Updater(d.access).install(image, "FM-1_9002").then((x) => x, (e) => e);
     ok(g === "FM-1_9002" && d.bad === 0, `fm1ota.js: install over FM-1_9001, back as FM-1_9002 (${g})`);

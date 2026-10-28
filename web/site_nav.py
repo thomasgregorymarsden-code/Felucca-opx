@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """OPX fork: the site's pages linked to each other. The site (CI, .github/workflows/build.yml) holds four builds:
 
-    ./              Felucca-OPX, the latest release (else this build)
-    dev/            Felucca-OPX, this build of opx-engine
-    opx-solo/       Felucca-OPX Solo, the latest release that has it
-    dev/opx-solo/   Felucca-OPX Solo, this build
+    ./              OPX, the latest release (else this build)
+    dev/            OPX, this build of opx-engine
+    opx-solo/       OPX Solo, the latest release that has it
+    dev/opx-solo/   OPX Solo, this build
 
 each with webapp/installer/, webapp/editor/ and webapp/try/ (the simulator) where built. Into every one of those
 pages, after <body>, goes a bar: for each build, its version and links to its installer, editor and simulator
@@ -17,7 +17,7 @@ import re
 import sys
 from pathlib import Path
 
-BUILDS = [("", "Felucca-OPX"), ("dev/", "Felucca-OPX dev"), ("opx-solo/", "Solo"), ("dev/opx-solo/", "Solo dev")]
+BUILDS = [("", "OPX"), ("dev/", "OPX dev"), ("opx-solo/", "Solo"), ("dev/opx-solo/", "Solo dev")]
 PAGES = [("webapp/installer/", "Installer"), ("webapp/editor/", "Editor"), ("webapp/try/", "Simulator")]
 MARK = "<!--site-nav-->"
 

@@ -9812,7 +9812,7 @@ static int test_opx_ops(void)
         frame();
     }
     {   /* 0.2.0: SLOT's values fixed (F1..F126 0..125, OWN 126, INIT 127) in both firmwares: a factory patch this one
-         * lacks is F1 (a project or preset from Felucca-OPX Solo) or skipped by the knob; a stored patch that is not
+         * lacks is F1 (a project or preset from OPX Solo) or skipped by the knob; a stored patch that is not
          * its SLOT's factory patch is OWN (a sound of 0.1.0, with OWN at 7; Solo's F n here) */
         const param_desc_t *d = track_desc(TSEL, P_E7);
         uint8_t pk[OPX_PK_BYTES];
@@ -10486,7 +10486,7 @@ static int test_solo(void)
     ok = song.sel == 0u && NENG_SHOWN == 1u && eng_vis(0) == ENGI_OPX && eng_step(ENGI_OPX, 1) == ENGI_OPX &&
          eng_ok(ENGI_OPX) && !eng_ok(ENGI_FM6) && !eng_ok(0);
     bad += check("OPX-only: track 2 not selectable; the engine pick OPX alone", ok);
-    set_engine_of(&trk[0], ENGI_FM6);                /* (another engine on track 1, as a project from Felucca-OPX may hold) */
+    set_engine_of(&trk[0], ENGI_FM6);                /* (another engine on track 1, as a project from OPX may hold) */
     for (i = 0; i < 8u; i++)
         frame();
     ok = solo_energy(0) == 0;

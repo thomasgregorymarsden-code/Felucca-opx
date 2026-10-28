@@ -1,8 +1,8 @@
 # Felucca's release history (up to 1.5.1)
 
-Felucca-OPX is based on Felucca 1.5.1. These are Felucca's own notes for the releases leading to it, kept as they
+OPX is based on Felucca 1.5.1. These are Felucca's own notes for the releases leading to it, kept as they
 were in Felucca's README; issue and discussion numbers refer to [Felucca's repository](https://github.com/hugelton/Felucca).
-Felucca-OPX's own releases are in [CHANGELOG.md](../CHANGELOG.md).
+OPX's own releases are in [CHANGELOG.md](../CHANGELOG.md).
 
 ## New in 1.5.1
 

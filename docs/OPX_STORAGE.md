@@ -40,7 +40,7 @@ only once pair 0 holds project 2 (whose 0.1.0 object it overwrites). A power cut
 patch).
 
 **Backup:** the editor's full backup (`editor_backup.c`) lists objects 0–3 as ids 10–13, as stored, and the tracks'
-current patches as id 14 (restored after the live music, id 0). Archives without them (Felucca, Felucca-OPX 0.1.0) still
+current patches as id 14 (restored after the live music, id 0). Archives without them (Felucca, OPX 0.1.0) still
 restore; firmware without them skips them (rc 1 at begin).
 
 ## Precautions so the region can be moved later

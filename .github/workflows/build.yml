@@ -65,8 +65,8 @@ jobs:
             export FELUCCA_OPX_ONLY=1; b --release "$ver"; unset FELUCCA_OPX_ONLY   # (Solo's files beside them)
             echo "REL=$ver" >> "$GITHUB_ENV"
           fi
-          export FELUCCA_OPX_ONLY=1; b; unset FELUCCA_OPX_ONLY   # (the OPX-only firmware first: build/felucca-opx-solo.fwsc, kept aside)
-          mkdir -p solo && cp build/felucca-opx-solo.fwsc solo/ && cp build/felucca.dis solo/felucca-opx-solo.dis
+          export FELUCCA_OPX_ONLY=1; b; unset FELUCCA_OPX_ONLY   # (the OPX-only firmware first: build/opx-solo.fwsc, kept aside)
+          mkdir -p solo && cp build/opx-solo.fwsc solo/ && cp build/felucca.dis solo/opx-solo.dis
           grep -a -E "  ok +image " build.log | tail -1 | sed 's/^/::notice::size (OPX-only): /' || true
           b                                            # (the development build: build/felucca.fwsc)
           grep -a -E "^app |^package |  ok +image " build.log | tail -3 | sed 's/^/::notice::size: /' || true   # (the app's room: 0x8DFBC = 581564 B, firmware/app.ld XIP)
@@ -82,10 +82,10 @@ jobs:
           EMU_PREVIEW=0 sh web/emu/build.sh
           EMU_PREVIEW=0 EMU_OUT=build/emu-solo EMU_TAG=-opx-solo EMU_CFLAGS=-DFELUCCA_OPX_ONLY=1 sh web/emu/build.sh
           if [ -n "$REL" ]; then                       # a release: its simulators and editor travel with it (the site's)
-            python3 web/make_site.py "build/release-$REL/felucca-opx-$REL.fwsc" "$REL" relsite
+            python3 web/make_site.py "build/release-$REL/opx-$REL.fwsc" "$REL" relsite
             mkdir -p relweb && cp -R build/emu relweb/try && cp -R build/emu-solo relweb/try-solo \
               && cp -R relsite/webapp/editor relweb/editor
-            (cd relweb && zip -qr "../build/release-$REL/felucca-opx-$REL-web.zip" .)
+            (cd relweb && zip -qr "../build/release-$REL/opx-$REL-web.zip" .)
           fi
 
       - name: Make installer site
@@ -94,13 +94,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # the site (web/site_nav.py links its pages): ./ the latest release (else this build), dev/ this build;
-          # opx-solo/ and dev/opx-solo/ the same for Felucca-OPX Solo; each with its installer, editor, simulator
+          # opx-solo/ and dev/opx-solo/ the same for OPX Solo; each with its installer, editor, simulator
           if gh release download --repo "$GITHUB_REPOSITORY" --pattern 'felucca-*.fwsc' --pattern 'felucca-*-web.zip' \
                --dir rel 2>/dev/null; then
             pkg=$(ls rel/felucca-*.fwsc | grep -v -- -solo- | head -1)
             ver=$(basename "$pkg" .fwsc); ver="${ver#felucca-}"; ver="${ver#opx-}"
             python3 web/make_site.py "$pkg" "$ver" _site
-            solo=$(ls rel/felucca-opx-solo-*.fwsc 2>/dev/null | head -1 || true)   # (none: -eo pipefail)
+            solo=$(ls rel/opx-solo-*.fwsc 2>/dev/null | head -1 || true)   # (none: -eo pipefail)
             [ -n "$solo" ] && python3 web/make_site.py "$solo" "$ver-opx-solo" _site/opx-solo
             web=$(ls rel/felucca-*-web.zip 2>/dev/null | head -1 || true)
             if [ -n "$web" ]; then                     # (the release's own simulators and editor)
@@ -116,7 +116,7 @@ jobs:
           fi
           python3 web/make_site.py build/felucca.fwsc "opx-${GITHUB_SHA::7}" _site/dev   # this build's, always
           mkdir -p _site/dev/webapp/try && cp -R build/emu/. _site/dev/webapp/try/
-          python3 web/make_site.py solo/felucca-opx-solo.fwsc "opx-solo-${GITHUB_SHA::7}" _site/dev/opx-solo
+          python3 web/make_site.py solo/opx-solo.fwsc "opx-solo-${GITHUB_SHA::7}" _site/dev/opx-solo
           mkdir -p _site/dev/opx-solo/webapp/try && cp -R build/emu-solo/. _site/dev/opx-solo/webapp/try/
           python3 tools/dis_funcs.py build/felucca.dis opx_render opx_op_in opx_op_sine opx_op_tab opx_op_sqr opx_op_gen opx_noise_block opx_op_noise opx_op_mode opx_osc_block opx_mix opx_loop_sine opx_table \
               bench_callee bench_math > _site/dev/disasm.txt || true   # (the compiled render loops, readable without the toolchain)
@@ -124,7 +124,7 @@ jobs:
           [ -f _site/webapp/try/index.html ] || { mkdir -p _site/webapp/try && cp -R build/emu/. _site/webapp/try/; }   # (no
                                                        # release simulator yet: this build's, its version on the page)
           mkdir -p _site/try                                # (the older address)
-          printf '%s\n' '<!doctype html><meta charset="utf-8"><title>Felucca-OPX</title><meta http-equiv="refresh" content="0; url=../webapp/try/"><a href="../webapp/try/">Felucca-OPX in your browser</a>' > _site/try/index.html
+          printf '%s\n' '<!doctype html><meta charset="utf-8"><title>OPX</title><meta http-equiv="refresh" content="0; url=../webapp/try/"><a href="../webapp/try/">OPX in your browser</a>' > _site/try/index.html
           python3 web/site_nav.py _site                  # (every installer, editor and simulator links the others)
 
       - uses: actions/upload-artifact@v6
@@ -135,7 +135,7 @@ jobs:
       - uses: actions/upload-artifact@v6
         with:
           name: firmware-opx-solo
-          path: solo/felucca-opx-solo.fwsc
+          path: solo/opx-solo.fwsc
 
       - if: env.REL != ''
         uses: actions/upload-artifact@v6
@@ -149,7 +149,7 @@ jobs:
           path: |
             _site/dev/disasm.txt
             build/felucca.dis
-            solo/felucca-opx-solo.dis
+            solo/opx-solo.dis
 
       - uses: actions/upload-pages-artifact@v5
         with:

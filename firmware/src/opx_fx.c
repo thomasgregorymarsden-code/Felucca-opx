@@ -42,7 +42,7 @@ static opx_fxs_t opx_fxs[NTRK][3] __attribute__((section(".pool")));
 static uint8_t opx_fxtail[NTRK];
 static int32_t opx_fxr[CTL];             /* the right channel (the audio ISR's alone) */
 
-/* the types the chain plays (the rest pass the sound): Felucca-OPX the 13 with no buffer; the OPX-only build
+/* the types the chain plays (the rest pass the sound): OPX the 13 with no buffer; the OPX-only build
  * (OPX_FX_ALL) all of them, once built. The UI shows the others NOT AVAILABLE, their knobs kept, so a patch moves
  * between the builds unchanged */
 #ifndef OPX_FX_ALL

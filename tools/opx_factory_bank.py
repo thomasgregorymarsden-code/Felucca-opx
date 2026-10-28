@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """OPX fork: the OPX factory bank (tools/opx_factory.py compiles it). One P() per patch, in SLOT order: the first NORMAL
-(opx_factory.py: 8) in every OPX firmware, the rest in Felucca-OPX Solo only. Original sounds in the usual categories of opsix soundsets
+(opx_factory.py: 8) in every OPX firmware, the rest in OPX Solo only. Original sounds in the usual categories of opsix soundsets
 (keys, plucks and mallets, basses, leads, brass and winds, pads and strings, drums, effects, chords and sequences);
 none is a copy of a Korg program.
 
@@ -107,7 +107,7 @@ P("FM TOM", "D", 1, [
   fx=[FX("COMP", 100, 60, 10, -2)], sends=(0, 0, 10, 25), pat="BEAT",
   gain=-6.8, note="a sine and its modulator falling 7 semitones (EG1), a noise click")
 
-# ============================================================================== F13..: Felucca-OPX Solo's bank ====
+# ============================================================================== F13..: OPX Solo's bank ====
 # ---------------------------------------------------------------------------------------------------------- KEYS --
 P("TINE EP", "K", 5, [
     O(95, 1, d=2400, s=0, rl=350, c=8, vel=40), O(58, 1, d=1500, s=0, rl=350, c=8, vel=70, ktrk=(0, -25, 60)),

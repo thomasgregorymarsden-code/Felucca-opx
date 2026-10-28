@@ -42,7 +42,7 @@ static void draw_about_qr(int32_t x, int32_t y)
 enum { MC_TEXT, MC_TITLE, MC_URL };
 typedef struct { const char *text; uint8_t kind; } menu_credit_t;
 static const menu_credit_t MENU_CREDITS[] = {
-    {"FELUCCA-OPX", MC_TITLE},             /* (OPX fork) the fork: the OPX engine, its pages and storage */
+    {"OPX", MC_TITLE},             /* (OPX fork) the fork: the OPX engine, its pages and storage */
     {"Tom Marsden", MC_TEXT},
     {"A fork of Felucca with an altered-FM engine after the Korg opsix. Not affiliated with Korg or H\xFCgelton.", MC_TEXT},
     {"https://github.com/thomasgregorymarsden-code/Felucca-opx", MC_URL},
@@ -122,9 +122,8 @@ static int32_t menu_document(int32_t y, int draw)
 {
     uint32_t i;
     if (draw) {
-        cv_text(6, y + 2, &AF_L, "FELUCCA-OPX", T_THEME);   /* (Solo: on the line below, the title has no room) */
-        cv_text(FELUCCA_OPX_ONLY ? cv_text(6, y + 38, &AF_S, "SOLO", T_THEME) + 6 : 6, y + 38, &AF_S,
-                FELUCCA_OPX_ONLY ? "Altered-FM synthesizer" : "Multi-engine synthesizer", T_TEXT);
+        cv_text(6, y + 2, &AF_L, FELUCCA_OPX_ONLY ? "OPX SOLO" : "OPX", T_THEME);   /* (0.2.0: renamed from Felucca-OPX) */
+        cv_text(6, y + 38, &AF_S, FELUCCA_OPX_ONLY ? "Altered-FM synthesizer" : "Multi-engine synthesizer", T_TEXT);
         cv_text(6, y + 58, &AF_M, FELUCCA_VERSION, T_THEME);
         cv_text_r(232, y + 61, &AF_S, __DATE__, T_MID, T_BG);
         cv_text(6, y + 82, &AF_S, "BUILD " FELUCCA_BUILD, T_MID);   /* (OPX fork: the commit it was built from) */

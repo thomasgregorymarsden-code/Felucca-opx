@@ -160,15 +160,15 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
   engine memory (the voices' SHORT DELAY lines would shrink); kind 2 more than the FM-1 has free: the opsix's
   delays reach 2.73 s stereo (~480 KB). The way open: borrow Felucca's own delay (128 KB, 1.49 s mono) and reverb
   buffers, one part at a time, silencing the bus it borrows.
-- **Decided (2026-10-26): two builds.** Felucca-OPX (this firmware: four parts, every engine) keeps the 13; the
+- **Decided (2026-10-26): two builds.** OPX (this firmware: four parts, every engine) keeps the 13; the
   other 17 read NOT AVAILABLE and keep their knobs. An OPX-only firmware (one part, Felucca's other engines, effects
   and sequencer left out) plays all 30 (OPX_FX_ALL); a patch moves between the two unchanged. Its base: this tree,
-  as a build configuration (FELUCCA_OPX_ONLY=1, "Felucca-OPX Solo", felucca-opx-solo); a move to the fm1-base platform (on felucca-bsp) later,
+  as a build configuration (FELUCCA_OPX_ONLY=1, "OPX Solo", opx-solo); a move to the fm1-base platform (on felucca-bsp) later,
   once its interface settles.
 
 ## The OPX-only firmware (FELUCCA_OPX_ONLY=1)
 
-- **Built by** `FELUCCA_OPX_ONLY=1 ./build.sh`: `build/felucca-opx-solo.fwsc`, version `v…-opx-solo`. CI builds both
+- **Built by** `FELUCCA_OPX_ONLY=1 ./build.sh`: `build/opx-solo.fwsc`, version `v…-opx-solo`. CI builds both
   firmwares; the OPX-only one's installer page is the site's `/dev/opx-solo/` (a release's `/opx-solo/`).
 - **One part:** track 1 plays OPX; tracks 2–4 and every other engine are a silent reserved row (opx_map.h,
   engines.c eng_part). The other engines' code is then referenced from nowhere that runs, so the compiler drops
@@ -277,7 +277,7 @@ modulation arithmetic (on the host: 1.3 % fewer instructions in the render; on t
 switched on during a held note starts from the note's start, not where it would have been. A patch with a loop back to a lower operator (below) still costs about the old SIN figure,
 ~57 %. M2b–M5 spend the rest.
 
-**2026-10-28, M5c, Felucca-OPX (four parts):** idle 12.4 %, FM6 F1 26.8 % (one note 4.4 %). OPX: SIN 47.9 % (one
+**2026-10-28, M5c, OPX (four parts):** idle 12.4 %, FM6 F1 26.8 % (one note 4.4 %). OPX: SIN 47.9 % (one
 note 7.9 %), SIN 12BIT / 8BIT 50.8 %, TRI 51.8 %, SAW / SAW HD 53.7 / 53.4 %, SQR / SQR HD 63.5 % (10.5 %), ADTV
 52.0 %, NOISE S/H / WHITE 49.2 / 47.8 %, PINK / BLUE 68.3 / 67.4 %. Every row ~4.5 points over M4 (SIN 43.4 to
 47.9 %): EG2/3, LFO2/3, V.PATCH and the main filter's checks, with nothing of them in use. Modes (all six operators):
@@ -289,11 +289,11 @@ Room for a patch on six notes: ~72 points (85 less the idle mix). From these fig
 poly patches were ~80 (AIR PAD: two operators in FILTER) and ~74 (CHOIR); both now use RING / FM operators instead
 (~64, ~58). VOX LEAD (four FILTER operators, ~114 on six notes) is MONO: one voice, ~19.
 
-**2026-10-28, M5c, Felucca-OPX Solo:** idle 14.9 % (track 1 on OPX E.PIANO: its PAN and 3EQ run on the silent part
-every block; Felucca-OPX's idle row has FM6 there), OPX SIN 45.5 % (one note 7.5 %), TRI 49.7 %, SAW 51.6 %, SQR /
+**2026-10-28, M5c, OPX Solo:** idle 14.9 % (track 1 on OPX E.PIANO: its PAN and 3EQ run on the silent part
+every block; OPX's idle row has FM6 there), OPX SIN 45.5 % (one note 7.5 %), TRI 49.7 %, SAW 51.6 %, SQR /
 SQR HD 60.5 / 60.6 %, ADTV 49.9 %, NOISE S/H / WHITE / PINK / BLUE 46.7 / 44.3 / 65.0 / 64.5 %; RING 62.5 %, FOLD
 66.1 %, FILTER LPF 141.2 %, MG24 150.5 %, FILTER FM 192.8 %, PEAK EQ 102.9 %, PHASER 146.3 %, COMB 85.5 %; MAIN LPF12 /
-LPF24 / MS-20 55.0 / 57.0 / 55.0 % (one note 9.1–9.5 %). The voices ~2.4 points cheaper than in Felucca-OPX, the idle
+LPF24 / MS-20 55.0 / 57.0 / 55.0 % (one note 9.1–9.5 %). The voices ~2.4 points cheaper than in OPX, the idle
 2.5 points dearer: ~70 points for six notes of a patch. The hats moved their high-pass from an operator to the main
 filter (~6 points less); every other poly factory patch estimates under ~65.
 
