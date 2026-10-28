@@ -5227,6 +5227,8 @@ let opxNames = null;                   /* the factory patches' names (OPX_GET of
 let opxAsked = false;                  /* read once for this connection (renderPanels) */
 let opxTimer = null;
 const opxOk = () => !!dev && !!dev.info && !!dev.info.opx;
+/* OPX Solo: one engine to pick (the others its reserved "-" rows): it plays the short-buffer effects too */
+const opxSolo = () => opxOk() && (dev.info.engines || []).filter((n) => n && n !== "-").length === 1;
 const opxTrack = () => +$("opxtrk").value || 0;
 async function opxLoad() { if (!OX) OX = await import("./opx_patch.js"); if (!opxPk) opxPk = OX.defaults(); return OX; }
 function opxChanged(full) {
@@ -5297,7 +5299,7 @@ function renderOpxPatch() {
   const fx = opxTable(["FX", "TYPE", "ON", "B", "C", "E", "F"], [1, 2, 3].map((n) => {   /* (M5c) */
     const t = OX.get(opxPk, `fx${n}.type`), ty = OX.OPX_FX_TYPES[t] ?? OX.OPX_FX_TYPES[0];
     const type = el("select", { title: `fx${n}.type`, onchange: (e) => { OX.fxSetType(opxPk, n, +e.target.value); opxChanged(true); } },
-      ...OX.OPX_FX_TYPES.map((x, k) => el("option", { value: k, text: (k ? `${x[0]} (${x[1]})` : "OFF") + (k && !OX.fxPlayed(k) ? " — not available" : "") })));
+      ...OX.OPX_FX_TYPES.map((x, k) => el("option", { value: k, text: (k ? `${x[0]} (${x[1]})` : "OFF") + (k && !OX.fxPlayed(k, opxSolo()) ? " — not available" : "") })));
     type.value = t;
     const knob = (j) => {
       const k = ty[3][j];

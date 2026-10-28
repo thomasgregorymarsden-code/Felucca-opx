@@ -2,9 +2,9 @@
 /* OPX fork, M5c: the program effects FX1..3 (EFFECT p.61, the Effect Parameter List p.91-94), in series on a part
  * after its voices (the engine's post: voice.c track_render). Included by eng_opx.c.
  *
- * The types and their knobs: tools/opx_patch_spec.py FX_TYPES (OPX_FXT). Kind 0 types play in every build; kinds 1
- * (a buffer of a few KB: CHO U.ENS FLNG RTRY ENH) and 2 (long buffers: the delays, reverbs, GRAIN; experimental) are
- * kept in the patch and pass the sound through until they are built (shown dimmed, as V.PATCH's destinations).
+ * The types and their knobs: tools/opx_patch_spec.py FX_TYPES (OPX_FXT). Kind 0 types play in every build; kind 1
+ * (a buffer of a few KB: CHO U.ENS FLNG RTRY ENH) in the OPX-only firmware (OPX Solo: opx_fx_buf); kind 2 (long
+ * buffers: the delays, reverbs, GRAIN) is kept in the patch and passes the sound until it is built (shown dimmed).
  *
  * A part's voices are mono (or, with SPREAD, a left and a right); the chain runs on one channel until an effect makes
  * two (PAN), then on both; a chain that made two goes to the mix at full width (voice.c spread_wide). The manual gives
@@ -48,7 +48,27 @@ static int32_t opx_fxr[CTL];             /* the right channel (the audio ISR's a
 #ifndef OPX_FX_ALL
 #define OPX_FX_ALL FELUCCA_OPX_ONLY
 #endif
-static int opx_fx_played(uint32_t t) { return t && t < OPX_NFXT && (OPX_FXT[t].kind == 0u || OPX_FX_ALL); }
+static int opx_fx_played(uint32_t t)
+{
+    return t && t < OPX_NFXT && (OPX_FXT[t].kind == 0u || (OPX_FX_ALL && OPX_FXT[t].kind == 1u));
+}
+#if OPX_FX_ALL
+/* M5c part 2 (the OPX-only firmware): the short-buffer types' delay lines, a channel each for each of part 1's three
+ * slots (the one part that plays OPX there): 23 ms a channel, at half scale (int16 of the chain's +-65535) */
+#define OPX_FXBN 1024u
+static int16_t opx_fxbuf[3][2][OPX_FXBN] __attribute__((section(".pool")));
+static inline void opx_dw(int16_t *b, uint32_t w, int32_t x)
+{
+    b[w & (OPX_FXBN - 1u)] = (int16_t)(clamp(x, -65535, 65535) >> 1);
+}
+/* the line d8 samples back (Q8, 1 .. 1022), linearly between its samples, at full scale */
+static inline int32_t opx_dr(const int16_t *b, uint32_t w, int32_t d8)
+{
+    uint32_t i = w - (uint32_t)(d8 >> 8);
+    int32_t a = b[i & (OPX_FXBN - 1u)], c = b[(i - 1u) & (OPX_FXBN - 1u)];
+    return (a + (((c - a) * (d8 & 255)) >> 8)) * 2;
+}
+#endif
 /* an effect that changes the sound: on, played, and not a 3EQ at 0 dB all three (the INIT's FX2: skipped, no cost) */
 static int opx_fx_live(const opx_fxp_t *x)
 {
@@ -171,6 +191,135 @@ static const struct { int16_t gain, cab; uint8_t neg; } OPX_GAMP[16] = {
     {60, 5200, 30}, {90, 5600, 28}, {80, 4800, 30}, {120, 5200, 26}, {140, 4200, 26}, {160, 4000, 24},
     {200, 3800, 24}, {240, 3600, 22}, {280, 3400, 22}, {300, 3300, 20}, {340, 3100, 20}, {180, 4400, 24},
     {40, 6000, 32}, {220, 3500, 22}, {100, 4600, 28}, {130, 4300, 28}};
+
+#if OPX_FX_ALL
+/* M5c part 2: the types with a short buffer (the OPX-only firmware), slot k's lines, w their write position; returns
+ * it moved on. Assumptions to hear (the manual gives the knobs, not the designs):
+ *   CHO     a line 8 ms long, +-DEPTH x 4 ms by a sine at SPEED, the right PHASE later: two channels; MIX
+ *   U.ENS   VOICE taps 6 .. 14 ms, each its own phase of one sine (RATE 0.2 .. 6 Hz), +-DEPTH x 2 ms, every other one
+ *           to the left / right
+ *   FLNG    0.2 ms + DEPTH x 5 ms by a triangle at SPEED (BPM: a note value), FDBK +-90 % back into the line; MIX 50
+ *           the deepest notches; the channels as they come
+ *   RTRY    the input in one, crossed over at 800 Hz: the horn (above) a Doppler line 1.5 +- 0.4 ms and a level
+ *           swing, the drum (below) a level swing, each heard from two microphones a quarter turn apart; SLOW
+ *           0.83 / 0.67 Hz, FAST 6.75 / 5.8 Hz, SPEED +-1 octave, the horn reaching its speed in ~0.7 s, the drum ~3 s;
+ *           BAL 0 the drum, 100 the horn; SPKR: the +DIR ones add the input, RESON a 2.5 kHz peak on the horn,
+ *           BRIGHT the horn up 4 dB, CX-3 BRIGHT into a soft clip
+ *   ENH     the input above 300 Hz, DELAY x 20 ms later, added to the left and taken from the right x DEPTH x SPREAD
+ *           (a Haas widening); MIX */
+static uint32_t __attribute__((noinline)) opx_fx_buf(uint32_t k, opx_fxs_t *s, const opx_fxp_t *p, int32_t *l,
+                                                     int32_t *r, uint32_t st, uint32_t w, int32_t mq)
+{
+    const int16_t *v = p->v;
+    int16_t *b0 = opx_fxbuf[k][0], *b1 = opx_fxbuf[k][1];
+    uint32_t i, t = p->type;
+    switch (t) {
+    case 1: {                                        /* CHO: MIX DEPTH SPEED PHASE */
+        uint32_t inc = opx_fxlfo(v[2], 0), off = (uint32_t)clamp(v[3], 0, 1000) * 4294967u, ph = s->ph;
+        int32_t dm = clamp(v[1], 0, 100) * 45158 / 200;   /* (+- 4 ms a side, Q8) */
+        for (i = 0; i < CTL; i++, w++, ph += inc) {
+            int32_t xl = l[i], xr = st ? r[i] : xl, yl, yr;
+            opx_dw(b0, w, xl);
+            if (st)
+                opx_dw(b1, w, xr);
+            yl = opx_dr(b0, w, 90317 + ((dm * sine_i(ph)) >> 15));
+            yr = opx_dr(st ? b1 : b0, w, 90317 + ((dm * sine_i(ph + off)) >> 15));
+            l[i] = xl + (int32_t)(((int64_t)(yl - xl) * mq) >> 15);
+            r[i] = xr + (int32_t)(((int64_t)(yr - xr) * mq) >> 15);
+        }
+        s->ph = ph;
+        return w;
+    }
+    case 2: {                                        /* U.ENS: MIX DEPTH RATE VOICE */
+        int32_t rt = clamp(v[2], 0, 100), n = clamp(v[3], 2, 8), j, dm = clamp(v[1], 0, 100) * 226;   /* (+- 2 ms) */
+        uint32_t inc = opx_fxlfo(200 + rt * rt * 58 / 100, 0), ph = s->ph, sp = 0xFFFFFFFFu / (uint32_t)n;
+        static const int32_t G[5] = {0, 65536, 46341, 37837, 32768};
+        int32_t g = G[(n + 1) / 2];                  /* (each side its taps / sqrt(their number): their phases apart) */
+        for (i = 0; i < CTL; i++, w++, ph += inc) {
+            int32_t xl = l[i], xr = st ? r[i] : xl, al = 0, ar = 0;
+            opx_dw(b0, w, st ? (xl + xr) >> 1 : xl);
+            for (j = 0; j < n; j++) {
+                int32_t y = opx_dr(b0, w, 67738 + j * 90317 / (n - 1) + ((dm * sine_i(ph + (uint32_t)j * sp)) >> 15));
+                if (j & 1)
+                    ar += y;
+                else
+                    al += y;
+            }
+            al = (int32_t)(((int64_t)al * g) >> 16), ar = (int32_t)(((int64_t)ar * g) >> 16);
+            l[i] = xl + (int32_t)(((int64_t)(al - xl) * mq) >> 15);
+            r[i] = xr + (int32_t)(((int64_t)(ar - xr) * mq) >> 15);
+        }
+        s->ph = ph;
+        return w;
+    }
+    case 7: case 8: {                                /* FLNG, FLNG BPM: MIX DEPTH SPEED FDBK */
+        uint32_t inc = opx_fxlfo(v[2], t == 8u), ph = s->ph, ch;
+        int32_t dm = clamp(v[1], 0, 100) * 56448 / 100, fb = clamp(v[3], -100, 100) * 29491 / 100;   /* (5 ms) */
+        for (ch = 0; ch < (st ? 2u : 1u); ch++) {
+            int32_t *x = ch ? r : l;
+            int16_t *b = ch ? b1 : b0;
+            uint32_t q = ph + (ch ? 0x40000000u : 0u), ww = w;
+            for (i = 0; i < CTL; i++, ww++, q += inc) {
+                int32_t u = (int32_t)(q >> 16), tri = u < 32768 ? u : 65535 - u;   /* (0 .. 32767) */
+                int32_t y = opx_dr(b, ww, 2258 + ((dm * tri) >> 15));
+                opx_dw(b, ww, x[i] + (int32_t)(((int64_t)fb * y) >> 15));
+                x[i] = x[i] + (int32_t)(((int64_t)(y - x[i]) * mq) >> 15);
+            }
+        }
+        s->ph = ph + inc * CTL;
+        return w + CTL;
+    }
+    case 9: {                                        /* RTRY: BAL SPD SW SPEED SPKR */
+        int32_t sw = clamp(v[1], 0, 1), sk = clamp(v[3], 0, 6), bal = clamp(v[0], 0, 100) * 655;   /* (Q16) */
+        int32_t f = fm6_exp2(clamp(v[2], -1000, 1000) * 16777 - (8 << 24));   /* (2^(SPEED / 1000), Q16) */
+        int32_t th = (int32_t)(((int64_t)(sw ? 6750 : 830) * f) >> 16), tr = (int32_t)(((int64_t)(sw ? 5800 : 670) * f) >> 16);
+        int32_t *q = s->st[1], glo = opx_fxg1(opx_fxhz(800)), gbr = sk >= 4 ? 52000 : 32768;   /* (BRIGHT: +4 dB) */
+        int32_t dir = sk & 1 ? 9830 : 0, gh = (bal * 2 > 65536 ? 65536 : bal * 2) >> 1, gr = ((65536 - bal) * 2 > 65536 ? 65536 : (65536 - bal) * 2) >> 1;
+        uint32_t hph = s->ph, rph = (uint32_t)q[0], hinc, rinc;
+        opx_fc_t c;
+        if (!q[1])
+            q[1] = th, q[2] = tr;                    /* (from rest: at its speed) */
+        q[1] += (th - q[1]) >> 10, q[2] += (tr - q[2]) >> 12;   /* (the horn ~0.7 s, the drum ~3 s, a block a step) */
+        hinc = opx_fxlfo(q[1], 0), rinc = opx_fxlfo(q[2], 0);
+        c.k = 40000;
+        opx_svf_coef(&c, opx_fxhz(2500));
+        for (i = 0; i < CTL; i++, w++, hph += hinc, rph += rinc) {
+            int32_t x = st ? (l[i] + r[i]) >> 1 : l[i], lo = opx_fxlp(&s->st[0][0], x, glo), hi = x - lo, bp;
+            int32_t sh = sine_i(hph), ch_ = sine_i(hph + 0x40000000u), sr = sine_i(rph), cr = sine_i(rph + 0x40000000u);
+            int32_t hl, hr, rl, rr;
+            if (sk == 2 || sk == 3) {                /* (RESON: a peak on the horn) */
+                opx_fxsvf(&s->st[0][2], &c, hi, &bp);
+                hi += (int32_t)(((int64_t)c.k * bp) >> 17);
+            }
+            hi = (int32_t)(((int64_t)hi * gbr) >> 15);
+            if (sk == 6)                             /* (CX-3: into a soft clip) */
+                hi = opx_fxsat(clamp(hi * 2, -OPX_FXLIM, OPX_FXLIM), OPX_FXFS, (1 << 30) / OPX_FXFS) / 2;
+            opx_dw(b0, w, hi);
+            hl = opx_dr(b0, w, 16934 + ((4516 * sh) >> 15));   /* (1.5 +- 0.4 ms) */
+            hr = opx_dr(b0, w, 16934 + ((4516 * ch_) >> 15));
+            hl = (int32_t)(((int64_t)hl * (24576 + (sh >> 2))) >> 15), hr = (int32_t)(((int64_t)hr * (24576 + (ch_ >> 2))) >> 15);
+            rl = (int32_t)(((int64_t)lo * (26214 + (sr / 5))) >> 15), rr = (int32_t)(((int64_t)lo * (26214 + (cr / 5))) >> 15);
+            l[i] = (int32_t)(((int64_t)hl * gh + (int64_t)rl * gr) >> 15) + (int32_t)(((int64_t)x * dir) >> 15);
+            r[i] = (int32_t)(((int64_t)hr * gh + (int64_t)rr * gr) >> 15) + (int32_t)(((int64_t)x * dir) >> 15);
+        }
+        s->ph = hph, q[0] = (int32_t)rph;
+        return w;
+    }
+    default: {                                       /* ENH: MIX DEPTH DELAY SPREAD */
+        int32_t gh = opx_fxg1(opx_fxhz(300)), d8 = 256 + clamp(v[2], 0, 1000) * 225792 / 1000;   /* (to 20 ms) */
+        int32_t a = (int32_t)(((int64_t)clamp(v[1], 0, 100) * 327 * clamp(v[3], 0, 1000)) / 1000);   /* (Q15) */
+        for (i = 0; i < CTL; i++, w++) {
+            int32_t xl = l[i], xr = st ? r[i] : xl, m = (xl + xr) >> 1, h = m - opx_fxlp(&s->st[0][0], m, gh), y;
+            opx_dw(b0, w, h);
+            y = (int32_t)(((int64_t)opx_dr(b0, w, d8) * a) >> 15);
+            l[i] = xl + (int32_t)(((int64_t)y * mq) >> 15);
+            r[i] = xr - (int32_t)(((int64_t)y * mq) >> 15);
+        }
+        return w;
+    }
+    }
+}
+#endif
 
 /* one effect on a block: l (and, st, r) in place; returns whether there are two channels after it */
 static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp_t *p, int32_t *l, int32_t *r,
@@ -384,6 +533,16 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
         s->g = g1;
         return st;
     }
+#if OPX_FX_ALL
+    case 1: case 2: case 7: case 8: case 9: case 12: {
+        uint32_t k = (uint32_t)(s - &opx_fxs[0][0]), w = (uint32_t)s->g;
+        if (k >= 3u)                                 /* (the part with the buffers: part 1, OPX's in this firmware) */
+            return st;
+        w = opx_fx_buf(k, s, p, l, r, st, w, mq);
+        s->g = (int32_t)(w & 0x7FFFFFFFu);
+        return t == 7u || t == 8u ? st : 1u;
+    }
+#endif
     default:                                         /* (not built yet: the sound as it is) */
         return st;
     }
@@ -425,6 +584,10 @@ static uint32_t opx_post(track_t *t, int32_t *out, int32_t *left, uint32_t n, ui
         if (s->type != x->type) {                     /* (another type: its own state, from rest) */
             memset(s, 0, sizeof *s);
             s->type = x->type, s->key[0] = 0x7FFF;
+#if OPX_FX_ALL
+            if (!tr)                                 /* (and its lines silent) */
+                memset(opx_fxbuf[k], 0, sizeof opx_fxbuf[k]);
+#endif
         }
         st = opx_fx_run(s, x, out, opx_fxr, st);
         made |= st && !was;

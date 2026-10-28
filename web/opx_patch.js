@@ -172,7 +172,9 @@ export const VP_DST = [["OFF", ["---"], 0], ["PROG", VP_PROG, 1],
 // the destinations OPX plays now (eng_opx.c opx_vd_on): the rest are kept and do nothing yet
 // M5c: the program effects. A type OPX plays (kind 0: the rest are kept and pass the sound for now, as the firmware's
 // opx_fx_played); a knob's field (value - lo) as text in its type's units; FX n's type set with its knobs' defaults
-export const fxPlayed = (t) => t > 0 && t < OPX_FX_TYPES.length && OPX_FX_TYPES[t][2] === 0;
+// a type the device plays: kind 0 in every OPX build; kind 1 too in OPX Solo (solo: the editor's opxSolo)
+export const fxPlayed = (t, solo = false) => t > 0 && t < OPX_FX_TYPES.length &&
+  (OPX_FX_TYPES[t][2] === 0 || (solo && OPX_FX_TYPES[t][2] === 1));
 export function pfxText(k, code) {
   const [, lo, , dp, unit, , names] = k, v = code + lo;
   if (names) return names[code] ?? "?";

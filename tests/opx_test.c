@@ -1419,10 +1419,10 @@ static void test_m5c(void)
     opx_defaults(pk);                                /* the INIT: FX1 CHO, FX2 3EQ, FX3 REVERB, all ON (as an opsix's) */
     memset(&d, 0, sizeof d);
     opx_decode(pk, &d);
-    check("M5c FX: INIT has FX1 CHORUS, FX2 3-BAND EQ (flat), FX3 REVERB HALL, all ON; the 13 cheap types play, CHO and the reverbs only in the OPX-only build",
+    check("M5c FX: INIT has FX1 CHORUS, FX2 3-BAND EQ (flat), FX3 REVERB HALL, all ON; the 13 cheap types play, CHO only in the OPX-only build, the reverbs not yet",
           d.fx[0].type == 1u && d.fx[1].type == 14u && d.fx[2].type == 28u && d.fx[0].on && d.fx[1].on && d.fx[2].on &&
           d.fx[1].v[0] == 0 && d.fx[1].v[3] == 1000 && opx_fx_played(1) == OPX_FX_ALL && opx_fx_played(14) &&
-          opx_fx_played(28) == OPX_FX_ALL);
+          !opx_fx_played(28));
     m5b_saw(OPX_MF_LPF12, 23680, 0);                 /* the SAW alone */
     P.flt.on = 0;
     setup(&P, 0);
@@ -1520,6 +1520,54 @@ static void test_m5c(void)
     check("M5c FX: every type, its knobs at both ends, mono and after PAN: inside the states' bounds", ok);
     memset(&P, 0, sizeof P);
 }
+
+#if OPX_FX_ALL
+/* M5c part 2, the OPX-only firmware: the short-buffer types on the SAW (A2): CHO, U.ENS, RTRY, ENH make two channels,
+ * apart; FLNG keeps one, changed; each near the input's level; RTRY FAST swings its level */
+static void test_m5c2(void)
+{
+    static double y[FS], r[FS], z[FS];
+    static const struct { uint8_t t; int16_t v[4]; uint8_t wide; const char *n; } T[] = {
+        {1, {50, 50, 500, 500}, 1, "CHO"}, {2, {50, 50, 30, 4}, 1, "U.ENS"}, {7, {50, 50, 300, 70}, 0, "FLNG"},
+        {8, {50, 50, 11, -60}, 0, "FLNBPM"}, {9, {50, 1, 0, 0}, 1, "RTRY"}, {12, {100, 100, 500, 1000}, 1, "ENH"}};
+    uint32_t k, i;
+    int ok = 1;
+    double dry;
+    m5b_saw(OPX_MF_LPF12, 23680, 0);
+    P.flt.on = 0;
+    setup(&P, 0);
+    engine_render(45, 127, z, FS, 0, 0);             /* (the SAW, dry) */
+    dry = m5c_rms(z, FS / 4, FS / 2);
+    for (k = 0; k < NELEM(T); k++) {
+        double lv, side, sw = 0;
+        m5b_saw(OPX_MF_LPF12, 23680, 0);
+        P.flt.on = 0;
+        m5c_fx(0, T[k].t, T[k].v[0], T[k].v[1], T[k].v[2], T[k].v[3]);
+        setup(&P, 0);
+        opx_t_right = r, opx_t_wide = 0;
+        engine_render(45, 127, y, FS, 0, 0);
+        opx_t_right = 0;
+        for (i = 0; i < FS; i++)
+            z[i] = y[i] - r[i];
+        lv = m5c_rms(y, FS / 4, FS / 2), side = m5c_rms(z, FS / 4, FS / 2) - lv;
+        if (T[k].t == 9u) {                          /* (RTRY: the spread of 10 ms levels over its second half) */
+            double mn = 1e9, mx = -1e9;
+            for (i = FS / 2; i + 441u <= FS; i += 441u) {
+                double v = m5c_rms(y, i, 441);
+                mn = v < mn ? v : mn, mx = v > mx ? v : mx;
+            }
+            sw = mx - mn;
+        }
+        printf("opx: %-6s: level %+.1f dB of dry, sides %+.1f dB, %s%s\n", T[k].n, lv - dry, side,
+               opx_t_wide ? "two channels" : "one channel", T[k].t == 9u ? "" : "");
+        ok &= fabs(lv - dry) < 6 && (int)opx_t_wide == T[k].wide && (T[k].wide ? side > -25 : 1);
+        if (T[k].t == 9u)
+            printf("opx: RTRY FAST: its 10 ms levels swing %.1f dB\n", sw), ok &= sw > 1.0;
+    }
+    check("M5c part 2 (OPX-only): CHO U.ENS RTRY ENH two channels apart, FLNG one; levels within 6 dB; RTRY swings", ok);
+    memset(&P, 0, sizeof P);
+}
+#endif
 
 static void test_factory(void)
 {
@@ -1826,6 +1874,9 @@ int main(int argc, char **argv)
     test_m5();
     test_m5b();
     test_m5c();
+#if OPX_FX_ALL
+    test_m5c2();
+#endif
     test_user_empty();
     test_waves();
     test_factory();

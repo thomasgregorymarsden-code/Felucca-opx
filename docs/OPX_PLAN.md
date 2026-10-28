@@ -20,7 +20,7 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M4 | EG1 (pitch), LFO1 and their default routes: each operator's P MOD (EG1, LFO1, VEL), LMOD LFO1, PROG PITCH (LFO1, TRANS, OCT); the CTRL sources | done (pages EG1 and LFO1, the rows in OPERATORS, the web editor; not yet compared with an opsix) |
 | M5a | EG2, EG3, LFO2, LFO3; the virtual patch (V.PATCH 1–12) to the destinations OPX has; every CTRL source live | done (pages EG1-3, LFO1-3, OPERATORS' V.PATCH section, the web editor; INT's scale a guess, see [Assumptions](#assumptions-to-check-by-ear)) |
 | M5b | Main filter (EG2, LFO2, key tracking), as far as the processor time allows | done: one a voice (OPERATORS' FILTER section, the web editor; V.PATCH FILTER CUTOFF and RESO played; on the device +9.4 to +11.5 points on six notes, see [Cost](#cost)) |
-| M5c | Effects 1–3 | part 1 done: the chain, the 13 types with no buffer (OPERATORS' FX1-3 section, the web editor); next: the buffered types (memory: see [How M5c works](#how-m5c-works)) |
+| M5c | Effects 1–3 | part 1 done: the chain, the 13 types with no buffer (OPERATORS' FX1-3 section, the web editor); part 2 done (OPX Solo): the 6 short-buffer types; next: the delays and reverbs in Solo (Felucca's buffers; see [How M5c works](#how-m5c-works)) |
 
 Confirmed on a device so far: it installs and runs, and six OPX voices at once do not overload the processor. Not
 yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-by-ear)).
@@ -153,8 +153,21 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
 - **Played now (kind 0, no buffer):** PHA, PHABPM, PAN, PANBPM, A.WAH, EXC, FLTR, 3EQ, DIST, G.AMP, DEC, LIMIT, COMP;
   the designs and their assumptions are listed at the top of firmware/src/opx_fx.c (first-order shelves at 250 Hz
   and 4 kHz for 3EQ, as the operators' SHELV EQ; G.AMP's 16 types as gains and cabinet corners, not models; ...).
-- **Not yet (kept, the sound passed):** kind 1, a buffer of a few KB each: CHO, U.ENS, FLNG, FLNBPM, RTRY, ENH; kind 2
-  (experimental), long buffers: DLY, DLYBPM, PDLY, PDLBPM, TDLY, TDLBPM, REF, REVERB, SHVERB, SPRING, GRAIN.
+- **Played in OPX Solo only (kind 1, a short buffer):** CHO, U.ENS, FLNG, FLNBPM, RTRY, ENH. Each FX slot has a
+  1024-sample (21 ms) int16 line per channel in the pool (3 slots × 2 × 2 KB = 12 KB), read with linear
+  interpolation; cleared when the slot's type changes. Designs (not the opsix's, which are not published):
+  - CHO: an 8 ms line swept ±DEPTH·4 ms by a sine at RATE; the right side's sweep PHASE apart. Makes two channels.
+  - U.ENS: VOICE taps (1–4) spread 6–14 ms, each swept ±2 ms at RATE (0.2–6 Hz) with its own phase, alternate
+    taps left and right; the taps' sum scaled by 1/√n.
+  - FLNG, FLNBPM: 0.2 ms + DEPTH·5 ms, a triangle sweep, FEEDBACK ±90 %; per channel, the channel count kept.
+  - RTRY: an 800 Hz crossover; the horn a Doppler line (1.5 ± 0.4 ms) with amplitude modulation, the drum
+    amplitude modulation alone; SLOW 0.83 / 0.67 Hz, FAST 6.75 / 5.8 Hz (horn / drum), the horn reaching the new
+    speed in ~0.7 s, the drum in ~3 s; SPKR as tone and mic-spread variants. Makes two channels.
+  - ENH: the part above 300 Hz delayed by DELAY·20 ms, added to the left and taken from the right (×DEPTH·SPREAD).
+  Tests: tests/opx_test.c test_m5c2 (two channels apart where expected, levels within 6 dB of dry, RTRY FAST's
+  level swing). Not yet measured on the device: their CPU cost.
+- **Not yet (kept, the sound passed; NOT AVAILABLE in both firmwares):** kind 2 (experimental), long buffers: DLY,
+  DLYBPM, PDLY, PDLBPM, TDLY, TDLBPM, REF, REVERB, SHVERB, SPRING, GRAIN. In OPX, kind 1 is NOT AVAILABLE too.
 - **Memory** (the M5b build): the pool had 10.6 KB free with 8 KB kept spare by build.py, RAM 8.5 KB with 4 KB kept,
   flash 21.6 KB. The chain's state takes 1.3 KB of the pool (12 slots). Kind 1 needs its buffers from a part's
   engine memory (the voices' SHORT DELAY lines would shrink); kind 2 more than the FM-1 has free: the opsix's

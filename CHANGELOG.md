@@ -5,6 +5,11 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPX Solo plays six more effects:** CHO, U.ENS, FLNG, FLNBPM, RTRY and ENH (a 21 ms line per FX slot, 12 KB). The
+  INIT patch's FX1 (CHO) is now heard there. The delays and reverbs read NOT AVAILABLE in Solo too until they are
+  built (they passed the sound unchanged while showing as available). OPX (four parts) is unchanged: the 13 cheap
+  types. The web editor marks the types the connected firmware plays.
+
 - **Renamed: Felucca-OPX is now OPX, Felucca-OPX Solo OPX Solo** (the firmware's screens, the web pages, the
   documents; the release files `opx-X.Y.Z.fwsc`, `opx-solo-X.Y.Z.fwsc`). The repository keeps its name, the package
   identities (FM-1_9001, 9002) and the version strings stay.
