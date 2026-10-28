@@ -49,8 +49,8 @@ SDK_SHA256 = {
     "cfg/eq_cfg_hw.bin": "41167491bffed4651750719c973d2758adeb9021a5670d02d6a53c85ed80ea7d",
 }
 
-PRODUCT = "FM-1_OPX-dev"            # package identity (OPX fork: FM-1_OPX-<version>, the Solo firmware FM-1_OPX-SOLO-;
-                                    # a development build -dev). Upstream Felucca's are FM-1_9XY
+PRODUCT = "FM-1_9001"               # package identity (OPX fork: one per firmware, every build: Felucca-OPX FM-1_9001,
+                                    # Solo FM-1_9002; numeric, as the FM-1 tools read it). Upstream Felucca's: FM-1_9XY
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/felucca.c)
 
 
@@ -353,18 +353,17 @@ def mmio_check():
 def main():
     global PRODUCT, VERSION
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", metavar="X.Y.Z", help="release build: identity FM-1_OPX-X.Y.Z, version string vX.Y.Z")
+    ap.add_argument("--release", metavar="X.Y.Z", help="release build: version string vX.Y.Z (the identity stays FM-1_9001 / 9002)")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     a = ap.parse_args()
     solo = os.environ.get("FELUCCA_OPX_ONLY") == "1"   # OPX fork: the OPX-only firmware, its own package name
     name = "felucca-opx-solo.fwsc" if solo else "felucca.fwsc"
     if solo:
-        PRODUCT = "FM-1_OPX-SOLO-dev"
+        PRODUCT = "FM-1_9002"
     if a.release:                   # (the identity: 20 characters at most, fm1pkg_make checks)
         m = re.fullmatch(r"\d+\.\d+(?:\.\d+){0,2}(-[A-Za-z0-9]+)?", a.release)
         if not m:
             raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z, X.Y.Z.W or X.Y.Z-suffix")
-        PRODUCT = ("FM-1_OPX-SOLO-" if solo else "FM-1_OPX-") + a.release
         VERSION = "v" + a.release.lower() + ("-opx-solo" if solo else "")   # e.g. v0.2.0, v0.2.0-opx-solo
         name = f"felucca-opx-{'solo-' if solo else ''}{a.release}.fwsc"
     fm1pkg_make.SDK = a.sdk

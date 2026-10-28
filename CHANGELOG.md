@@ -23,8 +23,9 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
   velocity, delayed vibrato (LFO1 faded in, PROG PITCH). SAW LEAD: LPF 24 with an EG2 sweep, vibrato on the MOD
   WHEEL, DIST. LOOP PAD: LPF 12 with a slow EG2 and LFO2, PHA, PAN. X-MOD: MOD WHEEL -> OP3 LEVEL, LFO3 -> OP2 PITCH,
   FLTR, DEC. A project or preset that saved a factory patch as its own copy keeps the copy as it was.
-- **Package identity `FM-1_OPX-<version>`** (0.2.0: `FM-1_OPX-0.2.0`; Felucca-OPX Solo `FM-1_OPX-SOLO-0.2.0`;
-  development builds `FM-1_OPX-dev`), unique to this firmware: releases up to 0.1.0 used Felucca's `FM-1_9XY`.
+- **Package identity `FM-1_9001`** (Felucca-OPX Solo `FM-1_9002`), the same for every build and version, this
+  firmware's own: releases up to 0.1.0 used Felucca's `FM-1_9XY`. (Development builds briefly reported
+  `FM-1_OPX-dev`; the installers now also accept letters there.)
   Release packages are `felucca-opx-X.Y.Z.fwsc` (and `felucca-opx-solo-X.Y.Z.fwsc`).
 - **MENU > INFO and ABOUT show the build** (the commit it was built from; "+" when built with local changes).
 - **ABOUT points to this project:** its QR code and address are github.com/thomasgregorymarsden-code/Felucca-opx

@@ -29,7 +29,7 @@
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 / PH8 */
 #endif
 #ifndef FELUCCA_ID
-#define FELUCCA_ID "FM-1_OPX-dev"   /* package identity (build.py: the .fwsc marker string; OPX fork: FM-1_OPX-<version>) */
+#define FELUCCA_ID "FM-1_9001"   /* package identity (build.py: the .fwsc marker string; OPX fork: 9001, Solo 9002) */
 #endif
 #ifndef FELUCCA_VERSION
 #ifndef FELUCCA_BUILD

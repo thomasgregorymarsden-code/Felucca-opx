@@ -40,8 +40,8 @@ def main(pkg, version, out):
     pkg, out = Path(pkg), Path(out)
     raw = pkg.read_bytes()
     product = product_of(raw)
-    if not re.fullmatch(r"FM-1_(9\d\d|OPX-[A-Za-z0-9.-]+)", product):   # (OPX fork: FM-1_OPX-<version>)
-        raise SystemExit(f"{pkg}: identity {product!r} is not a Felucca-OPX package (FM-1_OPX-…)")
+    if not re.fullmatch(r"FM-1_(9\d\d|900[12]|OPX-[A-Za-z0-9.-]+)", product):   # (OPX fork: 9001, Solo 9002; 0.1.0
+        raise SystemExit(f"{pkg}: identity {product!r} is not a Felucca-OPX package (FM-1_9001 / 9002)")   # 9XY)
     if b"FELUCCA-LOADER-1" not in raw:              # Felucca loader marker: never publish a package with vendor files
         raise SystemExit(f"{pkg}: no Felucca loader in it; the site ships only fm1pkg_make.py packages "
                          "(a package patched from an official one carries vendor files)")

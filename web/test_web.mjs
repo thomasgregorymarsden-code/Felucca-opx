@@ -1652,7 +1652,7 @@ async function packages() {
   const logical = py(`import sys; raw = open(sys.argv[1], "rb").read()
 sys.stdout.buffer.write(b"".join(raw[i * 48:i * 48 + 47] for i in range(20)) + raw[960:])`, pkg);
   ok(eq(logicalImage(raw), logical), "fm1pkg.js logicalImage");
-  ok(/^FM-1_(9\d\d|OPX-[A-Za-z0-9.-]+)$/.test(productOf(raw)), "fm1pkg.js productOf");
+  ok(/^FM-1_(9\d\d|900[12])$/.test(productOf(raw)), "fm1pkg.js productOf");
 }
 
 /* ------------------------------------------------- update protocol (fm1ota.js) --- */
@@ -1725,10 +1725,15 @@ async function updater() {
   ok(got === "FM-1_900" && dev.bad === 0 && steps.includes("write") && steps.at(-1) === "done",
     `fm1ota.js: install: running firmware -> loader -> Felucca (${dev.served} reads)`);
   ok(wbytes > 0 && wbytes <= image.length, `fm1ota.js: the write reports the bytes sent (${wbytes} of ${image.length})`);
-  {                                                // (OPX fork: identities with letters, FM-1_OPX-<version>)
-    const d = new FakeFM1(image, { start: "FM-1_OPX-SOLO-dev", after: "FM-1_OPX-dev" });
-    const g = await new Updater(d.access).install(image, "FM-1_OPX-dev").then((x) => x, (e) => e);
-    ok(g === "FM-1_OPX-dev" && d.bad === 0, `fm1ota.js: install over FM-1_OPX-SOLO-dev, back as FM-1_OPX-dev (${g})`);
+  {                                                // (OPX fork: over an earlier dev build's letter identity)
+    const d = new FakeFM1(image, { start: "FM-1_OPX-SOLO-dev", after: "FM-1_9001" });
+    const g = await new Updater(d.access).install(image, "FM-1_9001").then((x) => x, (e) => e);
+    ok(g === "FM-1_9001" && d.bad === 0, `fm1ota.js: install over FM-1_OPX-SOLO-dev, back as FM-1_9001 (${g})`);
+  }
+  {                                                // (OPX fork: Solo over Felucca-OPX)
+    const d = new FakeFM1(image, { start: "FM-1_9001", after: "FM-1_9002" });
+    const g = await new Updater(d.access).install(image, "FM-1_9002").then((x) => x, (e) => e);
+    ok(g === "FM-1_9002" && d.bad === 0, `fm1ota.js: install over FM-1_9001, back as FM-1_9002 (${g})`);
   }
 
   const dev2 = new FakeFM1(image, { unplugAfter: 3 });
