@@ -51,6 +51,7 @@ async function device(saved) {
   return d;
 }
 const colours = (fb) => new Set(fb).size;
+const BOOT = 2100;                                            // ms to the first frame (30 + SPLASH_MS 2000, core.h)
 
 // ---- boot, keys, screen, LEDs
 const a = await device(null);
@@ -67,6 +68,7 @@ const splash = colours(a.screen());
 }
 a.render(800);
 check("  over by 1 s (~0.70 s)", a.ex.web_anim_levels() === 0);
+a.render(BOOT - 1000);                                        // (OPX fork: the splash stays 2 s, SPLASH_MS)
 const home = a.screen();
 check(`boots: the splash, then HOME (${colours(home)} colours), the HOME LED lit`,
       splash > 1 && colours(home) > 4 && (a.ex.web_lit_buttons() >> B.HOME & 1) === 1);
@@ -131,16 +133,16 @@ check(`SAVE, OCT+, OCT+: user preset 1 written (${Object.keys(saved).length} sec
 const kept = JSON.parse(JSON.stringify(Object.fromEntries(     // as the page keeps them (base64 in localStorage)
   Object.entries(saved).map(([k, v]) => [k, Buffer.from(v).toString("base64")]))));
 const b = await device(Object.fromEntries(Object.entries(kept).map(([k, v]) => [k, new Uint8Array(Buffer.from(v, "base64"))])));
-b.render(600);
+b.render(BOOT);
 const c = await device(null);
-c.render(600);
+c.render(BOOT);
 check("a fresh instance with the kept sectors has it; one without does not",
       b.ex.web_test_user_preset(0) === 1 && c.ex.web_test_user_preset(0) === 0);
 
 // ---- deterministic: the same gestures, the same samples
 async function song() {
   const d = await device(null);
-  d.render(500);
+  d.render(BOOT);
   d.ex.web_test_heavy();
   d.tap(B.PLAY);
   d.rec = true;
