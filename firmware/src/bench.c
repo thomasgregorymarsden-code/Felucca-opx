@@ -22,7 +22,7 @@
 #endif
 #if FELUCCA_BENCH
 static volatile uint8_t bench_mute;                    /* audio.c: the ISR's halves are silence */
-#define BENCH_ROWS 48u
+#define BENCH_ROWS 72u                                 /* (OPX fork: + the program effects, up to 19 + 1) */
 enum { BR_HEAD, BR_PCT, BR_NS, BR_SUB };               /* a row: a heading (ALL ONE), a share of real time (permille),
                                                         * ns x 10, a sub-heading */
 static struct { char name[16]; uint8_t kind; uint16_t all, one; } bench_row[BENCH_ROWS];   /* (ui_menu.c draws them) */
@@ -258,7 +258,7 @@ static int bench_run(void)
                                 OPX_W_NOISE_SH, OPX_W_WHITE, OPX_W_PINK, OPX_W_BLUE};
     uint8_t fm6p[FP_SIZE + 1u], fm6own[FM6_PACKED], fm6slot = fm6_slot[0], fm6ok = fm6_own_ok;
     const opx_patch_t *own = opx_own[0];
-    uint32_t i, k, idle, pm;
+    uint32_t i, k, idle, pm, pm_sin = 0;
     if (song.playing || transport_req == 1u)
         return 0;
     bench_n = 0;
@@ -304,6 +304,8 @@ static int bench_run(void)
         bench_track(ENGI_OPX, 0);
         opx_own[0] = &bench_px;
         pm = bench_notes(idle);
+        if (!i)
+            pm_sin = pm;                               /* (the effects' rows: their share past this) */
         str_cpy(name, N_OPX_WAVE[w], sizeof name);
         bench_line(BR_PCT, name, pm, bench_one(pm));
     }
@@ -344,6 +346,24 @@ static int bench_run(void)
         }
         memset(&bench_px.flt, 0, sizeof bench_px.flt);
     }
+    bench_line(BR_SUB, "OPX SIN + FX1", 0, 0);   /* (OPX fork: each program effect this firmware plays, on FX1 at its
+                                                  * type's defaults; ALL the six notes and the effect, ONE the effect's
+                                                  * share past SIN's row: an effect runs once a part, not a voice) */
+    for (i = 1; i < OPX_NFXT; i++) {
+        char name[16] = "FX ";
+        if (!opx_fx_played(i))
+            continue;
+        memset(bench_px.fx, 0, sizeof bench_px.fx);
+        bench_px.fx[0].type = (uint8_t)i, bench_px.fx[0].on = 1;
+        for (k = 0; k < OPX_FXT[i].nk; k++)
+            bench_px.fx[0].v[k] = OPX_FXT[i].k[k].def;
+        bench_track(ENGI_OPX, 0);
+        opx_own[0] = &bench_px;
+        pm = bench_notes(idle);
+        str_cpy(name + 3, OPX_FXT[i].name, sizeof name - 3u);
+        bench_line(BR_PCT, name, pm, pm > pm_sin ? pm - pm_sin : 0u);
+    }
+    memset(bench_px.fx, 0, sizeof bench_px.fx);
     bench_math();
 
     fm1_irq_off();                                     /* track 1 back as it was */

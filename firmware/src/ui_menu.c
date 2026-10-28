@@ -176,7 +176,7 @@ static int32_t bench_document(int32_t y, int draw)
 {
     uint32_t i;
     if (bench_state < 3u)
-        return menu_text("RUNNING: ABOUT 5 S. THE AUDIO IS SILENT MEANWHILE.", y + 4, T_TEXT, draw);
+        return menu_text("RUNNING: ABOUT 8 S. THE AUDIO IS SILENT MEANWHILE.", y + 4, T_TEXT, draw);
     y = menu_text("Share of real time 6 held notes take, above the idle mix: all six, and one. The audio drops a voice "
                   "above 85 % in all.", y + 4, T_MID, draw) + 6;
     for (i = 0; i < bench_n; i++, y += 18) {
@@ -206,8 +206,10 @@ static int32_t bench_document(int32_t y, int draw)
             cv_text_r(228, y, &AF_S, o, T_TEXT, T_BG);
         }
     }
-    y = menu_text("MAC: one multiply-add, each depending on the last. LOOP: a random number and a sum; + BRANCH, + CALL: "
-                  "the same with an if, a function call. LOAD: one 16-bit value read, from each memory.", y + 6, T_MID, draw);
+    y = menu_text("+ FX1: SIN's six notes with the effect on FX1 (its defaults); ONE: the effect alone (it runs once a "
+                  "part). MAC: one multiply-add, each depending on the last. LOOP: a random number and a sum; + BRANCH, "
+                  "+ CALL: the same with an if, a function call. LOAD: one 16-bit value read, from each memory.", y + 6,
+                  T_MID, draw);
     return y + 4;
 }
 #endif

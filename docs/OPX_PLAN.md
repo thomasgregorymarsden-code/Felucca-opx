@@ -310,6 +310,11 @@ LPF24 / MS-20 55.0 / 57.0 / 55.0 % (one note 9.1–9.5 %). The voices ~2.4 point
 2.5 points dearer: ~70 points for six notes of a patch. The hats moved their high-pass from an operator to the main
 filter (~6 points less); every other poly factory patch estimates under ~65.
 
+**2026-10-28, M5c part 2 build (fe02198), OPX Solo:** idle 14.7 %, SIN 45.6 %, SQR 60.6 %, PINK 65.2 %, FILTER LPF
+141.5 %, FILTER FM 194.0 %, MAIN LPF12 / LPF24 / MS-20 55.1 / 57.1 / 55.2 %: the earlier run's to within 0.6 points
+(the short-buffer effects cost nothing while off). The benchmark had no effect rows then; it has since (OPX SIN + FX1:
+each played type at its defaults, ONE its share past SIN's row).
+
 **The modes** (the mode on all six operators of six notes, SIN, the values typical; "one operator" the cost of one
 operator in that mode over a sine operator, on six notes):
 

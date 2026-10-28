@@ -9023,10 +9023,10 @@ static int test_bench(void)
     frame();
     ok &= ui.menu == 4 && bench_state >= 1u;
     frames(3);
-    ok &= bench_state == 3u && bench_n == 2u + 1u + 1u + 18u + 1u + 8u + 1u + 3u + 8u + 2u && !bench_mute;
+    ok &= bench_state == 3u && bench_n == 2u + 1u + 1u + 18u + 1u + 8u + 1u + 3u + 1u + 13u + 8u + 2u && !bench_mute;
     if (!ok)
         printf("ui: bench: menu %u state %u rows %u mute %u\n", ui.menu, bench_state, bench_n, bench_mute);
-    bad += check("bench: INFO, OCT+: RUNNING, then 45 rows (idle, heading, FM6, OPX heading and 18 waves, a heading and 8 modes, a heading and 3 main filters, 4 branch / call, 4 loads, 2 MAC)", ok);
+    bad += check("bench: INFO, OCT+: RUNNING, then 59 rows (idle, heading, FM6, OPX heading and 18 waves, a heading and 8 modes, a heading and 3 main filters, a heading and the 13 effects, 4 branch / call, 4 loads, 2 MAC)", ok);
     ok = trk[0].eng_req == before.eng_req && trk[0].engine == before.engine &&
          !memcmp(trk[0].p, before.p, sizeof before.p) && !memcmp(fm6_patch[0], fm6p, sizeof fm6p) && opx_own[0] == own;
     for (i = 0; i < NVOICE; i++)
@@ -10510,11 +10510,11 @@ static int test_solo(void)
         press(B_OCTUP);
         frame();
         frames(3);
-        ok = bench_state == 3u && bench_n == 2u + 1u + 18u + 1u + 8u + 1u + 3u + 8u + 2u && !bench_mute &&
+        ok = bench_state == 3u && bench_n == 2u + 1u + 18u + 1u + 8u + 1u + 3u + 1u + 19u + 8u + 2u && !bench_mute &&
              trk[0].engine == ENGI_OPX && trk[0].p[P_LEVEL] == own_lvl;
         if (!ok)
             printf("ui: OPX-only bench: state %u rows %u\n", bench_state, bench_n);
-        bad += check("OPX-only: the benchmark runs (44 rows, no FM6), track 1 as it was after", ok);
+        bad += check("OPX-only: the benchmark runs (64 rows, no FM6; the 19 effects), track 1 as it was after", ok);
     }
     printf(bad ? "ui: OPX-only: %d FAILED\n" : "ui: OPX-only: all passed\n", bad);
     return bad;
