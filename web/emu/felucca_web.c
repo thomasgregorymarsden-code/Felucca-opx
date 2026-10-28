@@ -317,7 +317,8 @@ static void web_ms(void)
         fm1_ms - web_splash_frame >= 60u) {                /* main.c: the animated splash (~16 frames a second) */
         uint32_t t = fm1_ms - (web_boot_ms - SPLASH_MS);
         web_splash_frame = fm1_ms;
-        splash_frame(t > SPLASH_MS ? SPLASH_MS : t);
+        if (t < SPLASH_ANIM_MS + 60u)                     /* (its last frame the still logo, held to SPLASH_MS) */
+            splash_frame(t > SPLASH_ANIM_MS ? SPLASH_ANIM_MS : t);
     }
     if (!web_booted || (int32_t)(fm1_ms - web_boot_ms) < 0)
         return;

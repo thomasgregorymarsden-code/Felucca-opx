@@ -1385,8 +1385,8 @@ static void draw_splash(void)
 /* The splash animated (main.c; not with MENU > ANIM OFF: draw_splash's still logo): the rings fade in from the
  * centre (by ~0.85 s, as circles), take on their six lobes and then the modulator's bends (by ~1.2 s); from then to
  * the end the modulator's phase runs, so the bends travel round each ring (neighbours opposite ways, rings 3-4 twice
- * as fast: SPL_TURNS whole turns over SPLASH_MS), arriving at draw_splash's logo at SPLASH_MS. Time, not frames: the
- * frame rate is what the device manages (each frame the disc's box, 186 x 184: ~68 KB, ~46 ms over the 12 MHz SPI).
+ * as fast: SPL_TURNS whole turns over SPLASH_ANIM_MS), arriving at draw_splash's logo at SPLASH_ANIM_MS, held to
+ * SPLASH_MS. Time, not frames: the frame rate is what the device manages (each frame the disc's box, 186 x 184: ~68 KB, ~46 ms over the 12 MHz SPI).
  * Cheaper than opx_logo: the rings' radii are computed once a frame for SPL_NA angles, each pixel's radius and angle
  * once a splash for one octant (both tables in the canvas's unused tail: no RAM of their own), and a pixel tries the
  * three rings nearest its radius alone. */
@@ -1469,7 +1469,7 @@ static void spl_band(uint16_t *px, const int16_t *tb, const int32_t *ra, uint32_
         }
     }
 }
-static void splash_frame(uint32_t t)                /* the animated logo at t ms (0 .. SPLASH_MS) */
+static void splash_frame(uint32_t t)                /* the animated logo at t ms (0 .. SPLASH_ANIM_MS) */
 {
     /* five bands of the disc's box (46 rows at most), drawn into two halves of the canvas in turn: one drawn while the
      * other goes to the display (lcd_blit returns with its transfer running; the next waits for it). OPX's line within
@@ -1479,7 +1479,7 @@ static void splash_frame(uint32_t t)                /* the animated logo at t ms
     int16_t *tb = (int16_t *)(cv_px + 2u * SPL_HALF);
     int32_t ra[6], k, a = (51 * spl_ease((int32_t)t, 450, 400)) >> 15;   /* (the lobes' depth, Q4 px: 3.2) */
     int64_t im = ((int64_t)1503900000 * spl_ease((int32_t)t, 600, 600)) >> 15;   /* (the bends' index: 2.2 rad) */
-    uint32_t j, b, ph = (0xFFFFFFFFu / SPLASH_MS + 1u) * (t < SPLASH_MS ? t : 0u);   /* (a turn over the splash) */
+    uint32_t j, b, ph = (0xFFFFFFFFu / SPLASH_ANIM_MS + 1u) * (t < SPLASH_ANIM_MS ? t : 0u);   /* (a turn over the splash) */
     lcd_sync();                                     /* (the last band may still be going out of a half) */
     if (!spl_polar_ok)
         spl_polar();

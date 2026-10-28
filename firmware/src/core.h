@@ -424,8 +424,11 @@ static inline uint32_t swing_step_len(const track_t *t, uint32_t base, uint32_t 
 /* ----------------------------------------------------------- system --- */
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 #ifndef SPLASH_MS
-#define SPLASH_MS 3000u          /* the power-on splash's time after the boot's work (main.c, the web emulator; OPX fork,
-                                  * 0.2.0: 3 s, the logo animated; Felucca 400 ms) */
+#define SPLASH_MS 3250u          /* the power-on splash's time after the boot's work (main.c, the web emulator; OPX fork,
+                                  * 0.2.0: the logo's animation, then 0.25 s on the still logo; Felucca 400 ms) */
+#endif
+#ifndef SPLASH_ANIM_MS
+#define SPLASH_ANIM_MS 3000u     /* (OPX fork) the splash's animation (ui_draw.c splash_frame): it ends on the still logo */
 #endif
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */
 /* boot-loop guard (main.c): two boots in a row that die in the first 30 s -> UBOOT */

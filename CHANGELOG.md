@@ -18,7 +18,7 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
   red, round a white disc with OPX), the firmware's name, its version and Felucca's maker. Drawn, not stored: no image
   in flash. In colour in every palette; ABOUT shows it small beside the title (still). On the power-on screen it is
   animated: the rings fade in from the centre as circles, take on their lobes and bends, and the bends then travel
-  round the rings until the screen changes, ending on the still logo. The screen stays 3 s (Felucca's splash: 0.4 s),
+  round the rings for 3 s, ending on the still logo, which holds 0.25 s. The screen stays 3.25 s (Felucca's splash: 0.4 s),
   the keys silent under it as before. MENU > ANIM OFF: the still logo.
 - **A CPU meter in the header:** the audio's share of the processor, after the REC mark, updated four times a second;
   grey, the accent from 70 %, REC's red from 85 % (where the audio drops a voice). The figure alone when a slot letter

@@ -146,7 +146,7 @@ static void boot_leds(void)
 
 static void fm1_main(void)
 {
-    uint32_t ms;
+    uint32_t ms, drawn;
     persist_boot();
 #if FELUCCA_OTA
     if (flash_ok)
@@ -195,15 +195,16 @@ static void fm1_main(void)
     autosave_boot(boot_clean);                /* (1.2) the last session's music, under the splash */
     spl_polar_ok = 0;                         /* (ui_draw.c: its table again, the canvas may have been drawn in) */
     ms = fm1_ms;                              /* the splash; the pot followed (MIDI IN plays under it) */
+    drawn = 0;
     for (;;) {                                /* (OPX fork: 3 s, the logo animated by the time, a frame as fast as the
                                                * display takes it; with ANIM OFF still: the watchdog fed through it) */
         uint32_t t = fm1_ms - ms;
         if (t > SPLASH_MS)
             t = SPLASH_MS;
-        if (ui_prefs & PREF_ANIM_OFF)
-            fm1_delay_ms(10);
+        if ((ui_prefs & PREF_ANIM_OFF) || drawn >= SPLASH_ANIM_MS)
+            fm1_delay_ms(10);                 /* (the still logo: with ANIM OFF, or the animation's 0.25 s after) */
         else
-            splash_frame(t);
+            splash_frame(drawn = t < SPLASH_ANIM_MS ? t : SPLASH_ANIM_MS);
         master_poll();
         fm1_wdt_feed();
         if (t >= SPLASH_MS)

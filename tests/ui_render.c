@@ -1735,9 +1735,9 @@ static void splash_anim_check(void)
                          splash_seen);
         nfind++;
     }
-    splash_frame(SPLASH_MS);
+    splash_frame(SPLASH_ANIM_MS);
     off = spl_px_off(host_screen, spl_keep, 3);
-    splash_frame(SPLASH_MS - 400u);
+    splash_frame(SPLASH_ANIM_MS - 400u);
     moved = spl_px_off(host_screen, spl_keep, 3);
     if (off > 186 * 186 / 50 || moved < 1000) {
         if (rep) fprintf(rep, "FIND %-26s the animated splash: its last frame %d pixels off the logo, 0.4 s before %d\n",
