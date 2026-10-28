@@ -43,6 +43,7 @@ enum { MC_TEXT, MC_TITLE, MC_URL };
 typedef struct { const char *text; uint8_t kind; } menu_credit_t;
 static const menu_credit_t MENU_CREDITS[] = {
     {"FELUCCA-OPX", MC_TITLE},             /* (OPX fork) the fork: the OPX engine, its pages and storage */
+    {"Tom Marsden", MC_TEXT},
     {"A fork of Felucca with an altered-FM engine after the Korg opsix. Not affiliated with Korg or H\xFCgelton.", MC_TEXT},
     {"https://github.com/thomasgregorymarsden-code/Felucca-opx", MC_URL},
     {"", MC_TEXT},
@@ -127,15 +128,17 @@ static int32_t menu_document(int32_t y, int draw)
         cv_text(6, y + 58, &AF_M, FELUCCA_VERSION, T_THEME);
         cv_text_r(232, y + 61, &AF_S, __DATE__, T_MID, T_BG);
         cv_text(6, y + 82, &AF_S, "BUILD " FELUCCA_BUILD, T_MID);   /* (OPX fork: the commit it was built from) */
-        cv_text(6, y + 102, &AF_S, "(C) 2026 Leo Kuroshita", T_TEXT);
-        cv_text(6, y + 120, &AF_S, "H\xFCgelton Instruments", T_TEXT);
-        cv_text(6, y + 138, &AF_S, "GPL-3.0-only", T_TEXT);
-        cv_text(6, y + 160, &AF_S, "github.com/thomas", T_MID);   /* (OPX fork: this project's repository, as the QR) */
-        cv_text(6, y + 178, &AF_S, "gregorymarsden-code", T_MID);
-        cv_text(6, y + 196, &AF_S, "/Felucca-opx", T_MID);
+        cv_text(6, y + 102, &AF_S, "OPX (C) 2026 Tom Marsden", T_TEXT);   /* (OPX fork: the fork's part; then */
+        cv_text(6, y + 120, &AF_S, "Felucca (C) 2026", T_TEXT);            /* Felucca's own notice, kept, left of */
+        cv_text(6, y + 138, &AF_S, "Leo Kuroshita", T_TEXT);               /* the QR) */
+        cv_text(6, y + 156, &AF_S, "H\xFCgelton Instruments", T_TEXT);
+        cv_text(6, y + 174, &AF_S, "GPL-3.0-only", T_TEXT);
+        cv_text(6, y + 196, &AF_S, "github.com/thomas", T_MID);   /* (OPX fork: this project's repository, as the QR) */
+        cv_text(6, y + 214, &AF_S, "gregorymarsden-code", T_MID);
+        cv_text(6, y + 232, &AF_S, "/Felucca-opx", T_MID);
         draw_about_qr(156, y + 116);
     }
-    y = menu_text("CREDITS", y + 224, T_THEME, draw) + 8;
+    y = menu_text("CREDITS", y + 260, T_THEME, draw) + 8;
     for (i = 0; i < NELEM(MENU_CREDITS); i++) {
         const menu_credit_t *c = &MENU_CREDITS[i];
         const char *text = c->text;
