@@ -289,6 +289,14 @@ Room for a patch on six notes: ~72 points (85 less the idle mix). From these fig
 poly patches were ~80 (AIR PAD: two operators in FILTER) and ~74 (CHOIR); both now use RING / FM operators instead
 (~64, ~58). VOX LEAD (four FILTER operators, ~114 on six notes) is MONO: one voice, ~19.
 
+**2026-10-28, M5c, Felucca-OPX Solo:** idle 14.9 % (track 1 on OPX E.PIANO: its PAN and 3EQ run on the silent part
+every block; Felucca-OPX's idle row has FM6 there), OPX SIN 45.5 % (one note 7.5 %), TRI 49.7 %, SAW 51.6 %, SQR /
+SQR HD 60.5 / 60.6 %, ADTV 49.9 %, NOISE S/H / WHITE / PINK / BLUE 46.7 / 44.3 / 65.0 / 64.5 %; RING 62.5 %, FOLD
+66.1 %, FILTER LPF 141.2 %, MG24 150.5 %, FILTER FM 192.8 %, PEAK EQ 102.9 %, PHASER 146.3 %, COMB 85.5 %; MAIN LPF12 /
+LPF24 / MS-20 55.0 / 57.0 / 55.0 % (one note 9.1–9.5 %). The voices ~2.4 points cheaper than in Felucca-OPX, the idle
+2.5 points dearer: ~70 points for six notes of a patch. The hats moved their high-pass from an operator to the main
+filter (~6 points less); every other poly factory patch estimates under ~65.
+
 **The modes** (the mode on all six operators of six notes, SIN, the values typical; "one operator" the cost of one
 operator in that mode over a sine operator, on six notes):
 

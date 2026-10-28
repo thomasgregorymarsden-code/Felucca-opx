@@ -647,16 +647,17 @@ P("SNARE", "D", 1, [
   eg=[EG(d=30, s=0, rl=30, c=9)], vp=[VP("MW", "OP3.LEVEL", 15)], fx=[FX("COMP", 100, 60, 10, -2)],
   sends=(0, 0, 0, 30), pat="BEAT", gain=-5.3, note="a 185 Hz body and noise through a 2 kHz high-pass (FILTER mode)")
 P("CL HAT", "D", 32, [
-    O(80, 1, hz=8000, wave="WHITE", d=55, s=0, rl=50, c=9, vel=50, mode="FILTER", flt=("HPF", 0, 20, 100)),
+    O(100, 1, wave="WHITE", d=55, s=0, rl=50, c=9, vel=50),
     O(35, 1, hz=5400, wave="SQR", d=40, s=0, rl=40, c=9), O(30, 1, hz=7900, wave="SQR", d=40, s=0, rl=40, c=9),
     OFF, OFF, OFF],
-  vp=[VP("MW", "OP1.DEC", 15)], sends=(0, 0, 0, 10), pat="BEAT",
-  gain=30, note="noise over 8 kHz and two metallic squares; MW longer")
+  flt=FLT("HPF12", 6500, reso=15), vp=[VP("MW", "OP1.DEC", 15)], sends=(0, 0, 0, 10), pat="BEAT",
+  gain=30, note="noise and two metallic squares over a 6.5 kHz high-pass; MW longer")
 P("OPEN HAT", "D", 32, [
-    O(80, 1, hz=7500, wave="WHITE", d=450, s=0, rl=300, c=8, vel=50, mode="FILTER", flt=("HPF", 0, 20, 100)),
+    O(100, 1, wave="WHITE", d=450, s=0, rl=300, c=8, vel=50),
     O(35, 1, hz=5400, wave="SQR", d=350, s=0, rl=300, c=8), O(30, 1, hz=7900, wave="SQR", d=350, s=0, rl=300, c=8),
     O(25, 1, hz=6300, wave="SQR", d=300, s=0, rl=300, c=8), OFF, OFF],
-  vp=[VP("MW", "OP1.DEC", 15)], sends=(0, 0, 0, 15), pat="BEAT", gain=29.9, note="the open hat: the same, ringing")
+  flt=FLT("HPF12", 6000, reso=15), vp=[VP("MW", "OP1.DEC", 15)], sends=(0, 0, 0, 15), pat="BEAT",
+  gain=29.9, note="the open hat: the same, ringing (the main filter, not an operator's: ~6 points less on six notes)")
 P("CLAP", "D", 32, [
     O(95, 1, hz=1000, wave="WHITE", d=220, s=0, rl=150, c=8, vel=50, ll=-90, ll_c="EG3"), OFF, OFF, OFF, OFF, OFF],
   eg=[None, None, EG(d=70, s=0, rl=50, c=0)], lfo=[LFO("SAWD", 40.0, ks=2)], flt=FLT("BPF12", 1200, reso=20),
