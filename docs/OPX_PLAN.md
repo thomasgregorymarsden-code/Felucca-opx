@@ -315,6 +315,14 @@ filter (~6 points less); every other poly factory patch estimates under ~65.
 (the short-buffer effects cost nothing while off). The benchmark had no effect rows then; it has since (OPX SIN + FX1:
 each played type at its defaults, ONE its share past SIN's row).
 
+**2026-10-28, the effects (6f25840), OPX Solo:** idle 14.8 %, SIN 45.1 %. One effect on FX1 at its defaults, its own
+share (points): U.ENS 6.3 (VOICE 4), RTRY 5.8, CHO 3.2, G.AMP 3.0, ENH 2.6, PHA / PHABPM 2.4, DIST 2.4, PAN / PANBPM
+1.5, A.WAH 1.5, EXC 1.4, FLNBPM 1.3, COMP 1.3, FLNG 1.2, DEC 1.1, LIMIT 1.1, FLTR 1.0, 3EQ 0.0 (flat: skipped; the
+row equals SIN's to the digit, so the rows' noise is small). Measured on a mono part: after an effect that makes two
+channels (PAN, CHO, U.ENS, RTRY, ENH) the next one runs on both, ~2x its row. The worst chain of three (U.ENS, RTRY,
+CHO) ~15–20 points of Solo's ~70; one short-buffer effect fits every factory patch's estimate. No factory patch uses
+the short-buffer types yet.
+
 **The modes** (the mode on all six operators of six notes, SIN, the values typical; "one operator" the cost of one
 operator in that mode over a sine operator, on six notes):
 
