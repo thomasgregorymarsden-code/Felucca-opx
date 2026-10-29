@@ -1220,14 +1220,39 @@ static int learn_protocol(void)
     return bad;
 }
 
+/* NAMES of every engine arrive whole: the count, that many names, the two page titles, then F7 (OPX Solo's 126 OPX
+ * factory patches once overflowed the reply buffer and the editor's connect failed with "short reply") */
+static int names_whole(void)
+{
+    int bad = 0;
+    uint32_t e, n, i, k, ok = 1;
+    uint8_t a[1];
+    reset();
+    for (e = 0; e < NENGINES; e++) {
+        a[0] = (uint8_t)e;
+        n = request(ED_NAMES, a, 1);
+        if (n < 8u || host_wire[n - 1u] != 0xF7u || host_wire[5] != e || host_wire[6] != ENGINES[e]->npresets) { ok = 0; continue; }
+        for (i = 7, k = 0; i < n - 1u; i++)
+            k += !host_wire[i];
+        if (k != ENGINES[e]->npresets + 2u)
+            ok = 0;
+    }
+    bad += check("NAMES of every engine: each name and both page titles, whole", ok);
+    return bad;
+}
+
 #ifndef EDITOR_TEST_NO_MAIN                              /* (robust_test.c, fuzz_*.c: this file is their base) */
 int main(void)
 {
-    int bad = preferences() + motion_locks() + framing() + uart_recovery() + steps() + samples() + song_protocol() + malformed_saves() +
+#if FELUCCA_OPX_ONLY                                     /* (OPX Solo: the engines it has) */
+    int bad = names_whole() + opx_patches();
+#else
+    int bad = names_whole() + preferences() + motion_locks() + framing() + uart_recovery() + steps() + samples() + song_protocol() + malformed_saves() +
               fm6_patches() + user_preset_roundtrip() + live_sync() + usb_burst() + menu_protocol() + drum_kit_retired() +
               learn_protocol();
 #if FELUCCA_OPX
     bad += opx_patches();
+#endif
 #endif
     printf("%s\n", bad ? "EDITOR TEST FAILED" : "editor test passed");
     return bad != 0;

@@ -5,6 +5,9 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## 0.2.0 (2026-10-29)
 
+- **OPX Solo: the web editor connects.** Its NAMES reply (the 126 OPX factory patches' names, 1664 bytes) overflowed
+  the 664-byte reply buffer and the editor stopped with "Error: short reply". Solo's buffer is now 1696 bytes;
+  `editor_test` checks every engine's NAMES whole, and runs on a Solo build too.
 - **OPX Solo's factory patches use the new effects and voice settings** (F9 onward; F1-F8, shared with OPX,
   unchanged): rotary speaker on PERC ORGAN and ROCK ORGAN; chorus on E.GRAND, POLY KEYS, STEEL PAN, VOX LEAD, the
   pads and POLY SYNTH; the string machine's ensemble (U.ENS) on STRINGS, SLOW STRGS, VIOLINS, MS STRINGS; shimmer

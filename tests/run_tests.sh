@@ -305,6 +305,8 @@ if [ -f build/gen/felucca_tables.h ]; then
     $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/editor_test" tests/editor_test.c -lm
     run "editor: real C protocol, malformed transfers, queue recovery, MENU settings (writes build/host/menu.json)" \
         env MENU_JSON="$OUT/menu.json" "$OUT/editor_test"
+    $CC -w -DFELUCCA_OPX_ONLY=1 -Ibuild/gen -Ifirmware/src -o "$OUT/editor_test_solo" tests/editor_test.c -lm
+    run "editor built with FELUCCA_OPX_ONLY=1 (OPX Solo): NAMES of its 126 OPX patches whole, the OPX commands" "$OUT/editor_test_solo"
     $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/flashscan_proto_test" tests/flashscan_proto_test.c -lm
     run "OPX fork: FLASH_SCAN (cmd 120) through the editor protocol" "$OUT/flashscan_proto_test"
     $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/robust_test" tests/robust_test.c -lm

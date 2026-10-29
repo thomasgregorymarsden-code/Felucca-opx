@@ -20,7 +20,12 @@ enum { ED_INFO = 1, ED_GET, ED_SET, ED_DUMP, ED_DESC, ED_STEP_GET, ED_STEP_SET, 
        ED_UI_STATE, ED_UI_SET, ED_UI_PALETTES, ED_FAV_GET, ED_FAV_SET,
        ED_MOTION = 64, ED_BACKUP_LIST, ED_BACKUP_GET, ED_BACKUP_PUT };                              /* v6: song chain */
 
-static uint8_t ed_out[664] __attribute__((section(".pool")));   /* (MOTION op 8: 128 records and their kinds, 653 bytes) */
+#if defined FELUCCA_OPX_ONLY && FELUCCA_OPX_ONLY
+#define ED_OUT_N 1696u   /* (OPX Solo: NAMES of its 126 factory patches, 5 + 2 + 126 x 13 + 2 x 9 + 1 = 1664 bytes) */
+#else
+#define ED_OUT_N 664u    /* (MOTION op 8: 128 records and their kinds, 653 bytes; NAMES of OPX's 8 patches: 129) */
+#endif
+static uint8_t ed_out[ED_OUT_N] __attribute__((section(".pool")));
 static uint32_t ed_n;
 
 static void ed_begin(uint32_t cmd)
