@@ -5,6 +5,16 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPX Solo's factory patches use the new effects and voice settings** (F9 onward; F1-F8, shared with OPX,
+  unchanged): rotary speaker on PERC ORGAN and ROCK ORGAN; chorus on E.GRAND, POLY KEYS, STEEL PAN, VOX LEAD, the
+  pads and POLY SYNTH; the string machine's ensemble (U.ENS) on STRINGS, SLOW STRGS, VIOLINS, MS STRINGS; shimmer
+  reverb on SHIMMER, HALO, SPACE WIND; spring on FUZZ GTR and LASER; tape echo on LO-FI KEYS, FAT LEAD, SOFT LEAD,
+  SYNC LEAD and DUB CHORD; tempo delays on KALIMBA, SQUARE LD, BELL LEAD, RANDOM PAD, BLIP; early reflections on
+  TRUMPET, SAXOPHONE, CLAP; GRAIN on COMPUTER and GLITCH. Glide on the mono leads; legato slides on ACID BASS, 808 SUB,
+  FRETLESS, TROMBONE, CELLO. A patch with its own delay or reverb has its DELAY send at 0 (that bus is silent while
+  it plays). Levels re-matched with PROG LEVEL (within ~1 dB of before). `opx_test --audit` estimates each patch's
+  share of the processor (COST: six notes and the effects, from the device benchmark); every Solo patch is under ~66
+  but AIR PAD (~74, unchanged: two FILTER-mode operators).
 - **Voice section (M6):** each OPX patch carries the opsix's PROG LEVEL, BEND UP / DOWN and VOICE page (ASSIGN,
   GLIDE and its time, UNISON voices, DETUNE, SPREAD). Picking a patch (SLOT, PRESETS, the editor) sets the track's
   VOICE settings from it; OPERATORS' VOICE rows store them back into the patch. PROG LEVEL counts from the INIT's

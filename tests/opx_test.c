@@ -2100,14 +2100,55 @@ static void dump(void)
 /* --audit (tools/opx_factory.py's bank): each factory patch alone, held 1 s at C2, C4, C6, velocity 100: its peak and
  * mean (of VOICE_FS; both also C1..C7 at velocity 127, as test_factory), its loudness (the RMS of its loudest 50 ms while held, dB of VOICE_FS), brightness (the RMS slope's frequency: RMS(dy) / RMS(y)
  * x fs / 2 pi, Hz: the spectral centroid for a sine, above it for richer tones), and how long the release rings to -60
- * dB of the held level (ms) */
+ * dB of the held level (ms); COST: an estimate of the device's share for six notes and the effects (points of real
+ * time, as MENU > INFO's benchmark: Solo has ~70 above its idle): six notes from the benchmark's rows (a voice, its
+ * sounding operators, their waves and modes, the main filter), plus each live effect's measured share (OPX_FXPT),
+ * twice after an effect that made two channels. An estimate: LFOs, EGs and V.PATCH are left out (small) */
+static const float OPX_FXPT[OPX_NFXT] = {0, 4.3f, 6.6f, 2.7f, 2.7f, 1.8f, 1.9f, 1.7f, 1.7f, 6.3f, 1.9f, 1.7f, 2.9f, 1.4f,
+    2.5f, 2.8f, 4.1f, 1.4f, 2.2f, 3.0f, 1.7f, 3.4f, 4.6f, 3.8f, 3.8f, 5.9f, 5.6f, 10.0f, 9.0f, 10.8f, 8.1f};
+static const uint8_t OPX_FXWIDE[OPX_NFXT] = {0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0,
+    0, 1, 1, 1, 1};
+static double audit_cost(uint32_t pi)
+{
+    /* (the device's benchmark, Solo, six notes: SIN 7.5 a note for six operators; a sounding operator ~1.0 a note over
+     * a voice's 1.6; each wave's and mode's extra over SIN a note, from the all-six-operators rows / 6) */
+    static const float WAVE[OPX_NWAVE] = {0, 0.53f, 0.53f, 0.12f, 0.17f, 0.15f, 0.42f, 0.43f, 0.13f, 0.13f, 0.13f, 0.13f,
+        0.13f, 0.13f, 0.13f, 0.13f, 0.13f, 0.13f, 0.13f, 0.05f, 0, 0.55f, 0.53f};
+    static const float MODE[OPX_NMODE] = {0, 0.48f, 2.65f, 4.1f, 0.58f, 1.6f, 0, 0};
+    double note = 1.6, fx = 0;
+    uint32_t k, wide = 0;
+    setup(0, 0);
+    factory_track(pi);
+    for (k = 0; k < OPX_NOP; k++) {
+        const opx_op_t *o = &opx_t_fp.op[k];
+        if (!o->level || o->mode == OPX_M_MUTE)
+            continue;
+        note += 1.0 + WAVE[o->wave % OPX_NWAVE] + MODE[o->mode % OPX_NMODE];
+        if (o->mode == OPX_M_FILTER && o->flt_type >= 4u)
+            note += 0.25;                            /* (the MG / MS-20 types: MG24's row over LPF's) */
+    }
+    if (opx_t_fp.flt.on)
+        note += opx_t_fp.flt.type == OPX_MF_LPF12 ? 1.6 : 1.9;
+    for (k = 0; k < 3u; k++) {
+        const opx_fxp_t *x = &opx_t_fp.fx[k];
+        if (opx_fx_live(x)) {
+            fx += OPX_FXPT[x->type] * (wide ? 2.0f : 1.0f);
+            wide |= OPX_FXWIDE[x->type];
+        }
+    }
+    {                                                /* (MONO / LEGATO: one note; UNISON its voices; POLY six) */
+        uint32_t nv = opx_t_fp.unison ? (opx_t_fp.unison + 1u < OPX_POLY ? opx_t_fp.unison + 1u : OPX_POLY)
+                    : opx_t_fp.assign ? 1u : OPX_POLY;
+        return nv * note + fx;
+    }
+}
 static void audit(void)
 {
     static double y[FS * 3];
     static const uint32_t NOTE[3] = {36, 60, 84};
     uint32_t pi, k, i;
-    printf("%-3s %-11s %-8s %6s %6s %7s %7s %7s %7s %7s %7s %6s\n", "F", "NAME", "", "PEAK", "MEAN", "LOUD36", "LOUD60",
-           "LOUD84", "BRT36", "BRT60", "BRT84", "REL60");
+    printf("%-3s %-11s %-8s %6s %6s %7s %7s %7s %7s %7s %7s %6s %5s\n", "F", "NAME", "", "PEAK", "MEAN", "LOUD36", "LOUD60",
+           "LOUD84", "BRT36", "BRT60", "BRT84", "REL60", "COST");
     for (pi = 0; pi < OPX_NFACTORY; pi++) {
         double pk = 0, mn = 0, rms[3], brt[3], rel = 0;
         for (k = 0; k < 3u; k++) {
@@ -2159,8 +2200,8 @@ static void audit(void)
             }
             mn = fabs(s / n) > mn ? fabs(s / n) : mn;
         }
-        printf("F%-3u %-11s %-8s %6.2f %6.3f %7.1f %7.1f %7.1f %7.0f %7.0f %7.0f %6.0f\n", pi + 1, ENG_OPX.presets[pi].name,
-               "", pk / VOICE_FS, mn / VOICE_FS, rms[0], rms[1], rms[2], brt[0], brt[1], brt[2], rel);
+        printf("F%-3u %-11s %-8s %6.2f %6.3f %7.1f %7.1f %7.1f %7.0f %7.0f %7.0f %6.0f %5.1f\n", pi + 1, ENG_OPX.presets[pi].name,
+               "", pk / VOICE_FS, mn / VOICE_FS, rms[0], rms[1], rms[2], brt[0], brt[1], brt[2], rel, audit_cost(pi));
     }
 }
 

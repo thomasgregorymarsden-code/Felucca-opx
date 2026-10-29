@@ -93,8 +93,8 @@ P("STRINGS", "P", 32, [
   eg=[None, EG(a=600, d=1500, s=70, rl=900, c=4)], lfo=[LFO("SIN", 5.2, ks=2, fade=900)], plfo=0.08,
   flt=FLT("LPF12", 2200, reso=10, eg2=10, kh=32, kc=60),
   vp=[VP("MW", "FLT.CUTOFF", 15), VP("VEL", "FLT.CUTOFF", 6)],
-  fx=[FX("3EQ", -2, -3, 2, 2500)], sends=(0, 90, 10, 60), pat="PAD",
-  gain=3.9, note="four detuned sawtooth carriers (the SAW wave), a slow LPF; MW brighter")
+  fx=[FX("3EQ", -2, -3, 2, 2500), FX("U.ENS", 50, 50, 30, 4)], sends=(0, 90, 10, 60), pat="PAD",
+  gain=3.9, note="four detuned sawtooth carriers (the SAW wave), a slow LPF; MW brighter", level=-2.0)
 P("SUB BASS", "B", 1, [
     O(100, 1, a=2, rl=80), O(38, 1, a=2, d=400, s=60, rl=80, vel=50),
     O(55, 0.5, a=2, rl=80), OFF, OFF, OFF],
@@ -153,13 +153,13 @@ P("TOY PIANO", "K", 5, [
 P("PERC ORGAN", "K", 32, [
     O(80, 1, a=2, rl=30), O(60, 2, a=2, rl=30), O(55, 4, a=2, rl=30),
     O(72, 2, a=1, d=600, s=0, rl=30, c=9, vel=30), O(50, 0.5, a=2, rl=30), OFF],
-  lfo=[LFO("SIN", 6.6)], plfo=0.1, plfo_c="MW", fx=[FX("3EQ", 1, 2, 0, 1000), FX("PAN", 30, "SINE", 6.0, 50)],
+  lfo=[LFO("SIN", 6.6)], plfo=0.1, plfo_c="MW", fx=[FX("3EQ", 1, 2, 0, 1000), FX("RTRY", 50, "SLOW", 0, "NAT")],
   sends=(0, 40, 0, 25), pat="KEYS", gain=3.4, note="8' 4' 2' with a decaying second-harmonic percussion; MW vibrato")
 P("ROCK ORGAN", "K", 32, [
     O(85, 0.5, a=1, rl=30), O(85, 1, a=1, rl=30), O(70, 1.5, a=1, rl=30), O(78, 2, a=1, rl=30),
     O(65, 3, a=1, rl=30), O(60, 4, a=1, d=200, s=70, rl=30, c=8)],
   lfo=[LFO("SIN", 6.8)], plfo=0.15, plfo_c="MW",
-  fx=[FX("G.AMP", 55, "UK 70S", 60, -4), FX("PAN", 40, "SINE", 6.5, 50)], sends=(0, 30, 0, 25), pat="KEYS",
+  fx=[FX("G.AMP", 55, "UK 70S", 60, -4), FX("RTRY", 55, "FAST", 0, "NAT")], sends=(0, 30, 0, 25), pat="KEYS",
   gain=-30, note="all six drawbars through an overdriven amp, a fast pan for the rotor; MW vibrato")
 P("PIPE ORGAN", "K", 32, [
     O(70, 0.5, a=70, rl=300), O(80, 1, a=60, rl=300), O(60, 2, a=50, rl=300), O(50, 3, a=50, rl=300),
@@ -182,20 +182,20 @@ P("LO-FI KEYS", "K", 5, [
     O(65, 1, det=7, d=2000, s=0, rl=350, c=8, vel=40), O(45, 14, d=80, s=0, rl=80, c=9, vel=90),
     OFF, OFF],
   lfo=[LFO("TRI", 0.6)], vp=[VP("LFO1", "PROG.PITCH", 0.15), VP("MW", "PROG.PITCH", 0.2)],
-  fx=[FX("DEC", 60, 9000, 10.0, 30), FX("3EQ", 3, -6, 0, 1000)], sends=(0, 30, 20, 30), pat="KEYS",
+  fx=[FX("DEC", 60, 9000, 10.0, 30), FX("3EQ", 3, -6, 0, 1000), FX("TDLY", 25, 30, 380, 40)], sends=(0, 30, 0, 30), pat="KEYS",
   gain=2.5, note="an EP through a 10-bit sampler with tape wow (LFO1 on pitch); MW deeper wow")
 P("E.GRAND", "K", 7, [
     O(92, 1, d=3500, s=0, rl=350, c=9, vel=45), O(64, 1, d=1600, s=0, rl=300, c=9, vel=80, ktrk=(0, -30, 60)),
     O(68, 2, det=3, d=2500, s=0, rl=350, c=9, vel=45), O(48, 3, d=400, s=0, rl=200, c=9, vel=85),
     O(42, 1, det=-3, d=1800, s=0, rl=300, c=9, vel=75), O(38, 7, d=80, s=0, rl=60, c=9, vel=90)],
-  vp=[VP("MW", "OP4.LEVEL", 15)], fx=[FX("EXC", 35, 5000, 10), FX("PAN", 20, "SINE", 1.0, 50)],
-  sends=(0, 60, 10, 35), pat="MELODY", gain=2.7, note="an electric grand: bright octave pair, a chorus of strings")
+  vp=[VP("MW", "OP4.LEVEL", 15)], fx=[FX("EXC", 35, 5000, 10), FX("CHO", 40, 40, 0.6, 50)],
+  sends=(0, 60, 10, 35), pat="MELODY", gain=2.7, note="an electric grand: bright octave pair, a chorus of strings", level=-4.0)
 P("POLY KEYS", "K", 32, [
     O(75, 1, wave="SAW", d=900, s=50, rl=250, c=6, vel=40), O(70, 1, det=9, wave="SQR", d=900, s=50, rl=250, c=6, vel=40),
     O(45, 0.5, d=900, s=50, rl=250, c=6), OFF, OFF, OFF],
   eg=[None, EG(d=450, s=20, rl=300, c=6)], flt=FLT("LPF24", 700, reso=20, eg2=40, eg2_c="VEL", kh=48),
   vp=[VP("MW", "FLT.CUTOFF", 15)], sends=(0, 60, 25, 30), pat="KEYS",
-  gain=20.4, note="a saw and a square into a 24 dB filter plucked by velocity; MW opens it")
+  gain=20.4, note="a saw and a square into a 24 dB filter plucked by velocity; MW opens it", fx=[FX("CHO", 40, 50, 0.8, 50)])
 P("HOUSE ORG", "K", 1, [
     O(88, 1, d=350, s=0, rl=120, c=8, vel=30), O(60, 2, d=250, s=0, rl=120, c=8, vel=50),
     O(70, 2, d=300, s=0, rl=120, c=8, vel=30), O(50, 3, d=200, s=0, rl=120, c=8, fb=30, vel=50),
@@ -241,7 +241,7 @@ P("CRYSTAL", "U", 5, [
 P("KALIMBA", "U", 5, [
     O(95, 1, d=1400, s=0, rl=300, c=9, vel=50), O(55, 5.4, d=50, s=0, rl=40, c=9, vel=85),
     O(40, 5.4, d=300, s=0, rl=150, c=9, vel=50), O(30, 1, d=30, s=0, rl=30, c=9), OFF, OFF],
-  vp=[VP("MW", "OP2.LEVEL", 20)], fx=[FX("3EQ", 3, 0, -2, 500)], sends=(0, 0, 20, 40), pat="MELODY",
+  vp=[VP("MW", "OP2.LEVEL", 20)], fx=[FX("3EQ", 3, 0, -2, 500), FX("DLYBPM", 25, 30, "3/16", "1/4")], sends=(0, 0, 0, 40), pat="MELODY",
   gain=1.7, note="a plucked tine: its 5.4 mode, a sharp click")
 P("MUSIC BOX", "U", 5, [
     O(90, 1, d=2200, s=0, rl=1000, c=10, vel=30), O(48, 4, d=400, s=0, rl=300, c=10, vel=60),
@@ -254,7 +254,7 @@ P("STEEL PAN", "U", 5, [
     O(60, 2, d=1100, s=0, rl=300, c=9, vel=40), O(42, 3.2, d=200, s=0, rl=100, c=9, vel=70),
     O(40, 3, d=600, s=0, rl=200, c=9), O(30, 1, d=100, s=0, rl=100, c=9)],
   eg=[EG(d=40, s=0, rl=40, c=8)], vp=[VP("MW", "OP2.LEVEL", 18)], sends=(0, 20, 20, 40), pat="MELODY",
-  gain=8.8, note="a hammered pan: a little pitch blip (EG1), the 2nd and 3rd notes of the dome")
+  gain=8.8, note="a hammered pan: a little pitch blip (EG1), the 2nd and 3rd notes of the dome", fx=[FX("CHO", 30, 30, 0.5, 50)])
 P("HARP", "U", 5, [
     O(92, 1, d=3500, s=0, rl=1200, c=9, vel=50), O(45, 1, d=600, s=0, rl=400, c=9, vel=70),
     O(60, 2, d=2000, s=0, rl=1000, c=9, vel=50), O(30, 1, d=300, s=0, rl=200, c=9, vel=60),
@@ -271,7 +271,7 @@ P("FUZZ GTR", "U", 1, [
     O(90, 1, d=3000, s=40, rl=200, c=7, vel=30), O(64, 1, d=1500, s=40, rl=200, c=7, fb=55, vel=60),
     O(55, 2, det=6, d=2500, s=30, rl=200, c=7, vel=30), O(45, 1, d=800, s=20, rl=200, c=7, vel=60), OFF, OFF],
   lfo=[LFO("SIN", 5.5, ks=2, fade=700)], plfo=0.25, plfo_c="MW",
-  fx=[FX("G.AMP", 70, "UK 80S", 55, -8), FX("3EQ", -2, -3, 3, 1500)], sends=(0, 30, 20, 30), mono=1, pat="LEAD",
+  fx=[FX("G.AMP", 70, "UK 80S", 55, -8), FX("3EQ", -2, -3, 3, 1500), FX("SPRING", 20, 50, 1200, 60)], sends=(0, 30, 0, 30), mono=1, pat="LEAD",
   gain=-26.7, note="a sawtooth-like pair through a high-gain amp; MW a guitarist's vibrato")
 P("KOTO", "U", 5, [
     O(92, 1, d=1800, s=0, rl=300, c=9, vel=50, pe=0.6), O(55, 3, d=200, s=0, rl=150, c=9, vel=80, pe=0.6),
@@ -329,7 +329,7 @@ P("FRETLESS", "B", 1, [
     O(100, 1, a=10, d=2500, s=50, rl=150, c=7, vel=30), O(55, 1, a=30, d=800, s=40, rl=150, c=7, vel=60),
     O(35, 2, a=10, d=1500, s=30, rl=150, c=7), OFF, OFF, OFF],
   lfo=[LFO("SIN", 5.0, ks=2, fade=600)], plfo=0.25, plfo_c="MW", fx=[FX("3EQ", 3, -2, 2, 700)],
-  sends=(0, 35, 0, 25), mono=1, pat="OFFBEAT", gain=17.7, note="a singing fretless: a soft mwah from op 2's slower attack")
+  sends=(0, 35, 0, 25), mono=1, pat="OFFBEAT", gain=17.7, note="a singing fretless: a soft mwah from op 2's slower attack", legato=1, glide=90)
 P("PICK BASS", "B", 1, [
     O(100, 1, d=1400, s=40, rl=80, c=7, vel=30), O(62, 1, d=500, s=25, rl=80, c=7, fb=30, vel=60),
     O(45, 1, d=600, s=20, rl=80, c=7), O(55, 5, d=40, s=0, rl=40, c=9, vel=90), OFF, OFF],
@@ -340,7 +340,7 @@ P("ACID BASS", "B", 32, [
   eg=[None, EG(d=200, s=0, rl=100, c=7)],
   flt=FLT("LPF24", 300, reso=72, eg2=48, eg2_c="VEL", kh=32, kc=48),
   vp=[VP("MW", "FLT.CUTOFF", 25)], fx=[FX("DIST", 35, -10, 1200, 3)], sends=(0, 0, 25, 10), mono=1, pat="ACID",
-  gain=-0.6, note="one sawtooth, a resonant 24 dB filter, velocity the envelope's accent; MW opens it")
+  gain=-0.6, note="one sawtooth, a resonant 24 dB filter, velocity the envelope's accent; MW opens it", legato=1, glide=60)
 P("PULSE BASS", "B", 32, [
     O(90, 1, wave="SQR", d=600, s=60, rl=60, c=6, vel=30), O(70, 0.5, d=600, s=80, rl=60, c=6), OFF, OFF, OFF, OFF],
   eg=[None, EG(d=280, s=10, rl=100, c=7)], flt=FLT("LPF24", 400, reso=30, eg2=36, eg2_c="VEL", kh=32, kc=48),
@@ -357,12 +357,12 @@ P("808 SUB", "B", 1, [
     OFF, OFF, OFF, OFF],
   eg=[EG(d=50, s=0, rl=50, c=8)], vp=[VP("MW", "OP2.LEVEL", 35)], fx=[FX("DIST", 45, -9, 100, 4)],
   flt=FLT("HPF12", 22),
-  sends=(0, 0, 0, 0), mono=1, pat="SUB", gain=-15.3, note="a long sine with a 12-semitone drop (EG1), saturated; MW grit")
+  sends=(0, 0, 0, 0), mono=1, pat="SUB", gain=-15.3, note="a long sine with a 12-semitone drop (EG1), saturated; MW grit", legato=1, glide=50)
 P("WOBBLE", "B", 1, [
     O(100, 1, rl=60), O(70, 1, fb=40, rl=60, ll=-80), O(60, 0.5, rl=60), O(40, 1, rl=60), OFF, OFF],
   lfo=[LFO("SIN", 3.0, ks=1)], vp=[VP("MW", "LFO1.SPEED", 30)], flt=FLT("LPF24", 3000, reso=20, kh=0),
   fx=[FX("DIST", 30, -9, 300, 3)], sends=(0, 0, 0, 5), mono=1, pat="SUB",
-  gain=-13.1, note="LFO1 pumps the modulator (LMOD): a wobble; MW speeds it up")
+  gain=-13.1, note="LFO1 pumps the modulator (LMOD): a wobble; MW speeds it up", legato=1)
 P("FAT BASS", "B", 32, [
     O(80, 1, wave="SAW", d=800, s=70, rl=80, c=6), O(80, 1, det=8, wave="SAW", d=800, s=70, rl=80, c=6),
     O(70, 1, det=-5, wave="SQR", d=800, s=70, rl=80, c=6), OFF, OFF, OFF],
@@ -403,48 +403,48 @@ P("SYNC LEAD", "L", 1, [
     O(95, 1, rl=200), O(70, 1, rl=200, pe=19, wave="SAW"), O(45, 1, det=6, rl=200), OFF, OFF, OFF],
   eg=[EG(d=700, s=20, rl=300, c=6)], lfo=[LFO("SIN", 5.5, ks=2, fade=500)], plfo=0.3, plfo_c="MW",
   vp=[VP("MW", "OP2.PITCH", 8)], flt=FLT("LPF24", 6000, reso=10, kh=32),
-  fx=[FX("DIST", 20, -8, 3000, 2)], sends=(0, 20, 35, 25), mono=1, pat="LEAD",
-  gain=-7.9, note="a fake hard sync: op 2's pitch swept down by EG1; MW raises it and adds vibrato")
+  fx=[FX("DIST", 20, -8, 3000, 2), FX("TDLBPM", 25, 35, "3/16", 30)], sends=(0, 20, 0, 25), mono=1, pat="LEAD",
+  gain=-7.9, note="a fake hard sync: op 2's pitch swept down by EG1; MW raises it and adds vibrato", glide=70)
 P("SQUARE LD", "L", 32, [
     O(80, 1, wave="SQR", rl=150), O(70, 1, det=6, wave="SQR", rl=150), OFF, OFF, OFF, OFF],
   lfo=[LFO("SIN", 5.8, ks=2, fade=400)], plfo=0.35, plfo_c="MW", flt=FLT("LPF12", 3500, reso=15, kh=48),
-  vp=[VP("VEL", "FLT.CUTOFF", 8)], sends=(0, 25, 35, 25), mono=1, pat="LEAD",
-  gain=3.9, note="two squares, a little apart; MW vibrato")
+  vp=[VP("VEL", "FLT.CUTOFF", 8)], sends=(0, 25, 0, 25), mono=1, pat="LEAD",
+  gain=3.9, note="two squares, a little apart; MW vibrato", fx=[FX("DLYBPM", 25, 35, "3/16", "1/4")], glide=60)
 P("WHISTLE", "L", 1, [
     O(85, 1, a=40, rl=150), O(20, 1, a=40, rl=150), O(25, 1, wave="PINK", a=10, d=150, s=10, rl=100, c=6),
     OFF, OFF, OFF],
   oct=1, lfo=[LFO("SIN", 5.5, ks=2, fade=300)], plfo=0.25, plfo_c="MW", sends=(0, 0, 25, 50), mono=1, pat="LEAD",
-  gain=30, note="an almost pure sine an octave up, a breath of noise; MW vibrato")
+  gain=30, note="an almost pure sine an octave up, a breath of noise; MW vibrato", glide=80)
 P("THIN LEAD", "L", 32, [
     O(80, 1, width=35, rl=150), O(70, 1, det=5, width=60, rl=150), O(40, 2, width=50, rl=150), OFF, OFF, OFF],
   lfo=[LFO("TRI", 5.5, ks=2, fade=400)], plfo=0.3, plfo_c="MW", flt=FLT("HPF12", 200, kh=64),
   fx=[FX("PHA", 40, 50, 0.3, 50)], sends=(0, 30, 30, 25), mono=1, pat="LEAD",
-  gain=23.9, note="sines squeezed by FM WIDTH into thin pulses; MW vibrato")
+  gain=23.9, note="sines squeezed by FM WIDTH into thin pulses; MW vibrato", glide=50)
 P("FOLD LEAD", "L", 1, [
     O(90, 1, rl=200, mode="FOLD", fold=(35, 40, 15)), O(70, 1, rl=200, vel=60), O(40, 2, rl=200), OFF, OFF, OFF],
   lfo=[LFO("SIN", 5.5, ks=2, fade=400)], plfo=0.25, vp=[VP("MW", "OP2.LEVEL", 20)],
   flt=FLT("LPF12", 5000, kh=32), sends=(0, 20, 35, 25), mono=1, pat="LEAD",
-  gain=23.9, note="a wave-folded sine: velocity and the MW fold it further")
+  gain=23.9, note="a wave-folded sine: velocity and the MW fold it further", glide=60)
 P("CHIP LEAD", "L", 32, [
     O(80, 1, wave="SQR", rl=60), O(50, 2, wave="SQR", rl=60), OFF, OFF, OFF, OFF],
   lfo=[LFO("TRI", 7.0, ks=2, fade=200)], plfo=0.4, plfo_c="MW", fx=[FX("DEC", 100, 22000, 6.0, 0)],
-  sends=(0, 0, 30, 15), mono=1, pat="LEAD", gain=15.6, note="squares at 6 bits; MW a quick vibrato")
+  sends=(0, 0, 30, 15), mono=1, pat="LEAD", gain=15.6, note="squares at 6 bits; MW a quick vibrato", glide=40)
 P("FAT LEAD", "L", 32, [
     O(80, 1, wave="SAW", rl=200), O(80, 1, det=10, wave="SAW", rl=200), O(75, 1, det=-10, wave="SAW", rl=200),
     O(55, 0.5, wave="SQR", rl=200), OFF, OFF],
   eg=[None, EG(d=500, s=60, rl=300, c=6)], lfo=[LFO("SIN", 5.5, ks=2, fade=600)], plfo=0.3, plfo_c="MW",
-  flt=FLT("LPF24", 1500, reso=25, eg2=24, kh=48), fx=[FX("DIST", 20, -7, 1500, 2)], sends=(0, 25, 30, 25),
-  mono=1, pat="LEAD", gain=-6.2, note="three sawtooths and a sub square, a 24 dB filter's bite; MW vibrato")
+  flt=FLT("LPF24", 1500, reso=25, eg2=24, kh=48), fx=[FX("DIST", 20, -7, 1500, 2), FX("TDLY", 20, 30, 420, 20)], sends=(0, 25, 0, 25),
+  mono=1, pat="LEAD", gain=-6.2, note="three sawtooths and a sub square, a 24 dB filter's bite; MW vibrato", legato=1, glide=90)
 P("MS LEAD", "L", 32, [
     O(85, 1, wave="SAW", rl=200), O(60, 1, det=5, wave="SQR", rl=200), OFF, OFF, OFF, OFF],
   eg=[None, EG(d=400, s=40, rl=300, c=6)], flt=FLT("LPFMS", 1200, reso=70, eg2=30, kh=48),
   vp=[VP("MW", "FLT.CUTOFF", 25)], sends=(0, 10, 35, 20), mono=1, pat="LEAD",
-  gain=10.9, note="a saw and a square through a screaming MS-20 filter; MW opens it")
+  gain=10.9, note="a saw and a square through a screaming MS-20 filter; MW opens it", glide=70)
 P("BELL LEAD", "L", 5, [
     O(85, 1, rl=200), O(30, 1, rl=200), O(70, 1, det=4, d=1500, s=0, rl=300, c=9, vel=40),
     O(50, 3.5, d=600, s=0, rl=200, c=9, vel=70), O(40, 2, rl=200), O(30, 1, rl=200)],
-  lfo=[LFO("SIN", 5.5, ks=2, fade=500)], plfo=0.25, plfo_c="MW", sends=(0, 20, 40, 40), mono=1, pat="LEAD",
-  gain=4.6, note="a sine lead with a struck bell in front; MW vibrato")
+  lfo=[LFO("SIN", 5.5, ks=2, fade=500)], plfo=0.25, plfo_c="MW", sends=(0, 20, 0, 40), mono=1, pat="LEAD",
+  gain=4.6, note="a sine lead with a struck bell in front; MW vibrato", fx=[FX("DLYBPM", 30, 40, "1/8", "3/16")])
 P("VOX LEAD", "L", 21, [
     O(100, 1, hz=750, rl=200, mode="FILTER", flt=("BPF", 0, 40, 0)),
     O(92, 1, hz=1150, rl=200, mode="FILTER", flt=("BPF", 0, 40, 0)), O(100, 1, wave="SAW", rl=200),
@@ -452,16 +452,16 @@ P("VOX LEAD", "L", 21, [
     O(70, 1, hz=3400, rl=200, mode="FILTER", flt=("BPF", 0, 35, 0)), O(100, 1, det=4, wave="SAW", rl=200)],
   lfo=[LFO("SIN", 5.3, ks=2, fade=500)], plfo=0.3, plfo_c="MW", vp=[VP("MW", "OP2.LEVEL", 20)],
   sends=(0, 30, 30, 40), mono=1, pat="LEAD",
-  gain=9.3, note="sawtooths through four fixed band-pass operators (FILTER mode at 750, 1150, 2600, 3400 Hz): an 'ah'")
+  gain=9.3, note="sawtooths through four fixed band-pass operators (FILTER mode at 750, 1150, 2600, 3400 Hz): an 'ah'", fx=[FX("CHO", 30, 30, 0.4, 50)], glide=60, level=-4.0)
 P("SOFT LEAD", "L", 1, [
     O(90, 1, a=20, rl=250), O(40, 1, a=60, rl=250, fb=20), O(30, 2, a=20, rl=250), OFF, OFF, OFF],
-  lfo=[LFO("SIN", 5.2, ks=2, fade=700)], plfo=0.3, vp=[VP("MW", "OP2.LEVEL", 20)], sends=(0, 30, 40, 45),
-  mono=1, pat="LEAD", gain=28.8, note="a rounded sine lead with a delayed vibrato; MW brighter")
+  lfo=[LFO("SIN", 5.2, ks=2, fade=700)], plfo=0.3, vp=[VP("MW", "OP2.LEVEL", 20)], sends=(0, 30, 0, 45),
+  mono=1, pat="LEAD", gain=28.8, note="a rounded sine lead with a delayed vibrato; MW brighter", fx=[FX("TDLY", 25, 35, 450, 40)], glide=120, level=-8.0)
 P("SCREAMER", "L", 1, [
     O(90, 1, rl=200), O(70, 1, rl=200, fb=88), O(50, 2, rl=200, fb=40), OFF, OFF, OFF],
   flt=FLT("LPF24", 2500, reso=30, kh=48), lfo=[LFO("SIN", 6.0, ks=2, fade=400)], plfo=0.35, plfo_c="MW",
   fx=[FX("DIST", 40, -11, 2000, 3)], sends=(0, 20, 35, 25), mono=1, pat="LEAD",
-  gain=-5.3, note="a modulator at the noisy edge of its feedback, tamed by a filter; MW vibrato")
+  gain=-5.3, note="a modulator at the noisy edge of its feedback, tamed by a filter; MW vibrato", glide=50)
 P("TRANCE LD", "L", 32, [
     O(70, 1, det=-20, wave="SAW", rl=300), O(70, 1, det=-7, wave="SAW", rl=300), O(70, 1, wave="SAW", rl=300),
     O(70, 1, det=7, wave="SAW", rl=300), O(70, 1, det=20, wave="SAW", rl=300), O(50, 2, wave="SAW", rl=300)],
@@ -484,7 +484,7 @@ P("TRUMPET", "O", 1, [
     O(95, 1, a=30, rl=150, vel=30), O(70, 1, a=70, d=300, s=80, rl=150, c=4, vel=70, fb=30),
     O(40, 2, a=30, rl=150), O(30, 1, a=20, d=60, s=0, rl=60, c=8), OFF, OFF],
   lfo=[LFO("SIN", 5.5, ks=2, fade=600)], plfo=0.2, plfo_c="MW", flt=FLT("LPF12", 3000, kh=48),
-  sends=(0, 0, 15, 40), mono=1, pat="LEAD", gain=1.8, note="a bright solo trumpet: the modulator blooms after the attack")
+  sends=(0, 0, 15, 40), mono=1, pat="LEAD", gain=1.8, note="a bright solo trumpet: the modulator blooms after the attack", fx=[FX("REF", 20, "LOOSE", 140, -2)])
 P("FRENCH HRN", "O", 1, [
     O(95, 1, a=60, rl=300), O(50, 1, a=120, d=500, s=80, rl=300, c=4, vel=60), O(30, 2, a=60, rl=300),
     OFF, OFF, OFF],
@@ -495,14 +495,14 @@ P("TROMBONE", "O", 1, [
     O(40, 2, a=40, rl=200), OFF, OFF, OFF],
   eg=[EG(a=0, d=120, s=0, rl=100, c=6)], oct=-1, lfo=[LFO("SIN", 5.0, ks=2, fade=700)], plfo=0.15, plfo_c="MW",
   flt=FLT("LPF12", 1800, kh=48), sends=(0, 10, 10, 45), mono=1, pat="LEAD",
-  gain=1.7, note="a low brass with a scoop up into each note (EG1)")
+  gain=1.7, note="a low brass with a scoop up into each note (EG1)", legato=1, glide=70)
 P("SAXOPHONE", "O", 1, [
     O(92, 1, a=25, rl=150, vel=30), O(65, 1, a=40, d=500, s=70, rl=150, c=4, vel=70, fb=45),
     O(45, 3, a=30, d=300, s=40, rl=150, c=4, vel=60), O(25, 1, wave="PINK", a=10, d=200, s=20, rl=100, c=6),
     OFF, OFF],
   lfo=[LFO("SIN", 5.2, ks=2, fade=500)], plfo=0.2, plfo_c="MW", flt=FLT("LPF12", 2800, reso=15, kh=48),
   vp=[VP("VEL", "FLT.CUTOFF", 6)], sends=(0, 0, 20, 40), mono=1, pat="LEAD",
-  gain=11.9, note="a reedy pair with a 3:1 edge and breath noise")
+  gain=11.9, note="a reedy pair with a 3:1 edge and breath noise", fx=[FX("REF", 20, "LOOSE", 110, 0)])
 P("CLARINET", "O", 1, [
     O(92, 1, a=40, rl=150), O(55, 2, a=50, d=400, s=85, rl=150, c=4, vel=60), O(25, 1, a=30, rl=150),
     OFF, OFF, OFF],
@@ -534,7 +534,7 @@ P("WARM PAD", "P", 32, [
     O(75, 1, det=-8, wave="SAW", a=800, rl=1500), O(75, 1, det=8, wave="SAW", a=900, rl=1500),
     O(50, 0.5, a=900, rl=1500), OFF, OFF, OFF],
   eg=[None, EG(a=1500, d=3000, s=60, rl=1500, c=4)], flt=FLT("LPF12", 900, reso=10, eg2=12, kh=32),
-  vp=[VP("MW", "FLT.CUTOFF", 15)], sends=(0, 70, 20, 70), pat="PAD", gain=4.7, note="two detuned sawtooths, slow and warm")
+  vp=[VP("MW", "FLT.CUTOFF", 15)], sends=(0, 70, 20, 70), pat="PAD", gain=4.7, note="two detuned sawtooths, slow and warm", fx=[FX("CHO", 40, 50, 0.4, 50)], level=-1.5)
 P("BRASS PAD", "P", 32, [
     O(75, 1, det=-6, wave="SAW", a=200, rl=900), O(70, 1, det=6, wave="SQR", a=220, rl=900),
     O(55, 2, det=3, wave="SAW", a=240, rl=900), OFF, OFF, OFF],
@@ -553,46 +553,46 @@ P("CHOIR", "P", 22, [
     O(65, 1, det=-7, a=600, rl=1200), O(45, 2, det=3, a=650, rl=1200), O(35, 1, a=600, rl=1200, wave="SAW")],
   lfo=[LFO("SIN", 4.8, ks=2, fade=800)], plfo=0.12, flt=FLT("LPF12", 2400, kh=32),
   vp=[VP("MW", "OP6.LEVEL", 20)], sends=(0, 80, 10, 80), pat="PAD",
-  gain=-3.1, note="voices: detuned sines with a breathy saw modulator, a slow vibrato")
+  gain=-3.1, note="voices: detuned sines with a breathy saw modulator, a slow vibrato", fx=[FX("CHO", 40, 40, 0.3, 50)], level=-2.0)
 P("DIGI PAD", "P", 5, [
     O(80, 1, a=400, rl=1500, width=50), O(55, 2, a=600, d=3000, s=50, rl=1500, c=5),
     O(70, 1, det=6, a=500, rl=1500, width=70), O(45, 3, a=700, rl=1500), O(50, 2, a=600, rl=1500),
     O(35, 5, a=800, d=2000, s=40, rl=1500, c=5)],
-  vp=[VP("MW", "OP2.LEVEL", 20), VP("MW", "OP4.LEVEL", 20)], fx=[FX("DEC", 20, 16000, 14.0, 0)],
-  sends=(0, 50, 30, 70), pat="PAD", gain=3.8, note="narrowed sines (WIDTH) under FM: a digital pad; MW its dynamics")
+  vp=[VP("MW", "OP2.LEVEL", 20), VP("MW", "OP4.LEVEL", 20)], fx=[FX("DEC", 20, 16000, 14.0, 0), FX("CHO", 35, 40, 0.5, 50)],
+  sends=(0, 50, 30, 70), pat="PAD", gain=3.8, note="narrowed sines (WIDTH) under FM: a digital pad; MW its dynamics", level=-3.5)
 P("SWEEP PAD", "P", 32, [
     O(75, 1, det=-7, wave="SAW", a=500, rl=1500), O(75, 1, det=7, wave="SAW", a=500, rl=1500),
     O(55, 2, wave="SQR", a=600, rl=1500), OFF, OFF, OFF],
   lfo=[None, LFO("TRI", 0.12)], flt=FLT("LPF24", 800, reso=55, lfo2=24, kh=32),
   vp=[VP("MW", "LFO2.SPEED", 30)], sends=(0, 60, 30, 70), pat="PAD",
-  gain=15.6, note="a resonant filter swept slowly by LFO2; MW speeds the sweep")
+  gain=15.6, note="a resonant filter swept slowly by LFO2; MW speeds the sweep", fx=[FX("CHO", 35, 40, 0.5, 50)], level=-2.0)
 P("RANDOM PAD", "P", 32, [
     O(75, 1, det=-5, wave="SAW", a=300, rl=1500), O(75, 1, det=5, wave="SAW", a=300, rl=1500),
     O(50, 0.5, wave="TRI", a=300, rl=1500), OFF, OFF, OFF],
   lfo=[None, LFO("SH", 6.0)], flt=FLT("LPF24", 1200, reso=45, lfo2=18, kh=32),
-  vp=[VP("MW", "LFO2.SPEED", -40)], sends=(0, 50, 50, 70), pat="PAD",
-  gain=18.1, note="a sample-and-hold LFO2 steps the resonant filter: a pulsing, random pad; MW slows it")
+  vp=[VP("MW", "LFO2.SPEED", -40)], sends=(0, 50, 0, 70), pat="PAD",
+  gain=18.1, note="a sample-and-hold LFO2 steps the resonant filter: a pulsing, random pad; MW slows it", fx=[FX("DLYBPM", 25, 40, "3/16", "1/4")])
 P("SLOW STRGS", "P", 32, [
     O(72, 1, det=-10, wave="SAW", a=1200, rl=1800), O(72, 1, det=10, wave="SAW", a=1300, rl=1800),
     O(65, 0.5, det=-4, wave="SAW", a=1400, rl=1800), O(55, 0.5, det=5, wave="SAW", a=1500, rl=1800), OFF, OFF],
   lfo=[LFO("SIN", 5.0, ks=2, fade=1200)], plfo=0.08, flt=FLT("LPF12", 1400, reso=5, kh=32),
-  vp=[VP("MW", "FLT.CUTOFF", 15)], sends=(0, 90, 10, 85), pat="PAD", gain=8.8, note="a dark, slow string section in octaves")
+  vp=[VP("MW", "FLT.CUTOFF", 15)], sends=(0, 90, 10, 85), pat="PAD", gain=8.8, note="a dark, slow string section in octaves", fx=[FX("U.ENS", 50, 50, 25, 4)], level=-3.5)
 P("CELLO", "O", 1, [
     O(95, 1, a=150, rl=300), O(62, 1, a=200, d=600, s=80, rl=300, c=4, vel=60, fb=40), O(35, 2, a=150, rl=300),
     OFF, OFF, OFF],
   oct=-1, lfo=[LFO("SIN", 5.2, ks=2, fade=500)], plfo=0.2, plfo_c="MW", flt=FLT("LPF12", 2000, reso=10, kh=48),
-  sends=(0, 10, 10, 60), mono=1, pat="LEAD", gain=14.0, note="a bowed solo string: a bloom of brightness after the bow")
+  sends=(0, 10, 10, 60), mono=1, pat="LEAD", gain=14.0, note="a bowed solo string: a bloom of brightness after the bow", legato=1, glide=40)
 P("VIOLINS", "P", 32, [
     O(70, 1, det=-9, wave="SAW", a=250, rl=700), O(70, 1, det=9, wave="SAW", a=280, rl=700),
     O(60, 1, det=-3, wave="SAW", a=300, rl=700), O(45, 2, det=4, wave="SAW", a=300, rl=700), OFF, OFF],
   lfo=[LFO("SIN", 5.8, ks=2, fade=600)], plfo=0.1, flt=FLT("LPF12", 3500, reso=10, kh=32),
-  vp=[VP("MW", "FLT.CUTOFF", 12)], fx=[FX("3EQ", -3, 2, 2, 3000)], sends=(0, 90, 10, 70), pat="PAD",
-  gain=7.2, note="a brighter, faster string section with vibrato")
+  vp=[VP("MW", "FLT.CUTOFF", 12)], fx=[FX("3EQ", -3, 2, 2, 3000), FX("U.ENS", 40, 40, 35, 4)], sends=(0, 90, 10, 70), pat="PAD",
+  gain=7.2, note="a brighter, faster string section with vibrato", level=-3.0)
 P("MS STRINGS", "P", 32, [
     O(75, 1, det=-8, wave="SAW", a=350, rl=1000), O(75, 1, det=8, wave="SAW", a=350, rl=1000), OFF, OFF, OFF, OFF],
   eg=[None, EG(a=600, d=2000, s=50, rl=1000, c=4)], flt=FLT("LPFMS", 900, reso=40, eg2=18, kh=32),
   vp=[VP("MW", "FLT.CUTOFF", 15)], sends=(0, 80, 10, 70), pat="PAD",
-  gain=4.0, note="string synth through the MS-20 low-pass, a little reso")
+  gain=4.0, note="string synth through the MS-20 low-pass, a little reso", fx=[FX("U.ENS", 60, 60, 30, 6)])
 P("AIR PAD", "P", 21, [
     O(70, 1, a=1500, rl=2000, mode="FILTER", flt=("BPF", 12, 50, 0)),
     O(65, 3, a=1500, rl=2000, mode="RING", ring=(100, 0)), O(95, 1, wave="WHITE", a=1500, rl=2000),
@@ -604,18 +604,18 @@ P("DARK PAD", "P", 32, [
     O(75, 0.5, det=-6, wave="SAW", a=1500, rl=2500), O(75, 0.5, det=6, wave="SAW", a=1500, rl=2500),
     O(60, 1, wave="TRI", a=1800, rl=2500), OFF, OFF, OFF],
   lfo=[None, LFO("TRI", 0.08)], flt=FLT("LPF24", 500, reso=25, lfo2=6, kh=16),
-  vp=[VP("MW", "FLT.CUTOFF", 15)], fx=[FX("3EQ", 6, 6, 6, 1000)], sends=(0, 70, 30, 90), pat="PAD", gain=13.4, note="low sawtooths under a closed filter")
+  vp=[VP("MW", "FLT.CUTOFF", 15)], fx=[FX("3EQ", 6, 6, 6, 1000), FX("CHO", 35, 50, 0.3, 50)], sends=(0, 70, 30, 90), pat="PAD", gain=13.4, note="low sawtooths under a closed filter", level=-4.0)
 P("SHIMMER", "P", 5, [
     O(80, 1, a=700, rl=2500), O(35, 2, a=900, rl=2500), O(60, 2, det=5, a=900, rl=2500),
     O(40, 7, a=1200, d=3000, s=50, rl=2500, c=5), O(50, 4, det=-6, a=1000, rl=2500),
     O(35, 1, a=1200, rl=2500, ll=30)],
-  lfo=[LFO("TRI", 3.0)], vp=[VP("MW", "OP4.LEVEL", 20)], fx=[FX("PAN", 50, "TRI", 0.3, 50)],
-  sends=(0, 30, 60, 100), pat="PAD", gain=10.0, note="high FM partials shimmering (LMOD LFO1 on op 6), a long reverb")
+  lfo=[LFO("TRI", 3.0)], vp=[VP("MW", "OP4.LEVEL", 20)], fx=[FX("SHVERB", 35, "CLEAR", 70, 60)],
+  sends=(0, 30, 0, 100), pat="PAD", gain=10.0, note="high FM partials shimmering (LMOD LFO1 on op 6), a long reverb", level=-12.0)
 P("FOLD PAD", "P", 1, [
     O(80, 1, a=800, rl=2000, mode="FOLD", fold=(25, 40, 0)), O(75, 1, a=900, rl=2000, ll=40),
     O(60, 1, det=7, a=900, rl=2000), O(40, 2, a=1000, rl=2000), OFF, OFF],
   lfo=[LFO("TRI", 0.25)], flt=FLT("LPF12", 2500, kh=32), vp=[VP("MW", "LFO1.SPEED", 30)],
-  sends=(0, 50, 30, 80), pat="PAD", gain=3.6, note="a wave folder breathing as LFO1 moves its input (LMOD); MW faster")
+  sends=(0, 50, 30, 80), pat="PAD", gain=3.6, note="a wave folder breathing as LFO1 moves its input (LMOD); MW faster", fx=[FX("CHO", 35, 40, 0.4, 50)], level=-3.5)
 P("RING PAD", "P", 1, [
     O(75, 1, a=900, rl=2000, mode="RING", ring=(60, 0)), O(80, 1.005, a=900, rl=2000),
     O(65, 1, det=-5, a=900, rl=2000), O(40, 3, a=1200, rl=2000), OFF, OFF],
@@ -624,14 +624,14 @@ P("RING PAD", "P", 1, [
 P("HALO", "P", 5, [
     O(80, 1, a=400, rl=2500), O(30, 1, a=600, rl=2500), O(70, 1, det=4, d=4000, s=30, rl=2500, c=9, vel=40),
     O(48, 3.5, d=1500, s=10, rl=1500, c=9, vel=60), O(55, 2, det=-4, a=800, rl=2500), O(25, 1, a=800, rl=2500)],
-  vp=[VP("MW", "OP4.LEVEL", 18)], fx=[FX("PAN", 30, "SINE", 0.25, 50)], sends=(0, 50, 40, 90), pat="PAD",
-  gain=5.5, note="a bell's strike that turns into a pad")
+  vp=[VP("MW", "OP4.LEVEL", 18)], fx=[FX("SHVERB", 30, "CLEAR", 60, 50)], sends=(0, 50, 0, 90), pat="PAD",
+  gain=5.5, note="a bell's strike that turns into a pad", level=-9.0)
 P("POLY SYNTH", "P", 32, [
     O(75, 1, det=-6, wave="SAW", d=1200, s=60, rl=500, c=6), O(75, 1, det=6, wave="SAW", d=1200, s=60, rl=500, c=6),
     OFF, OFF, OFF, OFF],
   eg=[None, EG(d=600, s=30, rl=500, c=6)], flt=FLT("LPF24", 800, reso=20, eg2=30, eg2_c="VEL", kh=32),
   vp=[VP("MW", "FLT.CUTOFF", 15)], sends=(0, 60, 25, 50), pat="KEYS",
-  gain=7.5, note="two sawtooths and a velocity-driven filter: an all-purpose poly")
+  gain=7.5, note="two sawtooths and a velocity-driven filter: an all-purpose poly", fx=[FX("CHO", 40, 50, 0.7, 50)], level=-4.0)
 
 # --------------------------------------------------------------------------------------------------------- DRUMS --
 P("FM KICK", "D", 1, [
@@ -661,7 +661,7 @@ P("OPEN HAT", "D", 32, [
 P("CLAP", "D", 32, [
     O(95, 1, hz=1000, wave="WHITE", d=220, s=0, rl=150, c=8, vel=50, ll=-90, ll_c="EG3"), OFF, OFF, OFF, OFF, OFF],
   eg=[None, None, EG(d=70, s=0, rl=50, c=0)], lfo=[LFO("SAWD", 40.0, ks=2)], flt=FLT("BPF12", 1200, reso=20),
-  vp=[VP("MW", "OP1.DEC", 15)], fx=[FX("DIST", 30, -5, 1500, 3)], sends=(0, 0, 0, 40), pat="BEAT",
+  vp=[VP("MW", "OP1.DEC", 15)], fx=[FX("DIST", 30, -5, 1500, 3), FX("REF", 25, "SHARP", 60, 2)], sends=(0, 0, 0, 40), pat="BEAT",
   gain=1.4, note="band-passed noise; LFO1 (a fast sawtooth) chops its first 70 ms (LMOD, its CTRL EG3): the hands' flam")
 P("COWBELL", "D", 32, [
     O(70, 1, hz=540, wave="SQR", d=350, s=0, rl=150, c=9), O(60, 1, hz=800, wave="SQR", d=300, s=0, rl=150, c=9),
@@ -688,12 +688,12 @@ P("RISER", "F", 1, [
   sends=(0, 30, 50, 70), pat="PAD", gain=18.1, note="two octaves up in 4 s (EG1 on pitch and cutoff) with noise")
 P("LASER", "F", 1, [
     O(90, 1, d=600, s=0, rl=300, c=8, pe=48), O(60, 1, d=600, s=0, rl=300, c=8, pe=48, fb=50), OFF, OFF, OFF, OFF],
-  eg=[EG(d=300, s=0, rl=300, c=6)], vp=[VP("MW", "EG1.DEC", 30)], sends=(0, 0, 50, 40), pat="MELODY",
-  gain=2.8, note="four octaves down in 300 ms; MW a longer zap")
+  eg=[EG(d=300, s=0, rl=300, c=6)], vp=[VP("MW", "EG1.DEC", 30)], sends=(0, 0, 0, 40), pat="MELODY",
+  gain=2.8, note="four octaves down in 300 ms; MW a longer zap", fx=[FX("SPRING", 25, 30, 900, 80)])
 P("SPACE WIND", "F", 32, [
     O(95, 1, wave="PINK", a=2000, rl=3000), O(60, 1, wave="WHITE", a=2500, rl=3000), OFF, OFF, OFF, OFF],
   lfo=[None, LFO("TRI", 0.12), LFO("TRI", 0.07)], flt=FLT("BPF12", 800, reso=70, lfo2=18),
-  vp=[VP("LFO3", "FLT.RESO", 15), VP("MW", "LFO2.SPEED", 30)], fx=[FX("3EQ", 6, 6, 12, 800)], sends=(0, 40, 40, 100), pat="PAD",
+  vp=[VP("LFO3", "FLT.RESO", 15), VP("MW", "LFO2.SPEED", 30)], fx=[FX("3EQ", 6, 6, 12, 800), FX("SHVERB", 30, "SUBMAR", 70, 40)], sends=(0, 40, 0, 100), pat="PAD",
   gain=13.4, note="noise through a resonant band-pass that LFO2 sweeps and LFO3 sharpens; MW faster gusts")
 P("DRONE", "F", 32, [
     O(90, 0.5, a=3000, rl=4000), O(85, 1, det=3, a=3000, rl=4000, wave="TRI"), O(80, 1.5, det=-4, a=3500, rl=4000),
@@ -704,7 +704,7 @@ P("DRONE", "F", 32, [
 P("COMPUTER", "F", 1, [
     O(85, 1, rl=50, pl=12), O(55, 2, rl=50, pl=12), OFF, OFF, OFF, OFF],
   lfo=[LFO("SH", 10.0, ks=1)], vp=[VP("MW", "LFO1.SPEED", 30)], sends=(0, 0, 40, 30), pat="PAD",
-  gain=3.8, note="a sample-and-hold LFO1 steps the pitch: a 70s computer at work; MW faster")
+  gain=3.8, note="a sample-and-hold LFO1 steps the pitch: a 70s computer at work; MW faster", fx=[FX("GRAIN", 40, 25, "1/16", "NOTE")])
 P("UFO", "F", 1, [
     O(90, 1, rl=400, pl=4), O(55, 1.5, rl=400, pl=4, fb=40), OFF, OFF, OFF, OFF],
   lfo=[LFO("TRI", 7.0, ks=2)], vp=[VP("MW", "LFO1.SPEED", 40)], fx=[FX("PHA", 50, 70, 0.5, 60)],
@@ -715,7 +715,7 @@ P("RUMBLE", "F", 32, [
   sends=(0, 0, 20, 70), pat="PAD", gain=12.7, note="low noise and a sub, a filter that stumbles (LFO2 S/H); MW opens it")
 P("GLITCH", "F", 1, [
     O(85, 1, d=200, s=50, rl=100, c=6, ll=-100), O(70, 3.5, rl=100, pl=7, fb=50), OFF, OFF, OFF, OFF],
-  lfo=[LFO("SH", 16.0, ks=2)], fx=[FX("DEC", 50, 6000, 6.0, 0)], vp=[VP("MW", "LFO1.SPEED", 25)],
+  lfo=[LFO("SH", 16.0, ks=2)], fx=[FX("DEC", 50, 6000, 6.0, 0), FX("GRAIN", 50, 30, "1/16", "OFF")], vp=[VP("MW", "LFO1.SPEED", 25)],
   sends=(0, 0, 40, 20), pat="MELODY", gain=4.3, note="random steps on level and pitch, crushed to 6 bits")
 
 # ----------------------------------------------------------------------------------- CHORDS AND SEQUENCES --
@@ -723,8 +723,8 @@ P("DUB CHORD", "O", 32, [
     O(70, 1, d=300, s=0, rl=200, c=8), O(65, 1.1892, d=300, s=0, rl=200, c=8), O(65, 1.4983, d=300, s=0, rl=200, c=8),
     O(60, 1.7818, d=300, s=0, rl=200, c=8), OFF, OFF],
   eg=[None, EG(d=180, s=0, rl=150, c=7)], flt=FLT("LPF24", 500, reso=30, eg2=20, eg2_c="VEL", kh=0),
-  vp=[VP("MW", "FLT.CUTOFF", 20)], sends=(0, 30, 90, 60), pat="KEYS",
-  gain=13.4, note="a minor-seventh chord on every key (carriers at 1, 1.19, 1.50, 1.78), filtered, into the delay")
+  vp=[VP("MW", "FLT.CUTOFF", 20)], sends=(0, 30, 0, 60), pat="KEYS",
+  gain=13.4, note="a minor-seventh chord on every key (carriers at 1, 1.19, 1.50, 1.78), filtered, into the delay", fx=[FX("TDLBPM", 35, 55, "3/16", 40)])
 P("HOUSE STAB", "O", 22, [
     O(75, 1, d=400, s=0, rl=150, c=8), O(50, 1, d=200, s=0, rl=150, c=8, vel=60),
     O(70, 1.1892, d=400, s=0, rl=150, c=8), O(70, 1.4983, d=400, s=0, rl=150, c=8),
@@ -742,10 +742,10 @@ P("GATED PAD", "O", 32, [
     O(50, 2, rl=300, ll=-100), OFF, OFF, OFF],
   lfo=[LFO("SQRP", 2.0, ks=1, sync="1/16")], flt=FLT("LPF12", 2500, reso=10, kh=32),
   vp=[VP("MW", "FLT.CUTOFF", 15)], sends=(0, 60, 40, 50), pat="PAD",
-  gain=13.2, note="a pad chopped in sixteenths by a tempo-synced square (LMOD LFO1)")
+  gain=13.2, note="a pad chopped in sixteenths by a tempo-synced square (LMOD LFO1)", fx=[FX("CHO", 40, 50, 0.5, 50)], level=-3.5)
 P("BLIP", "U", 1, [
     O(85, 1, d=90, s=0, rl=60, c=9, vel=40), O(45, 2, d=40, s=0, rl=40, c=9, vel=70), OFF, OFF, OFF, OFF],
-  vp=[VP("MW", "OP2.LEVEL", 25)], fx=[FX("3EQ", 6, 6, 6, 1500)], sends=(0, 0, 60, 30), pat="ARP", gain=4.3, note="a tiny, pure blip for sequences")
+  vp=[VP("MW", "OP2.LEVEL", 25)], fx=[FX("3EQ", 6, 6, 6, 1500), FX("DLYBPM", 30, 40, "3/16", "1/4")], sends=(0, 0, 0, 30), pat="ARP", gain=4.3, note="a tiny, pure blip for sequences")
 P("WOOD SEQ", "U", 5, [
     O(90, 1, d=250, s=0, rl=100, c=9, vel=40), O(55, 3.1, d=50, s=0, rl=40, c=9, vel=80),
     O(55, 2, d=180, s=0, rl=100, c=9, vel=40), O(40, 4.3, d=40, s=0, rl=40, c=9, vel=80), OFF, OFF],

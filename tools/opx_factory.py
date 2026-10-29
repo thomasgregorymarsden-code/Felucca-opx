@@ -197,11 +197,10 @@ FXN = [t[0] for t in S.FX_TYPES]
 
 
 def FX(ty, *vals):
-    """a program effect in its knobs' units (opx_patch_spec FX_TYPES): FX('PAN', 35, 'SINE', 3.5, 50).
-    Only the types both firmwares play (kind 0)"""
+    """a program effect in its knobs' units (opx_patch_spec FX_TYPES): FX('PAN', 35, 'SINE', 3.5, 50). The types
+    with a buffer (kind 1, 2) only on OPX Solo's patches (P: from F9, NORMAL)"""
     t = FXN.index(ty)
     _, _, kind, knobs = S.FX_TYPES[t]
-    assert kind == 0, f"{ty}: not played by OPX (kind {kind})"
     assert len(vals) == len(knobs), (ty, vals)
     v = []
     for x, (lab, lo, hi, dp, unit, dflt, names) in zip(vals, knobs):
@@ -254,6 +253,7 @@ def P(name, cat, algo, ops, *, fb=0, ua=None, out=None, eg=(), lfo=(), vp=(), fl
         ops = [dict(o, level=min(100, round(o["level"] * 10 ** (gain / 60)))) if heard >> k & 1 and o["level"] else o
                for k, o in enumerate(ops)]
     assert all(p["name"] != name for p in BANK), f"duplicate {name}"
+    assert len(BANK) >= NORMAL or all(S.FX_TYPES[f["type"]][2] == 0 for f in fx), f"{name}: OPX plays no buffered effect"
     BANK.append({"name": name, "cat": cat, "algo": 40 if algo == "USER" else algo - 1, "alg_fb": fb,
                  "ua": ua or [[0] * 6 for _ in range(6)],
                  "ua_out": sum(1 << (int(k) - 1) for k in out.split()) if out else 0, "ops": ops,
