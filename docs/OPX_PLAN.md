@@ -195,6 +195,16 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
   TIME, at most ~30 s. Tests: tests/opx_test.c test_m5c3 (echo times and levels, feedback, BPM, the rate change,
   decay rates, the shimmer's octave, REF's taps, GRAIN's loop, the line's lending). Not yet measured on the device:
   their CPU cost (the benchmark has their rows). In OPX, kinds 1 and 2 are NOT AVAILABLE.
+
+**2026-10-28, the long types (2f134e5), OPX Solo:** idle 15.1 %, SIN 45.4 %. Each effect's own share (points):
+REF 17.9, SHVERB 14.2, REVERB 12.9, SPRING 8.1, TDLY 7.0, TDLBPM 6.6, U.ENS 6.6, RTRY 6.3, DLYBPM 5.2, CHO 4.3, G.AMP
+4.1, DLY 4.0, PDLY / PDLBPM 3.8, LIMIT 3.0, ENH 2.9, DIST 2.8, PHA 2.7, GRAIN 2.2, PAN 1.8, A.WAH 1.9, EXC / FLNG /
+COMP 1.7, FLTR / DEC 1.4, 3EQ 0.1 (the short types ~0.3–1 point above the run before: run to run). REF and the
+reverbs then had per-sample work that need not be: REF two divides a tap a sample (the line's rate) and its taps
+recomputed each sample; the reverbs four interpolated reads and their lines' lengths a sample. Since: shifts for the
+rate, REF's taps a block, the reverb lines' places a block and plain reads (but SPACE's swung line). On the host
+(one sine voice = 1.00): REF 6.02 -> 3.77, REVERB 6.34 -> 4.71, SHVERB 6.82 -> 5.20, DLY 2.31 -> 1.96, TDLY 2.69 ->
+2.27 (expected on the device: REF ~10, REVERB ~9, to be measured).
 - **Memory** (the M5b build): the pool had 10.6 KB free with 8 KB kept spare by build.py, RAM 8.5 KB with 4 KB kept,
   flash 21.6 KB. The chain's state takes 1.3 KB of the pool (12 slots). Kind 1 needs its buffers from a part's
   engine memory (the voices' SHORT DELAY lines would shrink); kind 2 more than the FM-1 has free: the opsix's

@@ -1715,6 +1715,37 @@ static void test_m5c3(void)
         check("M5c GRAIN: the period's first TIME looped till the next period, then the live sound (silent)",
               fabs(rep - dry) < 1.5 && after - dry < -60);
     }
+    {                                                /* (printed: each long type's host cost, a burst and its tail, as
+                                                      * a share of the dry sine's: only the ratios mean anything) */
+        static const uint8_t TY[] = {18, 21, 22, 23, 25, 27, 28, 29, 30};
+        clock_t c0;
+        double base, tm;
+        uint32_t k, rep;
+        m4_patch();
+        setup(&P, 0);
+        c0 = clock();
+        for (rep = 0; rep < 4u; rep++)
+            engine_render(57, 127, m5c3_y, FS, 2205, 0);
+        base = (double)(clock() - c0);
+        printf("opx: host cost of the long types (the sine alone = 1.00):");
+        for (k = 0; k < NELEM(TY); k++) {
+            const opx_fxt_t *x = &OPX_FXT[TY[k]];
+            uint32_t j;
+            m4_patch();
+            P.fx[0].type = TY[k], P.fx[0].on = 1;
+            for (j = 0; j < x->nk; j++)
+                P.fx[0].v[j] = x->k[j].def;
+            setup(&P, 0);
+            opx_fxl_assign(&P);
+            opx_fxl[0].clr = opx_fxl[0].n;
+            c0 = clock();
+            for (rep = 0; rep < 4u; rep++)
+                engine_render(57, 127, m5c3_y, FS, 2205, 0);
+            tm = (double)(clock() - c0);
+            printf(" %s %.2f", x->name, tm / base);
+        }
+        printf("\n");
+    }
     m4_patch();                                      /* no long type: the line back to the DELAY bus */
     m5c_fx(0, 5, 100, 0, 5000, 300);
     opx_fxtail[0] = 0;

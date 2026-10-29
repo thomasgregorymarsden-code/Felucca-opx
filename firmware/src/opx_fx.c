@@ -369,14 +369,15 @@ static inline void opx_lin(opx_fxl_t *l, uint32_t ch, int16_t *b, uint32_t n, in
     }
     l->acc[ch] += opx_fxlp(&l->dlp[ch], x, g);
     if (l->sub + 1u >= l->q) {
-        opx_lw(b, n, &l->w[ch], l->acc[ch] / (int32_t)l->q);
+        opx_lw(b, n, &l->w[ch], l->acc[ch] >> (l->q >> 1));   /* (q 1, 2, 4: q >> 1 its log2; no divide) */
         l->acc[ch] = 0;
     }
 }
 /* the line d8 input samples back (Q8) at its rate, as of the input sample now in (l->sub of q taken) */
 static inline int32_t opx_lout(const opx_fxl_t *l, uint32_t ch, const int16_t *b, uint32_t n, int32_t d8)
 {
-    int32_t q = (int32_t)l->q, dd = d8 / q - (int32_t)((l->sub << 8) / l->q);
+    uint32_t qs = l->q >> 1;                         /* (q 1, 2, 4: its log2; a shift, not a divide, a sample) */
+    int32_t dd = (d8 >> qs) - (int32_t)((l->sub << 8) >> qs);
     return opx_lr(b, n, l->w[ch], dd < 256 ? 256 : dd);
 }
 /* the rate a delay of d input samples needs in a line of n (1, 2, 4: the longest that fits at the slowest) */
@@ -471,7 +472,7 @@ static uint32_t opx_rv_len(uint32_t sz)              /* the network's samples in
         n += OPX_RVAP[j] + (OPX_RVL[j] * sz >> 8) + 16u;
     return n;
 }
-typedef struct { int32_t g[4], gl, dif, sz, mod; } opx_rv_t;
+typedef struct { int32_t g[4], gl, dif, sz, mod; uint32_t n[4], off[4]; } opx_rv_t;
 /* one sample in (mono), the left and right out (each line's, as they are read) */
 static inline void opx_rv_step(opx_fxl_t *x, int16_t *b, const opx_rv_t *c, int32_t in, int32_t *ol, int32_t *orr)
 {
@@ -486,26 +487,22 @@ static inline void opx_rv_step(opx_fxl_t *x, int16_t *b, const opx_rv_t *c, int3
         in = dd - (int32_t)(((int64_t)c->dif * vv) >> 15);
         off += n;
     }
-    for (j = 0; j < 4u; j++) {                       /* (the lines' ends, damped and scaled) */
-        uint32_t n = (OPX_RVL[j] * (uint32_t)c->sz >> 8) + 16u;
-        int32_t d8 = (int32_t)(n - 8u) << 8;
+    for (j = 0; j < 4u; j++) {                       /* (the lines' ends, damped and scaled: a line read where it is
+                                                      * written next, its whole length back; SPACE's line 3 swung) */
         if (j == 3u && c->mod)
-            d8 += (int32_t)(((int64_t)sine_i(x->ph) * (6 << 8)) >> 15);
-        o[j] = opx_lr(b + off, n, x->w[4 + j], d8);
+            o[j] = opx_lr(b + c->off[j], c->n[j], x->w[4 + j],
+                          ((int32_t)(c->n[j] - 8u) << 8) + (int32_t)(((int64_t)sine_i(x->ph) * (6 << 8)) >> 15));
+        else
+            o[j] = b[c->off[j] + x->w[4 + j]] * 2;
         o[j] = opx_fxlp(&x->z[j], o[j], c->gl);
-        off += n;
     }
     *ol = o[0] + o[2], *orr = o[1] + o[3];
     for (j = 0; j < 4u; j++)
         o[j] = (int32_t)(((int64_t)o[j] * c->g[j]) >> 15);
     a = o[0] + o[1], bb = o[0] - o[1], cc = o[2] + o[3], d = o[2] - o[3];   /* (Hadamard / 2: lossless) */
     o[0] = (a + cc) >> 1, o[1] = (bb + d) >> 1, o[2] = (a - cc) >> 1, o[3] = (bb - d) >> 1;
-    off = OPX_RVAP[0] + OPX_RVAP[1] + OPX_RVAP[2] + OPX_RVAP[3];
-    for (j = 0; j < 4u; j++) {
-        uint32_t n = (OPX_RVL[j] * (uint32_t)c->sz >> 8) + 16u;
-        opx_lw(b + off, n, &x->w[4 + j], (j & 1u ? -in : in) + o[j]);
-        off += n;
-    }
+    for (j = 0; j < 4u; j++)
+        opx_lw(b + c->off[j], c->n[j], &x->w[4 + j], (j & 1u ? -in : in) + o[j]);
 }
 /* the network's gains for 60 dB in t ms at size sz, its damping at tone Hz */
 static void opx_rv_set(opx_rv_t *c, int32_t t, uint32_t sz, uint32_t tone, int32_t dif, int32_t mod)
@@ -514,6 +511,15 @@ static void opx_rv_set(opx_rv_t *c, int32_t t, uint32_t sz, uint32_t tone, int32
     for (j = 0; j < 4; j++)
         c->g[j] = fm6_exp2(-(int32_t)(OPX_RVL[j] * sz >> 8) * k - (9 << 24));
     c->gl = opx_fxg1(opx_fxhz(tone)), c->dif = dif, c->sz = (int32_t)sz, c->mod = mod;
+    {                                                /* (the lines' places after the all-passes: each L x sz / 256 + 16
+                                                      * long in the region, the swung one using all of it) */
+        uint32_t off = OPX_RVAP[0] + OPX_RVAP[1] + OPX_RVAP[2] + OPX_RVAP[3];
+        for (j = 0; j < 4; j++) {
+            uint32_t L = OPX_RVL[j] * sz >> 8;
+            c->off[j] = off, c->n[j] = j == 3 && mod ? L + 16u : L;
+            off += L + 16u;
+        }
+    }
 }
 /* The long types, slot k's region; returns whether there are two channels after it. Assumptions to hear (the manual
  * gives the knobs, not the designs); LEVEL is the wet sound's, added to the dry, which passes whole:
@@ -702,19 +708,22 @@ static uint32_t __attribute__((noinline)) opx_fx_long(uint32_t k, opx_fxs_t *s, 
         }
         g = q == 2u ? opx_fxg1(opx_fxhz(8000)) : opx_fxg1(opx_fxhz(4000));
         d = clamp(d, 256 * 4 * (int32_t)q, ((int32_t)n - 8) * (int32_t)q * 256 - 16934);   /* (MOD's +-1.5 ms) */
-        for (i = 0; i < CTL; i++, x->ph += inc) {
+        {
+            int32_t dd[8], gn[8];                    /* (the taps' delays and gains a block: MOD's 0.7 Hz moves little in 32) */
+            for (j = 0; j < 8; j++) {
+                dd[j] = (int32_t)(((int64_t)d * POS[ps][j]) >> 8);
+                if (ty == 2)
+                    dd[j] += (int32_t)(((int64_t)sine_i(x->ph + (uint32_t)j * 0x20000000u) * 16934) >> 15);
+                dd[j] = dd[j] < 512 * (int32_t)q ? 512 * (int32_t)q : dd[j];
+                gn[j] = GN[ps][ty == 3 ? 7 - j : j];
+            }
+            x->ph += inc * CTL;
+        for (i = 0; i < CTL; i++) {
             int32_t xl = l[i], xr = st ? r[i] : xl, al = 0, ar = 0;
             opx_lin(x, 0, b, n, (xl + xr) >> 1, g);
-            for (j = 0; j < 8; j++) {
-                int32_t dd = (int32_t)(((int64_t)d * POS[ps][j]) >> 8), y;
-                if (ty == 2)
-                    dd += (int32_t)(((int64_t)sine_i(x->ph + (uint32_t)j * 0x20000000u) * 16934) >> 15);
-                y = opx_lout(x, 0, b, n, dd < 512 * (int32_t)q ? 512 * (int32_t)q : dd);
-                y = (int32_t)(((int64_t)y * GN[ps][ty == 3 ? 7 - j : j]) >> 15);
-                if (j & 1)
-                    ar += y;
-                else
-                    al += y;
+            for (j = 0; j < 8; j += 2) {
+                al += (int32_t)(((int64_t)opx_lout(x, 0, b, n, dd[j]) * gn[j]) >> 15);
+                ar += (int32_t)(((int64_t)opx_lout(x, 0, b, n, dd[j + 1]) * gn[j + 1]) >> 15);
             }
             if (++x->sub >= x->q)
                 x->sub = 0;
@@ -722,6 +731,7 @@ static uint32_t __attribute__((noinline)) opx_fx_long(uint32_t k, opx_fxs_t *s, 
             ar += (int32_t)(((int64_t)opx_fxhp(&x->z[1], ar, gh) * sh) >> 15);
             l[i] = xl + (int32_t)(((int64_t)al * lev) >> 16);
             r[i] = xr + (int32_t)(((int64_t)ar * lev) >> 16);
+        }
         }
         return 1u;
     }
