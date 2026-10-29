@@ -44,6 +44,11 @@ Installing custom firmware is at your own risk.
   changes. Installing 0.1.0 again afterwards loses the projects' OPX patches (their tracks play the SLOT's factory
   patch), not the projects.
 - **Kept when installing:** projects, user presets, samples, settings and MIDI LEARN assignments.
+- **Other firmwares' data:** OPX reads what Felucca 1.5.1 saved (projects, user presets, samples) and nothing of other
+  firmwares: their projects and samples, the official firmware's included, are not read.
+- **OPX Solo** plays the OPX engine on track 1 alone: a project's other tracks, and tracks on Felucca's other engines,
+  are silent there (kept in the project, heard again on OPX). Its patches use the effects OPX lacks; on OPX those read
+  NOT AVAILABLE and pass the sound.
 - **Coming from an older Felucca:** Felucca's own warnings apply. Projects saved by 1.4 or later do not open on
   1.1.5.x, and projects saved by 1.5 or later do not open on 1.2 to 1.4.1. See
   [Felucca's release history](docs/FELUCCA_HISTORY.md).
@@ -52,8 +57,9 @@ Installing custom firmware is at your own risk.
 
 OPX is modelled on the opsix's operator section: six operators per voice, routed by an algorithm, each with its own
 mode, waveform, pitch, level, envelope and key tracking, and the pitch envelope EG1 and LFO1 with their routes to
-the operators' pitch and level. It plays up to six voices. The opsix's EG2, EG3, LFO2, LFO3, main filter, effects and
-virtual patch are not implemented yet ([plan](docs/OPX_PLAN.md)).
+the operators' pitch and level, EG2, EG3, LFO2, LFO3, the virtual patch, the main filter, the three effects (OPX:
+the 13 without a buffer; OPX Solo: all 30) and the voice section (PROG LEVEL, BEND, ASSIGN, GLIDE, UNISON). It plays
+up to six voices. Not yet: the opsix's arpeggiator and sequencer (Felucca's own are there) ([plan](docs/OPX_PLAN.md)).
 
 To use it, hold **EDIT** and press **A3**, the third white key from F3 (ANALOG, FM6, OPX, …; the layer's map shows
 them). PRESETS lists its factory sounds: eight in OPX (E.PIANO, BELL, FM BASS, BRASS, SAW LEAD, LOOP PAD,

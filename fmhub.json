@@ -1,0 +1,6 @@
+{
+  "what": "Felucca 1.5.1 with an added altered-FM engine after the Korg opsix: six operators, 40 algorithms and a user matrix, operator modes, filters, effects and a virtual patch. OPX Solo is the OPX engine alone, with every effect.",
+  "kinds": ["synth"],
+  "play": "https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/try/",
+  "editor": "https://thomasgregorymarsden-code.github.io/Felucca-opx/webapp/editor/"
+}
