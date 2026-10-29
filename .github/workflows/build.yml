@@ -95,14 +95,14 @@ jobs:
         run: |
           # the site (web/site_nav.py links its pages): ./ the latest release (else this build), dev/ this build;
           # opx-solo/ and dev/opx-solo/ the same for OPX Solo; each with its installer, editor, simulator
-          if gh release download --repo "$GITHUB_REPOSITORY" --pattern 'felucca-*.fwsc' --pattern 'felucca-*-web.zip' \
+          if gh release download --repo "$GITHUB_REPOSITORY" --pattern '*.fwsc' --pattern '*-web.zip' \
                --dir rel 2>/dev/null; then
-            pkg=$(ls rel/felucca-*.fwsc | grep -v -- -solo- | head -1)
+            pkg=$(ls rel/*.fwsc | grep -v -- opx-solo- | head -1)   # (felucca-X or opx-X)
             ver=$(basename "$pkg" .fwsc); ver="${ver#felucca-}"; ver="${ver#opx-}"
             python3 web/make_site.py "$pkg" "$ver" _site
             solo=$(ls rel/opx-solo-*.fwsc 2>/dev/null | head -1 || true)   # (none: -eo pipefail)
             [ -n "$solo" ] && python3 web/make_site.py "$solo" "$ver-opx-solo" _site/opx-solo
-            web=$(ls rel/felucca-*-web.zip 2>/dev/null | head -1 || true)
+            web=$(ls rel/*-web.zip 2>/dev/null | head -1 || true)
             if [ -n "$web" ]; then                     # (the release's own simulators and editor)
               mkdir -p relweb && unzip -q "$web" -d relweb
               mkdir -p _site/webapp/try && cp -R relweb/try/. _site/webapp/try/ && cp -R relweb/editor/. _site/webapp/editor/
@@ -265,7 +265,7 @@ jobs:
           cd release
           zip -qr LICENSES.zip LICENSES
           gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber \
-            felucca-*.fwsc felucca-*-app.bin felucca-*-web.zip SHA256SUMS LICENSE LICENSING.md LICENSES.zip \
+            opx-*.fwsc opx-*-app.bin opx-*-web.zip SHA256SUMS LICENSE LICENSING.md LICENSES.zip \
             $(ls ATTRIBUTION.txt 2>/dev/null)
       - name: Publish the site with it
         env:

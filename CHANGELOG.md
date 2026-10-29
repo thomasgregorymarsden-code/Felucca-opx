@@ -3,7 +3,7 @@
 Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork is based on, are in
 [docs/FELUCCA_HISTORY.md](docs/FELUCCA_HISTORY.md).
 
-## Unreleased
+## 0.2.0 (2026-10-29)
 
 - **OPX Solo's factory patches use the new effects and voice settings** (F9 onward; F1-F8, shared with OPX,
   unchanged): rotary speaker on PERC ORGAN and ROCK ORGAN; chorus on E.GRAND, POLY KEYS, STEEL PAN, VOX LEAD, the
