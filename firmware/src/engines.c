@@ -12,7 +12,12 @@
  * that runs on across notes and switches stays outside (WHEEL's wheels, GRAIN's random numbers).
  * Sized by the largest, PHYS (3 x SYMP's slot); an engine that needs more than ENG_MEM_PART grows it for
  * every part (x NPART of the pool). Zero-initialised pool section: main.c fm1_cstart clears it. */
+#if FELUCCA_OPX_ONLY
+#define ENG_MEM_PART 37992u      /* (OPX Solo, 0.2.0: its one part's region holds OPX's six notes and their 63.9 ms SHORT
+                                  * DELAY lines, eng_opx.c OPX_DLY: (700 + 2 x 2816) x 6) */
+#else
 #define ENG_MEM_PART 12888u
+#endif
 #define ENG_MEM_NP (FELUCCA_OPX_ONLY ? 1u : NPART)   /* (the OPX-only firmware: track 1's region alone) */
 static union {
     uint64_t align;

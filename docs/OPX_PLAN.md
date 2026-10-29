@@ -14,7 +14,7 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M1.5 | Operator editing on the device (algorithm charts, USER matrix, OPERATORS list, scope); each track's patch kept in the stored format; saved with projects and the autosave | done |
 | | **First release, `0.0.1`: M0, M1 and M1.5** | |
 | M2a | The 23 waveforms and WIDTH; the renderer an operator at a time | done (device cost: see [Cost](#cost)) |
-| M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | done (device cost: see [Cost](#cost); SHORT DELAY limited to 16.6 ms, see below; sound not yet compared with an opsix) |
+| M2b | Operator modes RING, FILTER, FILTER FM, FOLD, EFFECT, BYPASS, MUTE; level key tracking | done (device cost: see [Cost](#cost); SHORT DELAY limited to 16.5 ms in OPX, 300 ms in OPX Solo (slower rates past 63.9 ms), see below; sound not yet compared with an opsix) |
 | | **Second release, `0.1.0`: M2a and M2b; the VOICE pages in OPERATORS; SELECT turns pages with BPM LOCK ON** | |
 | M3 | OPX patches in user presets and the editor backup; the web editor's OPX patch page | done: user presets (16), the backup, the storage repacked ([OPX_STORAGE.md](OPX_STORAGE.md)), the web editor's OPX tab |
 | M4 | EG1 (pitch), LFO1 and their default routes: each operator's P MOD (EG1, LFO1, VEL), LMOD LFO1, PROG PITCH (LFO1, TRANS, OCT); the CTRL sources | done (pages EG1 and LFO1, the rows in OPERATORS, the web editor; not yet compared with an opsix) |
@@ -63,8 +63,13 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
     (cubic soft clip, ×1–10), DEC (sample-and-hold at FREQ × the pitch, whole bits), WAVESHAPER (60 sine shapers of
     rising strength: the 01/W's tables are not published), PUNCH (a fast against a slow envelope lifts the attack).
     Memory: each voice has one delay line of 768 samples (784 before M4) after its part's six notes (`OPX_DLY`), so SHORT DELAY's
-    TIME stops at 16.6 ms (the manual's 300 ms do not fit the FM-1's RAM), COMB reaches down to 58 Hz, and only one
+    TIME stops at 16.5 ms (the manual's 300 ms do not fit the FM-1's RAM), COMB reaches down to 58 Hz, and only one
     operator per voice gets the line (the first to run in SHORT DELAY or COMB; another plays dry).
+    OPX Solo (0.2.0): its one part's region is 37,992 bytes (`ENG_MEM_PART`; the pool had 26.8 KB over its 8 KB
+    spare, 1.7 KB after), a voice's line 2,816 samples: SHORT DELAY 63.9 ms at the full rate, longer TIMEs with the
+    line at 1/2 .. 1/5 of it (the mean of each q samples written, read linearly between): 300 ms at 8.8 kHz, the
+    repeats darker. COMB stays at the full rate (down to ~16 Hz). The four-part OPX's region is full to the byte
+    (692-byte notes): it keeps 728 samples.
 - **KTRK (M2b)**: the level rises (+) or falls (−) with the distance from CENTER, LOW below it and HIGH above;
   LIN is 1 dB a semitone at 100 %, EXP the square of the distance over 48 semitones; −96 to +24 dB, and never past
   the operator's full scale. Worked out at note-on.

@@ -810,6 +810,34 @@ static void test_modes(void)
             snprintf(what, sizeof what, "EFFECT %s: %+.1f dB (%.0f .. %.0f)", XT[j].what, d, XT[j].lo, XT[j].hi);
             check(what, d >= XT[j].lo && d <= XT[j].hi);
         }
+#if FELUCCA_OPX_ONLY
+        {                                            /* (OPX Solo) SHORT DELAY's line an impulse through (opx_fx alone): the
+                                                      * echo where TIME puts it at each rate (60 ms full, 100 / 200 / 260 /
+                                                      * 300 ms at 1/2, 1/4, 1/5), within 3 samples */
+            static int16_t line[OPX_DLY];
+            static const int32_t MS[] = {60, 100, 200, 260, 300};
+            int32_t mp[4] = {3, 32767, 0, 0}, st[5], worst = 0;
+            uint32_t mi, i;
+            for (mi = 0; mi < NELEM(MS); mi++) {
+                opx_ec_t e;
+                int32_t want = MS[mi] * 441 / 10, pk = 0, at = 0;
+                memset(&e, 0, sizeof e), memset(st, 0, sizeof st), memset(line, 0, sizeof line);
+                mp[2] = MS[mi];
+                opx_fx_block(&e, mp, 1u << 24);
+                e.dl = line;
+                for (i = 0; i < 15000u; i++) {
+                    int32_t yv = opx_fx(&e, st, i < 5u ? 20000 : 0);
+                    if (i > 20u && abs(yv) > pk)
+                        pk = abs(yv), at = (int32_t)i - 2;   /* (the impulse's middle: sample 2) */
+                }
+                worst = abs(at - want) > worst ? abs(at - want) : worst;
+                printf("opx: SHORT DELAY %d ms (rate 1/%d): the echo at %d samples (%d)\n", MS[mi], e.c[2] ? e.c[2] : 1,
+                       at, want);
+            }
+            check("EFFECT SHORT DELAY (OPX Solo): the echo at TIME at each rate, up to 300 ms (within 3 samples)",
+                  worst <= 3);
+        }
+#endif
         /* COMB at the pitch, FB +90 %: the harmonics reinforced (the level up); every type at its extremes: bounded */
         {
             double a1, b1, pk = 0;

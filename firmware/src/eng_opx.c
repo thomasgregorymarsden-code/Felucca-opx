@@ -39,7 +39,12 @@
 #ifndef OPX_FELUCCA_MACROS
 #define OPX_FELUCCA_MACROS 0     /* MLVL FB MRAT DTUN (E3..E6): Felucca's, not the opsix's; off */
 #endif
-#define OPX_DLY 728u             /* M2b (768 since M4, 736 M5a: EG2 EG3 LFO2 LFO3 took 72 bytes a note; 728 M5b: the filter 20): a voice's delay line (int16, SHORT DELAY / COMB), after the six notes in its part */
+#if FELUCCA_OPX_ONLY
+#define OPX_DLY 2816u            /* (OPX Solo, 0.2.0: its one part's region is ENG_MEM_PART 37992: a voice's line 63.9 ms
+                                  * at the full rate; SHORT DELAY's longer TIMEs run it slower, to 300 ms) */
+#else
+#define OPX_DLY 728u             /* M2b (768 since M4, 736 M5a: EG2 EG3 LFO2 LFO3 took 72 bytes a note; 728 M5b: the filter 20): a voice's delay line (int16, SHORT DELAY / COMB), after the six notes in its part: the region full to the byte (692-byte notes) */
+#endif
 #define OPX_POLY 6               /* engine_t.poly: as FM6, until the target's cost is measured */
 #define OPX_NOP 6
 #define OPX_NALG 40              /* preset algorithms; 40 = USER */
@@ -882,7 +887,7 @@ static int32_t opx_lfo_step(opx_lfo_t *l, const opx_lfr_t *r, uint32_t inc)
     l->ph += inc;
     return opx_lfo_shape(w, l->ph >> 16);
 }
-typedef struct {                 /* a sounding note: 540 bytes */
+typedef struct {                 /* a sounding note: 692 bytes (OPX Solo 700) */
     uint32_t ph[OPX_NOP];
     int32_t y[OPX_NOP], yp[OPX_NOP];   /* the last two outputs (Q15) */
     int32_t g[OPX_NOP];          /* the gain at the end of the last block (Q15) */
@@ -890,6 +895,10 @@ typedef struct {                 /* a sounding note: 540 bytes */
     int32_t kt[OPX_NOP];         /* M2b: KTRK's factor on the level for this note (Q15, up to x16) */
     int32_t fs[OPX_NOP][5];      /* M2b: the operator filter's or effect's state (opx_filt, opx_fx) */
     uint16_t dw;                 /* M2b: the voice's delay line (SHORT DELAY, COMB): where it writes next */
+#if FELUCCA_OPX_ONLY
+    uint8_t dsub;                /* (OPX Solo: SHORT DELAY's line at 1 / q the rate: the samples of the next taken) */
+    int32_t dacc;                /* .. their sum */
+#endif
     opx_eg_t eg[OPX_NOP];
     opx_noise_t nz[OPX_NOP];     /* M2: the noise waveforms' state */
     int32_t dc;
@@ -1038,6 +1047,9 @@ static void opx_note_on(track_t *t, voice_t *v)
     if (fresh) {
         n->dc = 0;
         n->dw = 0;
+#if FELUCCA_OPX_ONLY
+        n->dacc = 0, n->dsub = 0;
+#endif
         memset(n->fst, 0, sizeof n->fst);
         memset(opx_dline(t, v), 0, OPX_DLY * sizeof(int16_t));   /* (M2b: no echo of an earlier note) */
     }
@@ -1318,8 +1330,10 @@ static inline int32_t opx_filt(opx_fc_t *c, int32_t *st, int32_t x, int32_t m)
  *   PEAK EQ     a peaking biquad at FREQ, GAIN +-18 dB, Q 1 (assumed)
  *   SHELV EQ    a low shelf at 250 Hz and a high one at 4 kHz (first order; the corners assumed), LOW / HIGH +-18 dB
  *   PHASER      four first-order all-passes at FREQ, FB +-100 % (x0.9), the dry signal added (the notches)
- *   SHORT DELAY the dry signal and a delay of TIME with FB, each at -3 dB. The delay line is the voice's own, 800
- *               samples: TIME stops at 16.6 ms (the manual's 300 ms do not fit the FM-1's memory), and one operator a
+ *   SHORT DELAY the dry signal and a delay of TIME with FB, each at -3 dB. The delay line is the voice's own, 728
+ *               samples: TIME stops at 16.5 ms (the manual's 300 ms do not fit the FM-1's memory; OPX Solo: 2816,
+ *               63.9 ms at the full rate, longer TIMEs at 1 / 2 .. 1 / 5 of it, the mean of each q samples kept:
+ *               300 ms at 8.8 kHz, the repeats darker), and one operator a
  *               voice has it (the highest-numbered one in SHORT DELAY or COMB: the first to run; another plays dry)
  *   COMB        a comb at FREQ (its period read between samples), FB +-100 % (x0.98); the same line, 57 Hz at the lowest
  *   DIST        the input driven x1 .. x50 into a hard clip, LOW the 250 Hz shelf after
@@ -1333,7 +1347,8 @@ typedef struct {                 /* an operator's effect for a block (opx_fx_blo
     int32_t c[6];                /* its coefficients */
     int16_t *dl;                 /* SHORT DELAY / COMB: the voice's line (0: none, dry) */
     uint32_t dw, fr;             /* the line's write place; DEC's step */
-    uint8_t type;
+    int32_t dacc;                /* (OPX Solo) SHORT DELAY at 1 / q the rate: the sum of the samples of the next, */
+    uint8_t type, dsub;          /* .. how many */
 } opx_ec_t;
 static opx_ec_t opx_ecb[OPX_NOP];              /* (the audio ISR's) */
 /* a one-pole (trapezoidal) low-pass step: state s, coefficient G (Q14) */
@@ -1385,7 +1400,17 @@ static void __attribute__((noinline)) opx_fx_block(opx_ec_t *e, const int32_t *m
         c[1] = F * 29491 / 100;                        /* FB x0.9 (Q15) */
         break;
     case 3:                                            /* SHORT DELAY: the delay (samples), FB */
+#if FELUCCA_OPX_ONLY
+        {                                              /* (OPX Solo: past the line at the full rate, at 1 / q of it: c[0]
+                                                        * the delay in line samples Q8, c[2] q, c[3] 65536 / q) */
+            int32_t sm = clamp(E * 441 / 10, 1, 13230), q = (sm + (int32_t)OPX_DLY - 5) / ((int32_t)OPX_DLY - 4);
+            q = clamp(q, 1, 5);
+            c[2] = q, c[3] = 65536 / q;
+            c[0] = q == 1 ? clamp(sm, 1, (int32_t)OPX_DLY - 2) : clamp((sm << 8) / q, 512, ((int32_t)OPX_DLY - 3) << 8);
+        }
+#else
         c[0] = clamp(E * 441 / 10, 1, (int32_t)OPX_DLY - 2);
+#endif
         c[1] = F * 32767 / 100;
         break;
     case 4:                                            /* COMB: the period, Q8 samples (fs / f), FB x0.98 */
@@ -1450,6 +1475,22 @@ static inline int32_t opx_fx(opx_ec_t *e, int32_t *st, int32_t x)
         int32_t d;
         if (!e->dl)
             return x;                                  /* (no line for this operator: dry) */
+#if FELUCCA_OPX_ONLY
+        if (e->type == 3 && c[2] > 1) {                /* (the line at 1 / q the rate: the q samples' mean written, read
+                                                        * linearly between, as of the sample now) */
+            int32_t pos = (int32_t)(e->dw << 8) + ((e->dsub * c[3]) >> 8) - c[0], i = pos >> 8, f = pos & 255;
+            uint32_t a = (uint32_t)(i < 0 ? i + (int32_t)OPX_DLY : i), b = a + 1u >= OPX_DLY ? 0u : a + 1u;
+            d = e->dl[a] + (((e->dl[b] - e->dl[a]) * f) >> 8);
+            e->dacc += clamp(x + ((d * c[1]) >> 15), -32767, 32767);
+            y = ((x + d) * 23170) >> 15;
+            if (++e->dsub >= (uint8_t)c[2]) {
+                e->dl[e->dw] = (int16_t)((int32_t)(((int64_t)e->dacc * c[3]) >> 16));
+                e->dacc = 0, e->dsub = 0;
+                e->dw = e->dw + 1u < OPX_DLY ? e->dw + 1u : 0u;
+            }
+            break;
+        }
+#endif
         if (e->type == 3) {
             d = e->dl[(e->dw + OPX_DLY - (uint32_t)c[0]) % OPX_DLY];
             e->dl[e->dw] = (int16_t)clamp(x + ((d * c[1]) >> 15), -32767, 32767);
@@ -2103,6 +2144,9 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
                         dly_op = kk;
                         opx_ecb[kk].dl = opx_dline(t, v);
                         opx_ecb[kk].dw = n->dw % OPX_DLY;
+#if FELUCCA_OPX_ONLY
+                        opx_ecb[kk].dacc = n->dacc, opx_ecb[kk].dsub = n->dsub;
+#endif
                     }
                 }
             }
@@ -2154,6 +2198,9 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     for (k = 0; k < OPX_NOP; k++) {
         if (r->md[k] == OPX_M_EFFECT && opx_ecb[k].dl && opx_ecb[k].dl == opx_dline(t, v))   /* (the line's next place) */
             n->dw = (uint16_t)opx_ecb[k].dw;
+#if FELUCCA_OPX_ONLY
+            n->dacc = opx_ecb[k].dacc, n->dsub = opx_ecb[k].dsub;
+#endif
         n->y[k] = y[k];
         n->yp[k] = yp[k];
     }

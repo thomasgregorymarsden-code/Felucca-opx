@@ -5,6 +5,8 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPX Solo: the operators' SHORT DELAY reaches the opsix's 300 ms** (OPX: 16.5 ms, as before). Up to 64 ms it
+  runs at the full rate; longer times at a lower one, the repeats darker (300 ms: ~4 kHz wide).
 - **OPX Solo plays every effect:** the delays (DLY, DLYBPM, PDLY, PDLBPM, TDLY, TDLBPM), REF, REVERB, SHVERB, SPRING
   and GRAIN, in Felucca's DELAY bus's memory: while one of them is on, the patch's DELAY send is silent. Up to three at
   once share it (each delay's longest time shrinks as more share; past what fits the echoes run at a lower rate,
