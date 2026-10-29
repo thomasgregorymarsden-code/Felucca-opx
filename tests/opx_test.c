@@ -1811,6 +1811,91 @@ static void test_m5c3(void)
 }
 #endif
 
+/* M6: PROG LEVEL (against the INIT's -6.0 dB), BEND UP / DOWN on the part's pitch wheel, UNISON's voices and DETUNE,
+ * the patch's VOICE page onto the track and back */
+static void test_m6(void)
+{
+    static double y[FS / 2];
+    double a, b;
+    int ok;
+    m4_patch();                                      /* (a sine at -6.0 dB: as before M6) */
+    setup(&P, 0);
+    engine_render(57, 127, y, FS / 2, 0, 0);
+    a = m5c_rms(y, FS / 8, FS / 4);
+    P.lvl_d = 60;                                    /* (0.0 dB: +6 against the INIT) */
+    setup(&P, 0);
+    engine_render(57, 127, y, FS / 2, 0, 0);
+    b = m5c_rms(y, FS / 8, FS / 4);
+    printf("opx: M6 PROG LEVEL 0.0 dB against -6.0: %+.2f dB\n", b - a);
+    ok = fabs(b - a - 6.0) < 0.1;
+    P.lvl_d = -940;                                  /* (-100.0 dB: -Inf) */
+    setup(&P, 0);
+    engine_render(57, 127, y, FS / 2, 0, 0);
+    ok &= m5c_rms(y, FS / 8, FS / 4) < -89;      /* (m5c_rms: silence -90) */
+    check("M6 PROG LEVEL: -6.0 dB as before, 0.0 dB +6 dB, -100.0 dB silent", ok);
+    {                                                /* BEND: +12 up, -24 down: the part's bend at the wheel's ends */
+        midi_channel_t c;
+        memset(&c, 0, sizeof c);
+        c.semis = 2;
+        P.lvl_d = 0, P.bup_d = 10, P.bdn_d = -22;
+        setup(&P, 0);
+        trk[0].eng_req = trk[0].engine = ENGI_OPX;
+        c.bend = 8191;
+        midi_expression(&trk[0], &c);
+        a = midi_bend_target[0] / 256.0;
+        c.bend = -8192;
+        midi_expression(&trk[0], &c);
+        b = midi_bend_target[0] / 256.0;
+        printf("opx: M6 BEND +12 / -24: the wheel up %+.2f, down %+.2f semitones\n", a, b);
+        check("M6 BEND UP / DOWN: the patch's range on the pitch wheel (OPX tracks)", fabs(a - 12) < 0.01 && fabs(b + 24) < 0.01);
+        P.bup_d = P.bdn_d = 0;
+        midi_bend_target[0] = midi_bend_q8[0] = 0;
+    }
+    {                                                /* UNISON: the patch's 4 voices, DETUNE 127 = 200 cents end to end */
+        uint32_t i, nv = 0;
+        int32_t lo = 1 << 30, hi = -(1 << 30);
+        P.unison = 3;
+        setup(&P, 0);
+        trk[0].eng_req = trk[0].engine = ENGI_OPX;
+        trk[0].p[P_VOICE] = V_UNISON, trk[0].p[P_DETUNE] = 127;
+        trk_note_on(&trk[0], 60, 100);
+        for (i = 0; i < NVOICE; i++)
+            if (trk[0].v[i].active) {
+                nv++;
+                lo = trk[0].v[i].fine < lo ? trk[0].v[i].fine : lo, hi = trk[0].v[i].fine > hi ? trk[0].v[i].fine : hi;
+            }
+        printf("opx: M6 UNISON 4 voices, DETUNE 127: %u voices, %.1f cents from the lowest to the highest\n", nv,
+               (hi - lo) / 2.3657);
+        check("M6 UNISON: the patch's voice count, DETUNE's 0..200 cents", nv == 4u && fabs((hi - lo) / 2.3657 - 200) < 2);
+        trk_note_off(&trk[0], 60);
+        P.unison = 0;
+    }
+    {                                                /* the VOICE page: a patch's onto the track, the track's back */
+        uint8_t pk[OPX_PK_BYTES];
+        opx_defaults(pk);
+        opx_put(pk, OPXF_X_ASSIGN, 2), opx_put(pk, OPXF_X_GLIDE, 1), opx_put(pk, OPXF_X_GLIDE_TIME, 200);
+        opx_put(pk, OPXF_X_UNI_DETUNE, 100), opx_put(pk, OPXF_X_UNI_SPREAD, 50);
+        opx_set_pk(0, pk);
+        opx_voice_apply(0);
+        ok = trk[0].p[P_VOICE] == V_LEGATO && trk[0].p[P_GLMODE] == 1 && trk[0].p[P_DETUNE] == 64 && trk[0].p[P_SPRD] == 64;
+        a = opx_glide_ms(trk[0].p[P_GLIDE]);
+        printf("opx: M6 GLIDE 200 ms: GLD %d (%.0f ms)\n", trk[0].p[P_GLIDE], a);
+        ok &= fabs(a - 200) < 15;
+        opx_put(pk, OPXF_X_UNISON, 4);
+        opx_set_pk(0, pk);
+        opx_voice_apply(0);
+        ok &= trk[0].p[P_VOICE] == V_UNISON;
+        trk[0].p[P_VOICE] = V_MONO;
+        opx_voice_store(0, P_VOICE);
+        trk[0].p[P_DETUNE] = 127;
+        opx_voice_store(0, P_DETUNE);
+        ok &= opx_get(opx_pk[0], OPXF_X_ASSIGN) == 1 && opx_get(opx_pk[0], OPXF_X_UNISON) == 0 &&
+              opx_get(opx_pk[0], OPXF_X_UNI_DETUNE) == 200 && trk[0].p[P_E7] == (int16_t)OPX_OWN;
+        check("M6 VOICE: a patch's ASSIGN GLIDE UNISON DETUNE SPREAD onto the track; the OPERATORS rows back (OWN)", ok);
+    }
+    memset(&P, 0, sizeof P);
+}
+
 static void test_factory(void)
 {
     static double y[FS], z[FS];
@@ -2120,6 +2205,7 @@ int main(int argc, char **argv)
     test_m5c2();
     test_m5c3();
 #endif
+    test_m6();
     test_user_empty();
     test_waves();
     test_factory();

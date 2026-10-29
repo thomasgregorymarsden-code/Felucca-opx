@@ -44,6 +44,14 @@ static void midi_expression(track_t *t, const midi_channel_t *c)
 #endif
     if (drum_track(t))
         return;
+#if FELUCCA_OPX
+    if (t->eng_req % NENGINES == ENGI_OPX) {         /* (M6: OPX's patch's BEND UP / DOWN, semitones; DOWN < 0 lowers) */
+        const opx_patch_t *p = opx_patch_now(trk_index(t));
+        int32_t up = OPX_FIELDS[OPXF_PROG_BEND_UP].def + p->bup_d, dn = OPX_FIELDS[OPXF_PROG_BEND_DOWN].def + p->bdn_d;
+        midi_bend_target[trk_index(t)] = c->bend >= 0 ? (int32_t)c->bend * up * 256 / 8191 : -(int32_t)c->bend * dn * 256 / 8192;
+        return;
+    }
+#endif
     midi_bend_target[trk_index(t)] = (int32_t)c->bend * range / (c->bend < 0 ? 8192 : 8191);
 }
 

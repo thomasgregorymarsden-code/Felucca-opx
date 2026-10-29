@@ -229,7 +229,7 @@ enum { XR_MODE, XR_WAVE, XR_FB, XR_WIDTH, XR_RDEPTH, XR_RSHAPE, XR_FTYPE, XR_FMI
        XR_ALG, XR_ALGFB,                                                                   /* ALGO */
        XR_E1A, XR_E1D, XR_E1S, XR_E1R, XR_E1C,                                             /* EG1 (M4) */
        XR_LW, XR_LT, XR_LS, XR_LK, XR_LP, XR_LF,                                           /* LFO1 (M4) */
-       XR_GL, XR_GLC, XR_GT, XR_GO,                                                        /* PROG PITCH (M4) */
+       XR_GL, XR_GLC, XR_GT, XR_GO, XR_BU, XR_BD, XR_PL,                                   /* PROG PITCH (M4); BEND, LEVEL (M6) */
        XR_V0, XR_V8 = XR_V0 + 8,                                                          /* VOICE */
        XR_ESEL, XR_LSEL,                                                                   /* M5: which EG, LFO */
        XR_VSEL, XR_VSS, XR_VSI, XR_VINT, XR_VCTL, XR_VDS, XR_VDI,                          /* M5: V.PATCH */
@@ -237,8 +237,9 @@ enum { XR_MODE, XR_WAVE, XR_FB, XR_WIDTH, XR_RDEPTH, XR_RSHAPE, XR_FTYPE, XR_FMI
        XR_FSEL, XR_FXT, XR_FXON, XR_FK0, XR_FK3 = XR_FK0 + 3, XR_FNA,                          /* M5c: FX1-3 */
        XR_N };
 static const char *const XS_NAME[XS_N] = {"MODE", "PITCH", "EG", "KTRK", "ROUTE", "ALGO", "EG1-3", "LFO1-3",
-                                          "P.PITCH", "FILTER", "FX1-3", "V.PATCH", "VOICE"};   /* (ROUTE: the USER algorithm's
-                                          * matrix, what the operator sends to each; P.PITCH: the opsix's PROG PITCH) */
+                                          "PROG", "FILTER", "FX1-3", "V.PATCH", "VOICE"};   /* (ROUTE: the USER algorithm's
+                                          * matrix, what the operator sends to each; PROG: the opsix's PROG PITCH, its
+                                          * BEND, and PROG MISC's LEVEL) */
 static const char *const N_OPX_MFLT[11] = {"LPF 12", "LPF 24", "LPF MS-20", "LPF POLY6", "HPF 12", "HPF 24", "HPF MS-20",
                                            "BPF 6", "BPF 12", "BRF 6", "BRF 12"};   /* (M5b: p.38) */
 static uint8_t xop_egs, xop_lfs, xop_vps, xop_fxs;
@@ -248,7 +249,7 @@ static uint8_t xop_egs_unused_;   /* M5: the EG (0..2), LFO (0..2), V.PATCH (0..
 /* M4: the patch's own rows (EG1, LFO1, PROG PITCH): their fields (XR_LS: SPEED, or SYNC with TEMPO on) */
 static const uint16_t XP_F[XR_V0 - XR_E1A] = {OPXF_EG1_ATK, OPXF_EG1_DEC, OPXF_EG1_SUS, OPXF_EG1_REL, OPXF_EG1_CURVE,
     OPXF_LFO1_WAVE, OPXF_LFO1_TEMPO, OPXF_LFO1_SPEED, OPXF_LFO1_KSYNC, OPXF_LFO1_PHASE, OPXF_LFO1_FADE, OPXF_PROG_LFO1,
-    OPXF_PROG_LFO1_CTRL, OPXF_PROG_TRANS, OPXF_PROG_OCT};
+    OPXF_PROG_LFO1_CTRL, OPXF_PROG_TRANS, OPXF_PROG_OCT, OPXF_PROG_BEND_UP, OPXF_PROG_BEND_DOWN, OPXF_PROG_LEVEL};
 static const char *const N_OPX_LFOW[OPX_NLFOW] = {"TRI", "SAW DOWN", "SAW UP", "SQR", "SIN", "S/H", "GTR", "X.TRI",
     "X.SAW DOWN", "X.SAW UP", "TRI4", "TRI6", "SAW4 DOWN", "SAW6 DOWN", "S.RND TIME", "S.RND LVT", "RND LEVEL",
     "RND TIME", "RND LVTIME", "TRI+", "SAW DOWN+", "SAW UP+", "SQR+"};   /* (p.56; S.RND LVTIME shortened) */
@@ -310,7 +311,7 @@ static uint32_t xop_list(uint8_t *rw)
     if (xop_view() == XV_EG1 || xop_view() == XV_LFO) {   /* (an EG: its five; an LFO: its six, then LFO1's PROG
                                                          * PITCH's) */
         uint32_t a = xop_view() == XV_EG1 ? XR_E1A : XR_LW;
-        uint32_t b = xop_view() == XV_EG1 ? XR_LW : xop_lfs ? XR_GL : XR_V0;
+        uint32_t b = xop_view() == XV_EG1 ? XR_LW : xop_lfs ? XR_GL : XR_BU;   /* (M6: BEND, LEVEL in PROG only) */
         for (k = a; k < b; k++)
             rw[n++] = (uint8_t)k;
         return n;
@@ -693,9 +694,13 @@ static void xop_knob(uint32_t slot, int32_t steps)
         const param_desc_t *d = track_desc(TSEL, id);
         if (d->max == d->min)
             return;
+        if (opx_voice_field(id))                     /* (M6: the patch's VOICE field too: one undo a gesture) */
+            edit_undo_take(TSEL, 0x4800u | id, UNDO_SOUND);
         TSEL->p[id] = (int16_t)param_turn(d, TSEL->p[id], accel(EN_K4, steps, d->fmt == F_ENUM ? 0 : d->max - d->min));
         motion_capture(TSEL, id, TSEL->p[id]);
         ml_knob(TSEL, id);
+        if (opx_voice_field(id))
+            opx_voice_store(tr, id);
         return;
     }
     {
@@ -865,7 +870,7 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
         "LEVEL", "ATK", "DEC", "SUS", "REL", "CURVE", "VEL", "LFO1", "LFO CTRL", "LOW", "CENTER", "HIGH", "L CRV", "H CRV",
         "TO OP", "TO OP", "TO OP", "TO OP", "TO OP", "TO OP", "OUT", "ALG", "ALG FB",
         "ATK", "DEC", "SUS", "REL", "CURVE", "WAVE", "TEMPO", "SPEED", "KSYNC", "PHASE", "FADE",
-        "LFO1", "LFO CTRL", "TRANS", "OCT",
+        "LFO1", "LFO CTRL", "TRANS", "OCT", "BEND +", "BEND -", "LEVEL",
         "VOICE", "GLIDE", "GLIDE MODE", "PRIORITY", "ALLOC", "DETUNE", "PAN", "MUTE", "SPREAD",
         "EG", "LFO", "V.PATCH", "SRC", "SOURCE", "INT", "CTRL", "DEST", "TARGET",
         "TYPE", "ENABLE", "CUTOFF", "RESO", "EG2", "CTRL", "LOW", "CENTER", "HIGH", "LFO2", "CTRL",
@@ -1130,6 +1135,17 @@ static int xop_rowtext(uint32_t r, const char **label, char *val, const char **u
         *unit = "OCT";
         *ratio = -1;
         break;
+    case XR_BU: case XR_BD:                          /* M6: the pitch wheel's range up / down (DOWN < 0 lowers) */
+        xop_signed(val, v, 0);
+        *unit = "ST";
+        break;
+    case XR_PL:                                      /* M6: PROG LEVEL, x0.1 dB (-100.0: -Inf) */
+        if (v <= -1000)
+            str_cpy(val, "-INF", 12);
+        else
+            xop_signed(val, v, 1);
+        *unit = "DB";
+        break;
     case XR_FXE:
     case XR_FXF: {                                   /* the effect type's own name and units (OPX_FXV) */
         static const char *const NM[10][2] = {{"FREQ", "GAIN"}, {"LOW", "HIGH"}, {"FREQ", "FB"}, {"TIME", "FB"},
@@ -1238,7 +1254,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         ICON_KEYTRACK, ICON_KEYTRACK, ICON_KEYTRACK, ICON_KEYTRACK, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD, ICON_MOD,
         ICON_MOD, ICON_MIX, ICON_ALGORITHM, ICON_FEEDBACK,
         ICON_ATTACK, ICON_DECAY, ICON_SUSTAIN, ICON_RELEASE, ICON_ENV, ICON_LFO_WAVE, ICON_TEMPO, ICON_RATE, ICON_PHASE,
-        ICON_PHASE, ICON_FADE, ICON_VIBRATO, ICON_MOD, ICON_TRANSPOSE, ICON_OCTAVE,
+        ICON_PHASE, ICON_FADE, ICON_VIBRATO, ICON_MOD, ICON_TRANSPOSE, ICON_OCTAVE, ICON_PITCH, ICON_PITCH, ICON_LEVEL,
         ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE, ICON_NONE,
         ICON_NONE, ICON_NONE, ICON_NONE,                 /* (VOICE: the parameter's own, param_icon) */
         ICON_ENV, ICON_LFO_WAVE, ICON_MOD, ICON_MOD, ICON_MOD, ICON_ACCENT, ICON_MOD, ICON_MOD, ICON_MOD,   /* (M5) */
@@ -1335,7 +1351,7 @@ static int xop_card(uint32_t slot, const char **label, char *val, const char **u
         return on;
     }
 }
-_Static_assert(XR_N == 103, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
+_Static_assert(XR_N == 106, "xop_rowtext's LBL, xop_card's ICN: a label and an icon per kind");
 #endif
 
 /* the dispatch: FM6's pages, or OPX's OPERATORS (OPX fork) */

@@ -174,6 +174,14 @@ static void opx_decode(const uint8_t *pk, opx_patch_t *p)
     p->prog_trans = (int8_t)opx_get(pk, OPXF_PROG_TRANS);
     p->prog_oct = (int8_t)opx_get(pk, OPXF_PROG_OCT);
     p->prog_lfo1_ctrl = (uint8_t)opx_get(pk, OPXF_PROG_LFO1_CTRL);
+    p->lvl_d = (int16_t)(opx_get(pk, OPXF_PROG_LEVEL) - OPX_FIELDS[OPXF_PROG_LEVEL].def);   /* (M6: off the defaults) */
+    p->bup_d = (int8_t)(opx_get(pk, OPXF_PROG_BEND_UP) - OPX_FIELDS[OPXF_PROG_BEND_UP].def);
+    p->bdn_d = (int8_t)(opx_get(pk, OPXF_PROG_BEND_DOWN) - OPX_FIELDS[OPXF_PROG_BEND_DOWN].def);
+    p->gtm_d = opx_get(pk, OPXF_X_GLIDE_TIME) - OPX_FIELDS[OPXF_X_GLIDE_TIME].def;
+    p->udt_d = (int16_t)(opx_get(pk, OPXF_X_UNI_DETUNE) - OPX_FIELDS[OPXF_X_UNI_DETUNE].def);
+    p->usp_d = (int8_t)(opx_get(pk, OPXF_X_UNI_SPREAD) - OPX_FIELDS[OPXF_X_UNI_SPREAD].def);
+    p->assign = (uint8_t)opx_get(pk, OPXF_X_ASSIGN), p->glide = (uint8_t)opx_get(pk, OPXF_X_GLIDE);
+    p->unison = (uint8_t)opx_get(pk, OPXF_X_UNISON);
 }
 /* a patch (a factory one) as a record: the defaults, then what the patch sets */
 static void opx_encode(const opx_patch_t *p, uint8_t *pk)
@@ -270,6 +278,13 @@ static void opx_encode(const opx_patch_t *p, uint8_t *pk)
     }
     opx_put(pk, OPXF_PROG_LFO1, p->prog_lfo1), opx_put(pk, OPXF_PROG_LFO1_CTRL, p->prog_lfo1_ctrl);   /* (M4) */
     opx_put(pk, OPXF_PROG_TRANS, p->prog_trans), opx_put(pk, OPXF_PROG_OCT, p->prog_oct);
+    opx_put(pk, OPXF_PROG_LEVEL, OPX_FIELDS[OPXF_PROG_LEVEL].def + p->lvl_d);   /* (M6: the defaults and what it adds) */
+    opx_put(pk, OPXF_PROG_BEND_UP, OPX_FIELDS[OPXF_PROG_BEND_UP].def + p->bup_d);
+    opx_put(pk, OPXF_PROG_BEND_DOWN, OPX_FIELDS[OPXF_PROG_BEND_DOWN].def + p->bdn_d);
+    opx_put(pk, OPXF_X_GLIDE_TIME, OPX_FIELDS[OPXF_X_GLIDE_TIME].def + p->gtm_d);
+    opx_put(pk, OPXF_X_UNI_DETUNE, OPX_FIELDS[OPXF_X_UNI_DETUNE].def + p->udt_d);
+    opx_put(pk, OPXF_X_UNI_SPREAD, OPX_FIELDS[OPXF_X_UNI_SPREAD].def + p->usp_d);
+    opx_put(pk, OPXF_X_ASSIGN, p->assign), opx_put(pk, OPXF_X_GLIDE, p->glide), opx_put(pk, OPXF_X_UNISON, p->unison);
     for (k = 0; k < 3u; k++) {                        /* (M5c: a factory patch's effects: OFF unless it sets them) */
         uint32_t f = k * (OPXF_FX2_TYPE - OPXF_FX1_TYPE), t = p->fx[k].type < OPX_NFXT ? p->fx[k].type : 0u;
         opx_put(pk, OPXF_FX1_TYPE + f, (int32_t)t);
@@ -371,6 +386,58 @@ static void opx_edit(uint32_t tr, uint32_t f, int32_t v)
     trk[tr].p[P_E7] = (int16_t)OPX_OWN;
 }
 
+/* M6: the patch's VOICE page (ASSIGN, GLIDE and its TIME, UNISON, its DETUNE and SPREAD) and Felucca's track VOICE
+ * parameters: a patch picked (SLOT turned, PRESETS, the editor sending one) sets the track's from it; the OPERATORS
+ * page's VOICE rows write both. A project, the autosave, an undo keep the track's as they were saved. GLIDE ON and
+ * LEGATO are Felucca's GLD in TIME mode (when it glides is the track's VOICE: POLY and MONO always, LEG between held
+ * notes); TIME's scale: (1 + GLD^2 / 8) blocks of 32 samples, 0.7 ms .. 1.46 s (longer TIMEs: GLD 127) */
+static int32_t opx_glide_code(int32_t ms)
+{
+    int32_t t = (ms * 441 / 320 - 1) * 8, g = 0;
+    if (ms <= 0)
+        return 0;
+    while (g < 127 && (g + 1) * (g + 1) <= t)
+        g++;
+    return g < 1 ? 1 : g;
+}
+static int32_t opx_glide_ms(int32_t g) { return (1 + g * g / 8) * 320 / 441; }
+static void opx_voice_apply(uint32_t tr)
+{
+    const uint8_t *pk = opx_pk[tr % NTRK];
+    track_t *t = &trk[tr % NTRK];
+    int32_t as = opx_get(pk, OPXF_X_ASSIGN), un = opx_get(pk, OPXF_X_UNISON), gl = opx_get(pk, OPXF_X_GLIDE);
+    t->p[P_VOICE] = (int16_t)(un ? V_UNISON : as == 1 ? V_MONO : as == 2 ? V_LEGATO : V_POLY);
+    t->p[P_GLIDE] = (int16_t)(gl ? opx_glide_code(opx_get(pk, OPXF_X_GLIDE_TIME)) : 0);
+    if (gl)
+        t->p[P_GLMODE] = 1;                            /* (TIME) */
+    t->p[P_DETUNE] = (int16_t)((opx_get(pk, OPXF_X_UNI_DETUNE) * 127 + 100) / 200);
+    t->p[P_SPRD] = (int16_t)((opx_get(pk, OPXF_X_UNI_SPREAD) * 127 + 50) / 100);
+}
+/* the OPERATORS page's VOICE row for parameter id turned: its patch field too (the patch the track's own); 1 if the
+ * parameter has one */
+static int opx_voice_field(uint32_t id) { return id == P_VOICE || id == P_GLIDE || id == P_DETUNE || id == P_SPRD; }
+static void opx_voice_store(uint32_t tr, uint32_t id)
+{
+    const uint8_t *pk = opx_pk[tr % NTRK];
+    int32_t v = trk[tr % NTRK].p[id], u;
+    switch (id) {
+    case P_VOICE:
+        u = opx_get(pk, OPXF_X_UNISON);
+        opx_edit(tr, OPXF_X_ASSIGN, v == V_MONO ? 1 : v == V_LEGATO ? 2 : 0);
+        opx_edit(tr, OPXF_X_UNISON, v == V_UNISON ? (u ? u : (int32_t)OPX_POLY - 1) : 0);   /* (UNI: all six) */
+        break;
+    case P_GLIDE:
+        u = opx_get(pk, OPXF_X_GLIDE);
+        opx_edit(tr, OPXF_X_GLIDE, v ? (u ? u : 1) : 0);
+        if (v)
+            opx_edit(tr, OPXF_X_GLIDE_TIME, opx_glide_ms(v));
+        break;
+    case P_DETUNE: opx_edit(tr, OPXF_X_UNI_DETUNE, (v * 200 + 63) / 127); break;
+    case P_SPRD: opx_edit(tr, OPXF_X_UNI_SPREAD, (v * 100 + 63) / 127); break;
+    default: break;
+    }
+}
+
 /* main loop: SLOT turned to F n -> that factory patch; at power-on every track gets F1 (or its SLOT's) */
 static void opx_wt_build(void);                       /* (eng_opx.c) */
 static void opx_poll(void)
@@ -383,8 +450,10 @@ static void opx_poll(void)
             opx_load_slot(tr, trk[tr].eng_req == ENGI_OPX ? s : 0);
         if (trk[tr].eng_req != ENGI_OPX || s == opx_slot[tr])
             continue;
-        if ((s >= 0 && s < (int32_t)OPX_NFACTORY) || s == (int32_t)OPX_INIT)
+        if ((s >= 0 && s < (int32_t)OPX_NFACTORY) || s == (int32_t)OPX_INIT) {
             opx_load_slot(tr, s);
+            opx_voice_apply(tr);                       /* (M6: a patch picked: its VOICE settings) */
+        }
         else
             opx_slot[tr] = (uint8_t)OPX_OWN;           /* OWN: the patch the track has */
     }

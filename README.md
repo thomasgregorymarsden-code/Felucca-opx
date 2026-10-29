@@ -123,7 +123,7 @@ hidden above or below.
 | Knob | Selects |
 |---|---|
 | 1 | the operator, 1–6 (ALL on the sections that are the patch's: ALGO and after) |
-| 2 | PAGE, the section, one per click: MODE, PITCH, EG, KTRK, ROUTE, ALGO, EG1-3, LFO1-3, P.PITCH, FILTER, FX1-3, V.PATCH, VOICE |
+| 2 | PAGE, the section, one per click: MODE, PITCH, EG, KTRK, ROUTE, ALGO, EG1-3, LFO1-3, PROG, FILTER, FX1-3, V.PATCH, VOICE |
 | 3 | the row, within the section |
 | 4 | the row's value (a list such as MODE, TYPE or FX: one step per click) |
 
@@ -137,8 +137,8 @@ hidden above or below.
 | ALGO | ALG (the patch's algorithm), ALG FB |
 | EG1 | the patch's pitch envelope: ATK, DEC, SUS, REL, CURVE |
 | LFO1 | WAVE (the opsix's 23), TEMPO, SPEED (Hz; with TEMPO a note value), KSYNC (OFF, COMMON, VOICE), PHASE (RND: random), FADE (with KSYNC on) |
-| P.PITCH | PROG PITCH (the opsix's page): LFO1 (INT), LFO CTRL, TRANS, OCT |
-| VOICE | the track's VOICE pages: VOICE (POLY, MONO, LEG, UNI), GLIDE, GLIDE MODE, PRIORITY, ALLOC, DETUNE, PAN, MUTE, SPREAD, as on every engine (automation and MIDI LEARN included) |
+| PROG | PROG PITCH (the opsix's page): LFO1 (INT), LFO CTRL, TRANS, OCT; BEND + and BEND − (the pitch wheel's range on this patch's track, semitones; DOWN below 0 lowers); LEVEL (PROG LEVEL: the INIT's −6.0 dB plays as before, up to +6.0 dB, −100.0 = silent) |
+| VOICE | the track's VOICE pages: VOICE (POLY, MONO, LEG, UNI), GLIDE, GLIDE MODE, PRIORITY, ALLOC, DETUNE, PAN, MUTE, SPREAD, as on every engine (automation and MIDI LEARN included). VOICE, GLIDE, DETUNE and SPREAD are stored in the patch too (the opsix's VOICE page: ASSIGN, GLIDE and its TIME, UNISON, its DETUNE and SPREAD) and come back onto the track when the patch is picked (SLOT, PRESETS, the editor); a project keeps the track's own. On OPX, UNI plays the patch's UNISON voices (2–6; OFF: all six) and DETUNE spans 0–200 cents from the lowest voice to the highest |
 
 **ENVELOPE** draws the selected operator's EG in the left half (ATK a line, DEC and REL shaped by CURVE; the stage
 being edited highlighted, both DEC and REL on CURVE) and lists ATK, DEC, SUS, REL and CURVE in the right half: KNOB 1

@@ -63,6 +63,7 @@ static int ed_opx_handle(uint32_t cmd, const uint8_t *a, uint32_t n)
             if (f == OPX_NFACTORY)
                 f = memcmp(fp, ed_opx_pk, OPX_PK_BYTES) ? OPX_OWN : OPX_INIT;
             opx_set_pk(a[1], ed_opx_pk);
+            opx_voice_apply(a[1]);                         /* (M6: its VOICE settings onto the track) */
             opx_slot[a[1]] = (uint8_t)f;                   /* (OWN, or F n: opx_poll keeps it) */
             trk[a[1]].p[P_E7] = (int16_t)f;
             ui.force = 1;

@@ -9099,7 +9099,7 @@ static int test_opx_ops(void)
     {
         static const uint8_t FIRST[XS_N] = {XR_MODE, XR_FREQ, XR_LVL, XR_KLOW, XR_TO0, XR_ALG, XR_ESEL, XR_LSEL, XR_GL,
                                             XR_MFT, XR_FSEL, XR_VSEL, XR_V0};
-        static const uint8_t N[XS_N] = {4, 11, 9, 5, 7, 2, 6, 7, 4, 11, 7, 7, 9};   /* (FX1-3: F1's FX1 PAN, its 4 knobs) */
+        static const uint8_t N[XS_N] = {4, 11, 9, 5, 7, 2, 6, 7, 7, 11, 7, 7, 9};   /* (FX1-3: F1's FX1 PAN, its 4 knobs; PROG: M6's BEND +, BEND -, LEVEL) */
         uint32_t sc, k;
         for (sc = 1; sc < XS_N; sc++) {              /* (each section its own list, from its first row) */
             turn(EN_K2, 1);
@@ -9119,10 +9119,10 @@ static int test_opx_ops(void)
     turn(EN_K2, 1);
     ok &= xop_sec == XS_PROG && xop_kind(xop_row()) == XR_GT;   /* (each section keeps its row) */
     turn(EN_K3, 9);
-    ok &= xop_kind(xop_row()) == XR_GO;              /* (KNOB 3 stays in the section) */
+    ok &= xop_kind(xop_row()) == XR_PL;              /* (KNOB 3 stays in the section: M6's LEVEL its last) */
     turn(EN_K2, -20);
     ok &= xop_sec == XS_MODE && xop_row() == 0u;
-    bad += check("OPX ops: each section its own list (MODE PITCH EG KTRK ROUTE ALGO EG1-3 LFO1-3 P.PITCH FILTER FX1-3 V.PATCH VOICE); KNOB 2 (PAGE) a section a detent, each keeping its row; KNOB 3 within it", ok);
+    bad += check("OPX ops: each section its own list (MODE PITCH EG KTRK ROUTE ALGO EG1-3 LFO1-3 PROG FILTER FX1-3 V.PATCH VOICE); KNOB 2 (PAGE) a section a detent, each keeping its row; KNOB 3 within it", ok);
 
     /* VOICE: the track's VOICE pages' parameters (TSEL->p), shown and turned as there; no operator */
     {

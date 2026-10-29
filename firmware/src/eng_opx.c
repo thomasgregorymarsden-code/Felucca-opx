@@ -189,6 +189,14 @@ typedef struct {
     opx_vpp_t vp[OPX_NVP];       /* M5: V.PATCH 1..12 */
     opx_mflt_t flt;              /* M5b: the main filter (FILTER, FLTR MOD p.58-60) */
     opx_fxp_t fx[3];             /* M5c: FX1..3, in series after the voices */
+    /* M6: PROG LEVEL, BEND, the VOICE page (p.62-64): each less its default (the spec's, the opsix INIT's), so a
+     * struct that leaves one out has the default: LEVEL x0.1 dB (-6.0), BEND UP / DOWN semitones (+2, -2), GLIDE TIME ms
+     * (500), UNISON DETUNE cents (10), SPREAD % (100); ASSIGN 0 POLY 1 MONO 2 MONO LEGATO, GLIDE 0 OFF 1 ON 2 LEGATO,
+     * UNISON 0 OFF, 1..7 = 2..8 voices */
+    int32_t gtm_d;
+    int16_t lvl_d, udt_d;
+    int8_t bup_d, bdn_d, usp_d;
+    uint8_t assign, glide, unison;
 } opx_patch_t;
 
 /* ---------------------------------------------------------- algorithms --- */
@@ -352,6 +360,7 @@ typedef struct {
     int32_t fcut, fe2, fl2, fkl, fkh, fk, fkq;
     int16_t fmix[5];             /* (SVF: x, v1 (band), v2 (low); ladder: u, y1 .. y4) */
     opx_vpr_t vp[OPX_NVP];
+    int32_t plvl;                /* M6: PROG LEVEL's gain against the INIT's -6.0 dB (Q15: -6.0 dB = 32768, +6.0 x4) */
 } opx_rt_t;
 static opx_rt_t opx_rt[NTRK];
 /* the track's own patch (M3: loaded with the project, edited in the editor); 0 = the factory patch SLOT names. A
@@ -475,6 +484,11 @@ static void opx_build_mod(const opx_patch_t *pt, opx_rt_t *r)
         r->curve[OPX_NOP + i] = (uint8_t)clamp(e->curve, 0, 10);
     }
     r->poff = clamp(pt->prog_trans, -12, 12) * ((1 << 24) / 12) + clamp(pt->prog_oct, -2, 2) * (1 << 24);
+    {                                                /* M6: PROG LEVEL (-Inf .. +6.0 dB) against the INIT's -6.0 dB: every
+                                                      * patch of before plays as it did; -100.0 dB is -Inf */
+        int32_t lv = OPX_FIELDS[OPXF_PROG_LEVEL].def + pt->lvl_d;
+        r->plvl = lv <= -1000 ? 0 : fm6_exp2(clamp(lv - OPX_FIELDS[OPXF_PROG_LEVEL].def, -940, 120) * 278667 - (9 << 24));
+    }
     r->son = (uint8_t)((need >> OPX_C_EG1 & 0x3Fu) != 0);   /* (EG1..3, LFO1..3: bits OPX_C_EG1 .. OPX_C_LFO3) */
     for (i = 0; i < 3u; i++) {                       /* LFO1..3 (p.55-57) */
         const opx_lfop_t *l = &pt->lfo[i];
@@ -493,6 +507,12 @@ static void opx_build_mod(const opx_patch_t *pt, opx_rt_t *r)
         } else
             f->inc = opx_lfo_inc(l->speed);
     }
+}
+/* track tr's patch as the engine plays it (its own copy, or before the first opx_poll its SLOT's factory struct) */
+static const opx_patch_t *opx_patch_now(uint32_t tr)
+{
+    const opx_patch_t *p = opx_own[tr % NTRK];
+    return p ? p : &OPX_FACTORY[(uint32_t)clamp(trk[tr % NTRK].p[P_E7], 0, (int32_t)OPX_NSTRUCT - 1)];
 }
 static void opx_build(const track_t *t, opx_rt_t *r)
 {
@@ -1347,8 +1367,11 @@ typedef struct {                 /* an operator's effect for a block (opx_fx_blo
     int32_t c[6];                /* its coefficients */
     int16_t *dl;                 /* SHORT DELAY / COMB: the voice's line (0: none, dry) */
     uint32_t dw, fr;             /* the line's write place; DEC's step */
-    int32_t dacc;                /* (OPX Solo) SHORT DELAY at 1 / q the rate: the sum of the samples of the next, */
-    uint8_t type, dsub;          /* .. how many */
+    uint8_t type;
+#if FELUCCA_OPX_ONLY
+    uint8_t dsub;                /* (OPX Solo) SHORT DELAY at 1 / q the rate: how many samples of the next taken, */
+    int32_t dacc;                /* .. their sum (after type: OPX's layout as before, its loops unchanged) */
+#endif
 } opx_ec_t;
 static opx_ec_t opx_ecb[OPX_NOP];              /* (the audio ISR's) */
 /* a one-pole (trapezoidal) low-pass step: state s, coefficient G (Q14) */
@@ -2106,6 +2129,7 @@ static void opx_render(track_t *t, voice_t *v, int32_t *out, uint32_t len, const
     }
     /* the voice's amplitude ramp x VOICE_FS / 2 a heard operator at full (as FM6's carrier) */
     k = t->p[P_VOICE] == V_UNISON ? VOICE_FS / 5 : VOICE_FS / 2;
+    k = (int32_t)(((int64_t)k * r->plvl) >> 15);       /* (M6: PROG LEVEL) */
     a = mulq15(m->amp0, k);
     da = (mulq15(m->amp1, k) - a) >> CTL_LOG2;
     dc = n->dc;

@@ -5,6 +5,13 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **Voice section (M6):** each OPX patch carries the opsix's PROG LEVEL, BEND UP / DOWN and VOICE page (ASSIGN,
+  GLIDE and its time, UNISON voices, DETUNE, SPREAD). Picking a patch (SLOT, PRESETS, the editor) sets the track's
+  VOICE settings from it; OPERATORS' VOICE rows store them back into the patch. PROG LEVEL counts from the INIT's
+  -6.0 dB (every earlier patch plays as before); BEND sets an OPX track's pitch-wheel range; UNISON plays the patch's
+  voice count (up to the engine's six) and DETUNE spans 0-200 cents. OPERATORS' P.PITCH section is now PROG, with
+  BEND +, BEND - and LEVEL; the web editor has a "Level and voice" section. Factory patches marked mono now store
+  ASSIGN MONO.
 - **OPX Solo: the operators' SHORT DELAY reaches the opsix's 300 ms** (OPX: 16.5 ms, as before). Up to 64 ms it
   runs at the full rate; longer times at a lower one, the repeats darker (300 ms: ~4 kHz wide).
 - **OPX Solo plays every effect:** the delays (DLY, DLYBPM, PDLY, PDLBPM, TDLY, TDLBPM), REF, REVERB, SHVERB, SPRING

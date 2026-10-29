@@ -236,11 +236,14 @@ ALG_OUT = _alg_out()
 
 
 def P(name, cat, algo, ops, *, fb=0, ua=None, out=None, eg=(), lfo=(), vp=(), flt=None, fx=(), plfo=0, plfo_c="OFF",
-      trans=0, oct=0, sends=(0, 0, 0, 0), mono=0, pat="KEYS", gain=0.0, note=""):
+      trans=0, oct=0, sends=(0, 0, 0, 0), mono=0, pat="KEYS", gain=0.0, note="", legato=0, glide=0, uni=0, udet=10,
+      uspr=100, level=-6.0, bend=(2, -2)):
     """a factory patch: algo 1..40 or 'USER' (ua: [[x][y]] op x+1 -> op y+1 %, out: heard operators as '1 2'),
     ops OP1..OP6; eg / lfo: EG1.. / LFO1.. in order (None: INIT's); sends: Felucca's DIST CHORUS DELAY REVERB
     (0..127, the track's FX knobs); pat: the demo pattern; gain dB on the heard operators (the bank's levels, matched
-    by ear and by opx_test --audit)"""
+    by ear and by opx_test --audit). M6, the opsix's VOICE page and PROG: mono / legato (ASSIGN MONO / MONO LEGATO),
+    glide (its TIME in ms, 0 OFF), uni (UNISON voices 2..8, 0 OFF), udet (its DETUNE, cents), uspr (SPREAD %), level
+    (PROG LEVEL dB, the INIT's -6.0), bend (BEND UP, BEND DOWN semitones)"""
     assert len(name) <= 10 and re.fullmatch(r"[A-Z0-9 .+\-/']+", name), name
     assert cat in CATS, cat
     assert len(ops) == 6, name
@@ -256,8 +259,11 @@ def P(name, cat, algo, ops, *, fb=0, ua=None, out=None, eg=(), lfo=(), vp=(), fl
                  "ua_out": sum(1 << (int(k) - 1) for k in out.split()) if out else 0, "ops": ops,
                  "eg": list(eg), "lfo": list(lfo), "vp": list(vp), "flt": flt, "fx": list(fx),
                  "prog_lfo1": round(plfo * 100), "prog_lfo1_ctrl": _idx(CTRL, plfo_c, "ctrl"), "trans": trans,
-                 "oct": oct, "sends": sends, "mono": mono, "pat": PATS[pat] if isinstance(pat, str) else pat,
-                 "note": note})
+                 "oct": oct, "sends": sends, "mono": 1 if mono or legato else 0,
+                 "pat": PATS[pat] if isinstance(pat, str) else pat, "note": note,
+                 "assign": 2 if legato else 1 if mono else 0, "glide": 1 if glide else 0, "gtime": glide or 500,
+                 "unison": uni - 1 if uni else 0, "udet": udet, "uspr": uspr, "level": round(level * 10),
+                 "bup": bend[0], "bdn": bend[1]})
 
 
 # ------------------------------------------------------------------------------------ the packed record (sparse) --
@@ -313,6 +319,9 @@ def encode(p):
                   "flt.ktrk_center": f["kc"] or 60, "flt.lfo2": f["lfo2"], "flt.lfo2_ctrl": f["lfo2_ctrl"]})
     r["prog.lfo1"], r["prog.lfo1_ctrl"], r["prog.trans"], r["prog.oct"] = (p["prog_lfo1"], p["prog_lfo1_ctrl"],
                                                                          p["trans"], p["oct"])
+    r.update({"prog.level": p["level"], "prog.bend_up": p["bup"], "prog.bend_down": p["bdn"],   # (M6)
+              "x.assign": p["assign"], "x.glide": p["glide"], "x.glide_time": p["gtime"], "x.unison": p["unison"],
+              "x.uni_detune": p["udet"], "x.uni_spread": p["uspr"]})
     for k in range(3):
         x = p["fx"][k] if k < len(p["fx"]) else {"type": 0, "on": 0, "v": []}
         knobs = S.FX_TYPES[x["type"]][3]
@@ -383,6 +392,13 @@ def c_patch(p):
     if p["flt"]:
         L.append("     .flt = " + c_struct(p["flt"], ["type", "on", "eg2_ctrl", "lfo2_ctrl", "kc", "kl", "kh", "cutoff",
                                                        "reso", "eg2", "lfo2"]) + ",")
+    d = S.defaults()                 # (M6: off the spec's defaults: opx_patch_t keeps the differences)
+    for k, v in (("lvl_d", p["level"] - d["prog.level"]), ("bup_d", p["bup"] - d["prog.bend_up"]),
+                 ("bdn_d", p["bdn"] - d["prog.bend_down"]), ("gtm_d", p["gtime"] - d["x.glide_time"]),
+                 ("udt_d", p["udet"] - d["x.uni_detune"]), ("usp_d", p["uspr"] - d["x.uni_spread"]),
+                 ("assign", p["assign"]), ("glide", p["glide"]), ("unison", p["unison"])):
+        if v:
+            L.append(f"     .{k} = {v},")
     if p["fx"]:
         L.append("     .fx = {" + ", ".join(f"{{.type = {f['type']}, .on = 1, .v = {{{', '.join(map(str, f['v']))}}}}}"
                                           for f in p["fx"]) + "},")
