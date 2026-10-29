@@ -320,8 +320,8 @@ share (points): U.ENS 6.3 (VOICE 4), RTRY 5.8, CHO 3.2, G.AMP 3.0, ENH 2.6, PHA 
 1.5, A.WAH 1.5, EXC 1.4, FLNBPM 1.3, COMP 1.3, FLNG 1.2, DEC 1.1, LIMIT 1.1, FLTR 1.0, 3EQ 0.0 (flat: skipped; the
 row equals SIN's to the digit, so the rows' noise is small). Measured on a mono part: after an effect that makes two
 channels (PAN, CHO, U.ENS, RTRY, ENH) the next one runs on both, ~2x its row. The worst chain of three (U.ENS, RTRY,
-CHO) ~15–20 points of Solo's ~70; one short-buffer effect fits every factory patch's estimate. No factory patch uses
-the short-buffer types yet.
+CHO) ~15–20 points of Solo's ~70; U.ENS or RTRY alone leaves ~64 for six notes (the heaviest poly factory patches
+estimate near 65: at the edge). No factory patch uses the short-buffer types yet.
 
 **The modes** (the mode on all six operators of six notes, SIN, the values typical; "one operator" the cost of one
 operator in that mode over a sine operator, on six notes):
