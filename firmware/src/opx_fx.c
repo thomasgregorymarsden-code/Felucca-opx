@@ -3,8 +3,9 @@
  * after its voices (the engine's post: voice.c track_render). Included by eng_opx.c.
  *
  * The types and their knobs: tools/opx_patch_spec.py FX_TYPES (OPX_FXT). Kind 0 types play in every build; kind 1
- * (a buffer of a few KB: CHO U.ENS FLNG RTRY ENH) in the OPX-only firmware (OPX Solo: opx_fx_buf); kind 2 (long
- * buffers: the delays, reverbs, GRAIN) is kept in the patch and passes the sound until it is built (shown dimmed).
+ * (a buffer of a few KB: CHO U.ENS FLNG RTRY ENH) in the OPX-only firmware (OPX Solo: opx_fx_buf), and kind 2 (long
+ * buffers: the delays, reverbs, GRAIN) there too, in Felucca's DELAY bus's line (opx_fx_long). OPX shows both NOT
+ * AVAILABLE (dimmed), their knobs kept: they pass the sound.
  *
  * A part's voices are mono (or, with SPREAD, a left and a right); the chain runs on one channel until an effect makes
  * two (PAN), then on both; a chain that made two goes to the mix at full width (voice.c spread_wide). The manual gives
@@ -39,7 +40,7 @@ typedef struct {
     uint8_t type;                         /* the type the state is for (another: cleared) */
 } opx_fxs_t;
 static opx_fxs_t opx_fxs[NTRK][3] __attribute__((section(".pool")));
-static uint8_t opx_fxtail[NTRK];
+static uint16_t opx_fxtail[NTRK];      /* blocks the chain runs on (the long types: their echoes, their tails) */
 static int32_t opx_fxr[CTL];             /* the right channel (the audio ISR's alone) */
 
 /* the types the chain plays (the rest pass the sound): OPX the 13 with no buffer; the OPX-only build
@@ -48,9 +49,11 @@ static int32_t opx_fxr[CTL];             /* the right channel (the audio ISR's a
 #ifndef OPX_FX_ALL
 #define OPX_FX_ALL FELUCCA_OPX_ONLY
 #endif
+/* the long types built so far (M5c part 3, OPX Solo) */
+#define OPX_FX_LONG(t) ((t) == 18u || ((t) >= 21u && (t) <= 30u))
 static int opx_fx_played(uint32_t t)
 {
-    return t && t < OPX_NFXT && (OPX_FXT[t].kind == 0u || (OPX_FX_ALL && OPX_FXT[t].kind == 1u));
+    return t && t < OPX_NFXT && (OPX_FXT[t].kind == 0u || (OPX_FX_ALL && (OPX_FXT[t].kind == 1u || OPX_FX_LONG(t))));
 }
 #if OPX_FX_ALL
 /* M5c part 2 (the OPX-only firmware): the short-buffer types' delay lines, a channel each for each of part 1's three
@@ -321,6 +324,484 @@ static uint32_t __attribute__((noinline)) opx_fx_buf(uint32_t k, opx_fxs_t *s, c
 }
 #endif
 
+#if OPX_FX_ALL
+/* M5c part 3 (the OPX-only firmware): the long types (the delays, reverbs, GRAIN) in Felucca's DELAY bus's line
+ * (core.h dly_buf, 64 K samples, 1.49 s): lent while any is live on part 1 (opx_lend: fx.c's DELAY bus is silent
+ * meanwhile, and its line is cleared before it plays again). The line is shared out in equal regions among the live
+ * long slots (one: all of it; two: half each; three: a third), each cleared before its effect plays (a slice a block:
+ * the effect passes the sound meanwhile, ~23 ms at most). Lines hold int16 at half scale (opx_dw's). A delay longer
+ * than its line holds at the full rate runs its line at a half or a quarter of it (an average of the samples after a
+ * one-pole low-pass, read back linearly between them: the echoes darker, ~8 / ~4 kHz). Times beyond even that are
+ * cut to what fits. */
+typedef struct {
+    uint32_t base, n, clr;                /* the slot's region of dly_buf: where, how long; cleared up to here */
+    uint32_t w[8];                        /* the lines' write positions (a delay's: [0] [1]; a reverb's: its 8) */
+    uint32_t q, sub;                      /* input samples a line sample (1, 2, 4); the ones taken of the next */
+    int32_t acc[2], dlp[2];               /* the decimators' sums, their low-passes */
+    int32_t z[16];                        /* the types' filter states */
+    uint32_t ph, ph2, cnt;                /* LFOs, a counter */
+    uint8_t type;                         /* the type the region was given for */
+} opx_fxl_t;
+static opx_fxl_t opx_fxl[3] __attribute__((section(".pool")));
+#define OPX_FXL_SLICE 2048u               /* samples cleared a block */
+
+/* a line of n samples at b: write x (full scale), w on */
+static inline void opx_lw(int16_t *b, uint32_t n, uint32_t *w, int32_t x)
+{
+    b[*w] = (int16_t)(clamp(x, -65535, 65535) >> 1);
+    if (++*w >= n)
+        *w = 0;
+}
+/* the line read d8 (Q8, >= 256) line samples before its write position w (1: the newest), linearly between */
+static inline int32_t opx_lr(const int16_t *b, uint32_t n, uint32_t w, int32_t d8)
+{
+    int32_t pos = (int32_t)(w << 8) - d8, i = pos >> 8, f = pos & 255, a, c;
+    uint32_t u = (uint32_t)(i < 0 ? i + (int32_t)n : i), v = u + 1u >= n ? 0u : u + 1u;
+    a = b[u], c = b[v];
+    return (a + (((c - a) * f) >> 8)) * 2;
+}
+/* a delay's line at its rate q: x in (each input sample; written each q-th); returns whether one was written */
+static inline void opx_lin(opx_fxl_t *l, uint32_t ch, int16_t *b, uint32_t n, int32_t x, int32_t g)
+{
+    if (l->q == 1u) {
+        opx_lw(b, n, &l->w[ch], x);
+        return;
+    }
+    l->acc[ch] += opx_fxlp(&l->dlp[ch], x, g);
+    if (l->sub + 1u >= l->q) {
+        opx_lw(b, n, &l->w[ch], l->acc[ch] / (int32_t)l->q);
+        l->acc[ch] = 0;
+    }
+}
+/* the line d8 input samples back (Q8) at its rate, as of the input sample now in (l->sub of q taken) */
+static inline int32_t opx_lout(const opx_fxl_t *l, uint32_t ch, const int16_t *b, uint32_t n, int32_t d8)
+{
+    int32_t q = (int32_t)l->q, dd = d8 / q - (int32_t)((l->sub << 8) / l->q);
+    return opx_lr(b, n, l->w[ch], dd < 256 ? 256 : dd);
+}
+/* the rate a delay of d input samples needs in a line of n (1, 2, 4: the longest that fits at the slowest) */
+static uint32_t opx_lq(int32_t d, uint32_t n)
+{
+    return d <= (int32_t)n - 8 ? 1u : d <= 2 * ((int32_t)n - 8) ? 2u : 4u;
+}
+/* ms as input samples Q8 */
+static int32_t opx_ms8(int32_t ms) { return clamp(ms, 0, 3000) * 11290; }
+/* a note value (OPX_SYNC code) at the song's tempo as input samples Q8 (a whole note: 10584000 / BPM samples) */
+static int32_t opx_note8(int32_t c)
+{
+    const uint8_t *nv = OPX_SYNC[(uint32_t)c < NELEM(OPX_SYNC) ? (uint32_t)c : OPX_SYNC_DEF];
+    int32_t whole = 10584000 / clamp(song.g[G_BPM], 20, 300);
+    return clamp(whole * nv[0] / nv[1], 0, 3000 * 441 / 10) << 8;
+}
+/* the rate a long type's line needs in a region of len (its knobs as they are now) */
+static uint32_t opx_fxl_rate(const opx_fxp_t *p, uint32_t len)
+{
+    const int16_t *v = p->v;
+    int32_t a, b;
+    switch (p->type) {
+    case 21: a = opx_ms8(v[2]), b = opx_ms8(v[3]); return opx_lq((a > b ? a : b) >> 8, len / 2u);
+    case 22: a = opx_note8(v[2]), b = opx_note8(v[3]); return opx_lq((a > b ? a : b) >> 8, len / 2u);
+    case 23: return opx_lq(opx_ms8(v[2]) >> 8, len);
+    case 24: return opx_lq(opx_note8(v[2]) >> 8, len);
+    case 25: a = opx_ms8(v[2]); return opx_lq((a + (a >> 9)) >> 8, len);
+    case 26: a = opx_note8(v[2]); return opx_lq((a + (a >> 9)) >> 8, len);
+    case 27: return opx_lq(clamp(v[2], 10, 1600) * 441 / 10 + 70, len);
+    default: return 1u;
+    }
+}
+/* the regions for part 1's live long slots (each block, before the chain): a slot whose type or region changed starts
+ * again (cleared, its state at rest) */
+static void opx_fxl_assign(const opx_patch_t *p)
+{
+    uint32_t k, n = 0, j = 0, live[3], len;
+    for (k = 0; k < 3u; k++) {
+        live[k] = opx_fx_live(&p->fx[k]) && OPX_FXT[p->fx[k].type].kind == 2u;
+        n += live[k];
+    }
+    opx_lend = n != 0u;
+    len = n ? (DLY_LEN / n) & ~3u : 0u;
+    for (k = 0; k < 3u; k++) {
+        opx_fxl_t *l = &opx_fxl[k];
+        uint32_t ty = live[k] ? p->fx[k].type : 0u, base = live[k] ? len * j++ : 0u;
+        if (ty != l->type || base != l->base || (live[k] && len != l->n)) {
+            memset(l, 0, sizeof *l);
+            l->type = (uint8_t)ty, l->base = base, l->n = live[k] ? len : 0u;
+            l->q = live[k] ? opx_fxl_rate(&p->fx[k], len) : 1u;
+            if (ty == 28u || ty == 29u)              /* (the reverbs: the size the region is cleared for) */
+                l->cnt = ty == 28u ? (uint32_t)clamp(p->fx[k].v[1], 0, 7) + 1u : 1u;
+        }
+    }
+}
+/* blocks a long type sounds on after its input stops (its echoes or its tail to ~-80 dB), at most ~30 s */
+static uint32_t opx_fxl_tail(const opx_fxp_t *p)
+{
+    const int16_t *v = p->v;
+    int32_t d8 = 0, fb = 0, ms;
+    switch (p->type) {
+    case 21: d8 = opx_ms8(v[2] > v[3] ? v[2] : v[3]), fb = v[1]; break;
+    case 22: d8 = opx_note8(v[2] > v[3] ? v[2] : v[3]), fb = v[1]; break;
+    case 23: d8 = opx_ms8(v[2]), fb = 35; break;
+    case 24: d8 = opx_note8(v[2]), fb = 35; break;
+    case 25: d8 = opx_ms8(v[2]), fb = v[1]; break;
+    case 26: d8 = opx_note8(v[2]), fb = v[1]; break;
+    case 27: return (uint32_t)clamp(v[2], 10, 1600) * 1378u / 1000u + 64u;
+    case 28: return (uint32_t)clamp(v[2], 200, 10000) * 1378u * 3u / 2000u + 64u;
+    case 29: return (uint32_t)(500 + clamp(v[2], 0, 100) * 115) * 1378u * 3u / 2000u + 64u;
+    case 30: return (uint32_t)clamp(v[2], 49, 4000) * 1378u * 3u / 2000u + 64u;
+    default: return 2u * 1378u;              /* (GRAIN: two seconds) */
+    }
+    /* repeats to -80 dB at FDBK fb %: 80 / -20 log10(fb / 100), from a table of 20 log10 by 10 % steps */
+    {
+        static const uint8_t DB[11] = {255, 20, 14, 10, 8, 6, 4, 3, 2, 1, 0};   /* (-dB a repeat, rounded down) */
+        uint32_t reps = fb >= 100 ? 60u : (uint32_t)(80 / (DB[clamp(fb, 0, 100) / 10] ? DB[clamp(fb, 0, 100) / 10] : 1)) + 1u;
+        ms = (int32_t)(((int64_t)d8 * (int32_t)reps) >> 8) / 44;   /* (samples to ms) */
+    }
+    return (uint32_t)clamp(ms, 0, 30000) * 1378u / 1000u + 64u;
+}
+
+/* the reverbs' network (REVERB, SHVERB): four all-passes in series diffuse the input (Schroeder, g diff), then four
+ * lines (lengths L x sz / 256) feed back through a 4 x 4 Hadamard matrix, each with a one-pole low-pass (TONE) and its
+ * gain for TIME's 60 dB (10^(-3 L / (T fs))); the left the lines 0 and 2, the right 1 and 3. SPACE: line 3's length
+ * swings +-6 samples at 0.3 Hz. Lines in the region one after another, each 16 samples longer than read (the swing) */
+static const uint16_t OPX_RVAP[4] = {142, 107, 379, 277}, OPX_RVL[4] = {1693, 2011, 2459, 2903};
+static uint32_t opx_rv_len(uint32_t sz)              /* the network's samples in its region at size sz */
+{
+    uint32_t j, n = 0;
+    for (j = 0; j < 4u; j++)
+        n += OPX_RVAP[j] + (OPX_RVL[j] * sz >> 8) + 16u;
+    return n;
+}
+typedef struct { int32_t g[4], gl, dif, sz, mod; } opx_rv_t;
+/* one sample in (mono), the left and right out (each line's, as they are read) */
+static inline void opx_rv_step(opx_fxl_t *x, int16_t *b, const opx_rv_t *c, int32_t in, int32_t *ol, int32_t *orr)
+{
+    int32_t o[4], a, bb, cc, d;
+    uint32_t j, off = 0;
+    for (j = 0; j < 4u; j++) {                       /* (the all-passes: d the line's end, v = x + g d in, y = d - g v) */
+        uint32_t n = OPX_RVAP[j];
+        int32_t dd = b[off + x->w[j]] * 2, vv = in + (int32_t)(((int64_t)c->dif * dd) >> 15);
+        b[off + x->w[j]] = (int16_t)(clamp(vv, -65535, 65535) >> 1);
+        if (++x->w[j] >= n)
+            x->w[j] = 0;
+        in = dd - (int32_t)(((int64_t)c->dif * vv) >> 15);
+        off += n;
+    }
+    for (j = 0; j < 4u; j++) {                       /* (the lines' ends, damped and scaled) */
+        uint32_t n = (OPX_RVL[j] * (uint32_t)c->sz >> 8) + 16u;
+        int32_t d8 = (int32_t)(n - 8u) << 8;
+        if (j == 3u && c->mod)
+            d8 += (int32_t)(((int64_t)sine_i(x->ph) * (6 << 8)) >> 15);
+        o[j] = opx_lr(b + off, n, x->w[4 + j], d8);
+        o[j] = opx_fxlp(&x->z[j], o[j], c->gl);
+        off += n;
+    }
+    *ol = o[0] + o[2], *orr = o[1] + o[3];
+    for (j = 0; j < 4u; j++)
+        o[j] = (int32_t)(((int64_t)o[j] * c->g[j]) >> 15);
+    a = o[0] + o[1], bb = o[0] - o[1], cc = o[2] + o[3], d = o[2] - o[3];   /* (Hadamard / 2: lossless) */
+    o[0] = (a + cc) >> 1, o[1] = (bb + d) >> 1, o[2] = (a - cc) >> 1, o[3] = (bb - d) >> 1;
+    off = OPX_RVAP[0] + OPX_RVAP[1] + OPX_RVAP[2] + OPX_RVAP[3];
+    for (j = 0; j < 4u; j++) {
+        uint32_t n = (OPX_RVL[j] * (uint32_t)c->sz >> 8) + 16u;
+        opx_lw(b + off, n, &x->w[4 + j], (j & 1u ? -in : in) + o[j]);
+        off += n;
+    }
+}
+/* the network's gains for 60 dB in t ms at size sz, its damping at tone Hz */
+static void opx_rv_set(opx_rv_t *c, int32_t t, uint32_t sz, uint32_t tone, int32_t dif, int32_t mod)
+{
+    int32_t k = 3791306 / clamp(t, 50, 30000), j;   /* (log2 of a line's gain: -0.22598 L / T ms, Q24) */
+    for (j = 0; j < 4; j++)
+        c->g[j] = fm6_exp2(-(int32_t)(OPX_RVL[j] * sz >> 8) * k - (9 << 24));
+    c->gl = opx_fxg1(opx_fxhz(tone)), c->dif = dif, c->sz = (int32_t)sz, c->mod = mod;
+}
+/* The long types, slot k's region; returns whether there are two channels after it. Assumptions to hear (the manual
+ * gives the knobs, not the designs); LEVEL is the wet sound's, added to the dry, which passes whole:
+ *   DLY, DLY BPM    a line each side, DLY L / DLY R long, FDBK back into its own side (no cross-feed)
+ *   PDLY, PDL BPM   one line DLY long, a fixed 35 % fed back (it has no FDBK knob), its echo panned by a sine at
+ *                   SPEED (BPM: a note value), DEPTH how far
+ *   TDLY, TDL BPM   one line DLY long, a slow wow (0.6 Hz, +-0.15 % of DLY), FDBK through a soft clip; DAMP > 0 a
+ *                   low-pass in the loop (12 kHz .. 1.5 kHz as it goes to 100 %), < 0 a high-pass (40 Hz .. 1.2 kHz);
+ *                   the echoes in the middle
+ *   REF             one line, eight taps over TIME (one at TIME), every other one left / right: SHARP close early taps
+ *                   falling fast, LOOSE spread taps falling slowly, MOD LOOSE's taps swinging +-1.5 ms at 0.7 Hz,
+ *                   REVERSE SHARP's taps rising to the last; HEQ a 3 kHz shelf on them (+-15 dB)
+ *   REVERB          opx_rv_step's network, TYPE its size (HALL 1, L.HALL 1.45, S.HALL 0.7, CHAMBR 0.55, PLATE 0.45 more
+ *                   diffused, ROOM 0.3, W.ROOM 0.35 darker, SPACE 1.8 swung), TIME to -60 dB, TONE the damping
+ *   SHVERB          the HALL network, its output pitch-shifted back into its input (two heads over 2048 samples,
+ *                   crossfaded): CLEAR +12, RISER +7, SUBMAR -12, HORROR -1 semitones; TIME 0.5 .. 12 s, TONE
+ *                   1 .. 16 kHz
+ *   SPRING          a loop of LENGTH (25 .. 75 ms) through twelve first-order all-passes (CHIRP their coefficient
+ *                   0.3 .. 0.8: the spring's dispersion, each trip again) and a 4.5 kHz low-pass, a 110 Hz low cut in;
+ *                   TIME its 60 dB; the left the loop's end, the right a tap at 0.7 of it
+ *   GRAIN           at each SPEED (a note value at the tempo; at most half the region) the first TIME of it (10 ms ..
+ *                   all of it) plays live and is kept as a grain, then played over and over till the next (2 ms
+ *                   crossfades where it loops); RETRIG starts the grid again: NOTE and VEL at each note-on,
+ *                   MODW and DAMPER as they rise past half, LFO1..3 as the LFO rises through 0; MIX dry / grain */
+static uint32_t __attribute__((noinline)) opx_fx_long(uint32_t k, opx_fxs_t *s, const opx_fxp_t *p, int32_t *l,
+                                                      int32_t *r, uint32_t st, int32_t mq)
+{
+    opx_fxl_t *x = &opx_fxl[k];
+    const int16_t *v = p->v;
+    int16_t *b = dly_buf + x->base;
+    uint32_t i, t = p->type, n = x->n;
+    int32_t lev = clamp(v[0], 0, 100) * 327;          /* (LEVEL, Q15) */
+    (void)s;
+    if (!n)
+        return st;
+    if (x->clr < n) {                                /* (its region from rest: cleared a slice a block, the sound passed) */
+        uint32_t m = n - x->clr < OPX_FXL_SLICE ? n - x->clr : OPX_FXL_SLICE;
+        memset(b + x->clr, 0, m * sizeof *b);
+        x->clr += m;
+        return st;
+    }
+    switch (t) {
+    case 21: case 22: {                              /* DLY, DLY BPM: LEVEL FDBK DLY L DLY R */
+        uint32_t h = n / 2u, q, ch;
+        int32_t dl = t == 21u ? opx_ms8(v[2]) : opx_note8(v[2]), dr = t == 21u ? opx_ms8(v[3]) : opx_note8(v[3]);
+        int32_t fb = clamp(v[1], 0, 100) * 324, g;    /* (FDBK, Q15: 100 % = 0.99) */
+        q = opx_fxl_rate(p, n);
+        if (q != x->q) {                             /* (another rate: the lines from rest) */
+            uint32_t keep = x->base, nn = x->n;
+            uint8_t ty = x->type;
+            memset(x, 0, sizeof *x);
+            x->base = keep, x->n = nn, x->type = ty, x->q = q;
+            return st;
+        }
+        dl = clamp(dl, 256 * 2 * (int32_t)q, ((int32_t)h - 4) * (int32_t)q * 256);
+        dr = clamp(dr, 256 * 2 * (int32_t)q, ((int32_t)h - 4) * (int32_t)q * 256);
+        g = q == 2u ? opx_fxg1(opx_fxhz(8000)) : opx_fxg1(opx_fxhz(4000));
+        for (i = 0; i < CTL; i++) {
+            int32_t xl = l[i], xr = st ? r[i] : xl, yl, yr;
+            yl = opx_lout(x, 0, b, h, dl), yr = opx_lout(x, 1, b + h, h, dr);
+            opx_lin(x, 0, b, h, xl + (int32_t)(((int64_t)yl * fb) >> 15), g);
+            opx_lin(x, 1, b + h, h, xr + (int32_t)(((int64_t)yr * fb) >> 15), g);
+            if (++x->sub >= x->q)
+                x->sub = 0;
+            l[i] = xl + (int32_t)(((int64_t)yl * lev) >> 15);
+            r[i] = xr + (int32_t)(((int64_t)yr * lev) >> 15);
+        }
+        (void)ch;
+        return 1u;
+    }
+    case 23: case 24: {                              /* PDLY, PDL BPM: LEVEL DEPTH DLY SPEED */
+        int32_t d = t == 23u ? opx_ms8(v[2]) : opx_note8(v[2]), dep = clamp(v[1], 0, 100) * 327, g;
+        uint32_t q = opx_fxl_rate(p, n), inc = opx_fxlfo(v[3], t == 24u), ph = x->ph;
+        if (q != x->q) {
+            uint32_t keep = x->base, nn = x->n;
+            uint8_t ty = x->type;
+            memset(x, 0, sizeof *x);
+            x->base = keep, x->n = nn, x->type = ty, x->q = q;
+            return st;
+        }
+        d = clamp(d, 256 * 2 * (int32_t)q, ((int32_t)n - 4) * (int32_t)q * 256);
+        g = q == 2u ? opx_fxg1(opx_fxhz(8000)) : opx_fxg1(opx_fxhz(4000));
+        for (i = 0; i < CTL; i++, ph += inc) {
+            int32_t xl = l[i], xr = st ? r[i] : xl, m = (xl + xr) >> 1, y = opx_lout(x, 0, b, n, d);
+            int32_t pan = (int32_t)(((int64_t)sine_i(ph) * dep) >> 15);   /* (-1 .. 1 x DEPTH, Q15) */
+            int32_t gl = 23170 - (int32_t)(((int64_t)pan * 23170) >> 15), gr = 23170 + (int32_t)(((int64_t)pan * 23170) >> 15);
+            opx_lin(x, 0, b, n, m + (int32_t)(((int64_t)y * 11469) >> 15), g);   /* (35 % back) */
+            if (++x->sub >= x->q)
+                x->sub = 0;
+            y = (int32_t)(((int64_t)y * lev) >> 15);
+            l[i] = xl + (int32_t)(((int64_t)y * gl) >> 15);
+            r[i] = xr + (int32_t)(((int64_t)y * gr) >> 15);
+        }
+        x->ph = ph;
+        return 1u;
+    }
+    case 25: case 26: {                              /* TDLY, TDL BPM: LEVEL FDBK DLY DAMP */
+        int32_t d = t == 25u ? opx_ms8(v[2]) : opx_note8(v[2]), fb = clamp(v[1], 0, 100) * 324, dm = clamp(v[3], -1000, 1000);
+        int32_t gd = dm > 0 ? opx_fxg1(opx_fxoct(12000, -(int32_t)(((int64_t)dm * 50331648) / 1000))) :   /* (3 oct) */
+                     opx_fxg1(opx_fxoct(40, (int32_t)(((int64_t)-dm * 81759191) / 1000))), g;   /* (~4.9 oct) */
+        uint32_t q = opx_fxl_rate(p, n), inc = 58434u, ph = x->ph;   /* (0.6 Hz) */
+        if (q != x->q) {
+            uint32_t keep = x->base, nn = x->n;
+            uint8_t ty = x->type;
+            memset(x, 0, sizeof *x);
+            x->base = keep, x->n = nn, x->type = ty, x->q = q;
+            return st;
+        }
+        d = clamp(d, 256 * 4 * (int32_t)q, ((int32_t)n - 8) * (int32_t)q * 256 - (d >> 9));
+        g = q == 2u ? opx_fxg1(opx_fxhz(8000)) : opx_fxg1(opx_fxhz(4000));
+        for (i = 0; i < CTL; i++, ph += inc) {
+            int32_t xl = l[i], xr = st ? r[i] : xl, m = (xl + xr) >> 1;
+            int32_t y = opx_lout(x, 0, b, n, d + (int32_t)(((int64_t)(d >> 10) * sine_i(ph)) >> 15) * 3 / 2), f;   /* (+-0.15 %) */
+            f = dm > 0 ? opx_fxlp(&x->z[0], y, gd) : dm < 0 ? opx_fxhp(&x->z[0], y, gd) : y;
+            f = opx_fxsat((int32_t)(((int64_t)f * fb) >> 15), OPX_FXFS, (1 << 30) / OPX_FXFS);
+            opx_lin(x, 0, b, n, m + f, g);
+            if (++x->sub >= x->q)
+                x->sub = 0;
+            y = (int32_t)(((int64_t)y * lev) >> 15);
+            l[i] = xl + y;
+            r[i] = xr + y;
+        }
+        x->ph = ph;
+        return st;
+    }
+    case 18: {                                       /* GRAIN: MIX TIME SPEED RETRIG */
+        int32_t per = clamp(opx_note8(v[2]) >> 8, 882, (int32_t)n / 2), g = 441 + (int32_t)(((int64_t)(per - 441) *
+                      clamp(v[1], 0, 100)) / 100), rt = clamp(v[3], 0, 7), trig = 0, now;
+        const track_t *tk = &trk[0];
+        switch (rt) {                                /* (the retrigger: the source's event since the last block) */
+        case 1: now = tk->mw >= 64; trig = now && !x->z[1]; x->z[1] = now; break;
+        case 2: now = opx_ctl_pedal[0] != 0; trig = now && !x->z[1]; x->z[1] = now; break;
+        case 3: case 4: trig = x->z[1] != (int32_t)opx_non[0]; x->z[1] = (int32_t)opx_non[0]; break;
+        case 5: case 6: case 7: now = opx_lfov[0][rt - 5] >= 0; trig = now && !x->z[1]; x->z[1] = now; break;
+        default: break;
+        }
+        if (!x->z[2]) {                              /* (the first block: no event, the grid from here) */
+            x->z[2] = 1, trig = 0;
+            x->cnt = (uint32_t)per;                  /* (a grain from here) */
+        }
+        if (trig)
+            x->cnt = (uint32_t)per;
+        for (i = 0; i < CTL; i++) {
+            int32_t xl = l[i], xr = st ? r[i] : xl, m = (xl + xr) >> 1, gl = x->z[3] ? x->z[3] : g, ph, d, y, f;
+            uint32_t a;
+            opx_lw(b, n, &x->w[0], m);
+            if (x->cnt >= (uint32_t)per) {           /* (a new grain: the last g samples, from here) */
+                x->cnt = 0, x->z[4] = 0;
+                x->z[3] = gl = g;
+            }
+            ph = x->z[4];                            /* (the place in the grain: cnt mod its length, counted) */
+            if (x->cnt < (uint32_t)gl)               /* (the grain's first pass: the live sound, recorded) */
+                y = m;
+            else {
+                d = (int32_t)x->cnt - ph + 1;        /* (back to the grain's sample now: 1 the newest; <= per <= n / 2) */
+                a = x->w[0] >= (uint32_t)d ? x->w[0] - (uint32_t)d : x->w[0] + n - (uint32_t)d;
+                y = b[a] * 2;
+                if (ph < 88) {                       /* (2 ms: from where the last pass ran on into this one) */
+                    uint32_t a2 = a + (uint32_t)gl >= n ? a + (uint32_t)gl - n : a + (uint32_t)gl;
+                    f = ph * 372;                    /* (Q15) */
+                    y = (int32_t)(((int64_t)y * f + (int64_t)(x->cnt == (uint32_t)(gl + ph) ? m : b[a2] * 2) *
+                                   (32768 - f)) >> 15);
+                }
+            }
+            x->cnt++;
+            if (++x->z[4] >= gl)
+                x->z[4] = 0;
+            l[i] = xl + (int32_t)(((int64_t)(y - xl) * mq) >> 15);
+            r[i] = xr + (int32_t)(((int64_t)(y - xr) * mq) >> 15);
+        }
+        return 1u;
+    }
+    case 27: {                                       /* REF: LEVEL TYPE TIME HEQ */
+        static const uint8_t POS[2][8] = {{20, 38, 59, 84, 115, 148, 195, 255}, {13, 43, 54, 92, 105, 159, 182, 243}};
+        static const int16_t GN[2][8] = {{29491, 24576, 20316, 16384, 13107, 9830, 7209, 4915},
+                                         {22938, 21299, 19661, 18022, 16384, 14746, 13107, 11469}};
+        int32_t ty = clamp(v[1], 0, 3), d = clamp(v[2], 10, 1600) * 11290, g, sh = opx_fxdb(clamp(v[3], -150, 150)) - 32768;
+        int32_t gh = opx_fxg1(opx_fxhz(3000)), ps = ty == 1 || ty == 2, j;
+        uint32_t q = opx_lq(d >> 8, n), inc = 68174u;    /* (0.7 Hz) */
+        if (q != x->q) {
+            uint32_t keep = x->base, nn = x->n;
+            uint8_t tt = x->type;
+            memset(x, 0, sizeof *x);
+            x->base = keep, x->n = nn, x->type = tt, x->q = q;
+            return st;
+        }
+        g = q == 2u ? opx_fxg1(opx_fxhz(8000)) : opx_fxg1(opx_fxhz(4000));
+        d = clamp(d, 256 * 4 * (int32_t)q, ((int32_t)n - 8) * (int32_t)q * 256 - 16934);   /* (MOD's +-1.5 ms) */
+        for (i = 0; i < CTL; i++, x->ph += inc) {
+            int32_t xl = l[i], xr = st ? r[i] : xl, al = 0, ar = 0;
+            opx_lin(x, 0, b, n, (xl + xr) >> 1, g);
+            for (j = 0; j < 8; j++) {
+                int32_t dd = (int32_t)(((int64_t)d * POS[ps][j]) >> 8), y;
+                if (ty == 2)
+                    dd += (int32_t)(((int64_t)sine_i(x->ph + (uint32_t)j * 0x20000000u) * 16934) >> 15);
+                y = opx_lout(x, 0, b, n, dd < 512 * (int32_t)q ? 512 * (int32_t)q : dd);
+                y = (int32_t)(((int64_t)y * GN[ps][ty == 3 ? 7 - j : j]) >> 15);
+                if (j & 1)
+                    ar += y;
+                else
+                    al += y;
+            }
+            if (++x->sub >= x->q)
+                x->sub = 0;
+            al += (int32_t)(((int64_t)opx_fxhp(&x->z[0], al, gh) * sh) >> 15);   /* (HEQ: the highs by its gain) */
+            ar += (int32_t)(((int64_t)opx_fxhp(&x->z[1], ar, gh) * sh) >> 15);
+            l[i] = xl + (int32_t)(((int64_t)al * lev) >> 16);
+            r[i] = xr + (int32_t)(((int64_t)ar * lev) >> 16);
+        }
+        return 1u;
+    }
+    case 28: case 29: {                              /* REVERB: LEVEL TYPE TIME TONE; SHVERB: LEVEL TYPE TIME TONE */
+        static const uint16_t SZ[8] = {256, 371, 179, 141, 115, 77, 90, 461};
+        static const int32_t SHIFT[4] = {-32768, -16329, 16384, 1838};   /* (the heads' delay a sample: 1 - the ratio,
+                                                                          * Q15: +12 +7 -12 -1 semitones) */
+        int32_t ty = t == 28u ? clamp(v[1], 0, 7) : 0, tm, tone, dif = ty == 4 ? 24576 : 19661;
+        uint32_t sz = SZ[ty], need = opx_rv_len(sz) + (t == 29u ? 2048u : 0u);
+        opx_rv_t c;
+        if (x->cnt != (uint32_t)ty + 1u) {           /* (another size: the network from rest) */
+            uint32_t keep = x->base, nn = x->n;
+            uint8_t tt = x->type;
+            memset(x, 0, sizeof *x);
+            x->base = keep, x->n = nn, x->type = tt, x->q = 1, x->cnt = (uint32_t)ty + 1u;
+            return st;
+        }
+        if (need > n)                                /* (cannot be: the smallest region holds the largest) */
+            return st;
+        if (t == 28u)
+            tm = clamp(v[2], 200, 10000), tone = clamp(v[3], 500, 20000) * (ty == 6 ? 3 : 5) / 5;
+        else
+            tm = 500 + clamp(v[2], 0, 100) * 115, tone = (int32_t)(((int64_t)1000 * fm6_exp2(clamp(v[3], 0, 100) * 671089 - (8 << 24))) >> 16);
+        opx_rv_set(&c, tm, sz, (uint32_t)tone, dif, ty == 7);
+        for (i = 0; i < CTL; i++) {
+            int32_t xl = l[i], xr = st ? r[i] : xl, in = (xl + xr) >> 2, ol, orr;
+            if (t == 29u) {                          /* (SHVERB: the wet, shifted, back in) */
+                int16_t *pb = b + opx_rv_len(sz);
+                uint32_t sh = (uint32_t)clamp(v[1], 0, 3), h;
+                int32_t a0, a1, ph = x->z[6];
+                pb[x->ph2 & 2047u] = (int16_t)(clamp(x->z[7], -65535, 65535) >> 1);   /* (the last wet, mono) */
+                ph = (ph + SHIFT[sh]) & 0x3FFFFFF;   /* (head A's delay, Q15 samples, within the 2048) */
+                h = (uint32_t)ph >> 15;              /* (0 .. 2047: head A's delay) */
+                a0 = opx_lr(pb, 2048u, (x->ph2 + 1u) & 2047u, (int32_t)((h + 2u) << 8));
+                a1 = opx_lr(pb, 2048u, (x->ph2 + 1u) & 2047u, (int32_t)((((h + 1024u) & 2047u) + 2u) << 8));
+                {                                    /* (a triangle across each head's sweep: one silent at its jump) */
+                    int32_t wa = (int32_t)(h < 1024u ? h : 2047u - h) * 32;
+                    in += (int32_t)(((int64_t)a0 * wa + (int64_t)a1 * (32767 - wa)) >> 16) * 2 / 5;
+                }
+                x->ph2++;
+                x->z[6] = ph;
+            }
+            opx_rv_step(x, b, &c, in, &ol, &orr);
+            if (t == 29u)
+                x->z[7] = (ol + orr) >> 1;
+            x->ph += 6067u;                          /* (0.3 Hz: SPACE's swing) */
+            l[i] = xl + (int32_t)(((int64_t)ol * lev) >> 16);
+            r[i] = xr + (int32_t)(((int64_t)orr * lev) >> 16);
+        }
+        return 1u;
+    }
+    case 30: {                                       /* SPRING: LEVEL LENGTH TIME CHIRP */
+        int32_t len = (25 + clamp(v[1], 0, 100) / 2) * 441 / 10, a = -(9830 + clamp(v[3], 0, 100) * 164), j;   /* (Q15) */
+        int32_t k = 3791306 / clamp(v[2], 49, 4000), gfb = fm6_exp2(-len * k - (9 << 24));
+        int32_t glo = opx_fxg1(opx_fxhz(110)), ghi = opx_fxg1(opx_fxhz(4500));
+        int32_t *ap = x->z + 4;                     /* (the twelve all-passes' states: z[4..15]) */
+        for (i = 0; i < CTL; i++) {
+            int32_t xl = l[i], xr = st ? r[i] : xl, y = opx_lr(b, n, x->w[0], len << 8), u, tap;
+            tap = opx_lr(b, n, x->w[0], (len * 7 / 10) << 8);
+            u = (int32_t)(((int64_t)y * gfb) >> 15) + opx_fxhp(&x->z[0], (xl + xr) >> 2, glo);   /* (the low cut on the
+                                                                                    * way in: in the loop it shortened TIME's
+                                                                                    * low notes, 1 dB a trip at 220 Hz) */
+            for (j = 0; j < 12; j++) {               /* (first order: y = a x + s; s = x - a y) */
+                int32_t o = (int32_t)(((int64_t)a * u) >> 15) + ap[j];
+                ap[j] = clamp(u - (int32_t)(((int64_t)a * o) >> 15), -OPX_FXLIM, OPX_FXLIM);
+                u = o;
+            }
+            u = opx_fxlp(&x->z[1], u, ghi);
+            opx_lw(b, n, &x->w[0], u);
+            l[i] = xl + (int32_t)(((int64_t)y * lev) >> 15);
+            r[i] = xr + (int32_t)(((int64_t)tap * lev) >> 15);
+        }
+        return 1u;
+    }
+    default:                                         /* (not built yet: the sound as it is) */
+        return st;
+    }
+}
+#endif
+
 /* one effect on a block: l (and, st, r) in place; returns whether there are two channels after it */
 static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp_t *p, int32_t *l, int32_t *r,
                                                      uint32_t st)
@@ -542,6 +1023,10 @@ static uint32_t __attribute__((noinline)) opx_fx_run(opx_fxs_t *s, const opx_fxp
         s->g = (int32_t)(w & 0x7FFFFFFFu);
         return t == 7u || t == 8u ? st : 1u;
     }
+    case 18: case 21: case 22: case 23: case 24: case 25: case 26: case 27: case 28: case 29: case 30: {
+        uint32_t k = (uint32_t)(s - &opx_fxs[0][0]);
+        return k < 3u ? opx_fx_long(k, s, p, l, r, st, mq) : st;
+    }
 #endif
     default:                                         /* (not built yet: the sound as it is) */
         return st;
@@ -563,10 +1048,29 @@ static uint32_t opx_post(track_t *t, int32_t *out, int32_t *left, uint32_t n, ui
         any |= (uint32_t)opx_fx_live(&p->fx[k]);
     if (!any) {
         opx_fxtail[tr] = 0;
+#if OPX_FX_ALL
+        if (!tr && opx_lend) {                       /* (no long type now: the line back to the DELAY bus) */
+            opx_lend = 0;
+            memset(opx_fxl, 0, sizeof opx_fxl);
+        }
+#endif
         return 0;
     }
-    if (nr)
-        opx_fxtail[tr] = OPX_FXTAIL;
+#if OPX_FX_ALL
+    if (!tr)
+        opx_fxl_assign(p);
+#endif
+    if (nr) {
+        uint32_t tl = OPX_FXTAIL;
+#if OPX_FX_ALL
+        for (k = 0; k < 3u; k++)                     /* (the long types: their echoes and tails) */
+            if (!tr && opx_fxl[k].n) {
+                uint32_t u = opx_fxl_tail(&p->fx[k]);
+                tl = u > tl ? u : tl;
+            }
+#endif
+        opx_fxtail[tr] = (uint16_t)(tl > 65535u ? 65535u : tl);
+    }
     else if (!opx_fxtail[tr])
         return 0;
     else

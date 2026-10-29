@@ -49,6 +49,11 @@ static void setup(const opx_patch_t *p, const int16_t *e)
     opx_own[0] = p;
     memset(opx_fxs, 0, sizeof opx_fxs);              /* (M5c: the effects from rest: each render the same) */
     memset(opx_fxtail, 0, sizeof opx_fxtail);
+#if OPX_FX_ALL
+    memset(opx_fxl, 0, sizeof opx_fxl);              /* (M5c part 3: the long types' regions from rest, the line lent back) */
+    memset(dly_buf, 0, sizeof dly_buf);
+    opx_lend = 0;
+#endif
     trk[0].p[P_VOICE] = V_POLY;
     trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = 0;
 }
@@ -1419,10 +1424,10 @@ static void test_m5c(void)
     opx_defaults(pk);                                /* the INIT: FX1 CHO, FX2 3EQ, FX3 REVERB, all ON (as an opsix's) */
     memset(&d, 0, sizeof d);
     opx_decode(pk, &d);
-    check("M5c FX: INIT has FX1 CHORUS, FX2 3-BAND EQ (flat), FX3 REVERB HALL, all ON; the 13 cheap types play, CHO only in the OPX-only build, the reverbs not yet",
+    check("M5c FX: INIT has FX1 CHORUS, FX2 3-BAND EQ (flat), FX3 REVERB HALL, all ON; the 13 cheap types play, CHO and REVERB only in the OPX-only build",
           d.fx[0].type == 1u && d.fx[1].type == 14u && d.fx[2].type == 28u && d.fx[0].on && d.fx[1].on && d.fx[2].on &&
           d.fx[1].v[0] == 0 && d.fx[1].v[3] == 1000 && opx_fx_played(1) == OPX_FX_ALL && opx_fx_played(14) &&
-          !opx_fx_played(28));
+          opx_fx_played(28) == OPX_FX_ALL);
     m5b_saw(OPX_MF_LPF12, 23680, 0);                 /* the SAW alone */
     P.flt.on = 0;
     setup(&P, 0);
@@ -1565,6 +1570,184 @@ static void test_m5c2(void)
             printf("opx: RTRY FAST: its 10 ms levels swing %.1f dB\n", sw), ok &= sw > 1.0;
     }
     check("M5c part 2 (OPX-only): CHO U.ENS RTRY ENH two channels apart, FLNG one; levels within 6 dB; RTRY swings", ok);
+    memset(&P, 0, sizeof P);
+}
+
+/* M5c part 3, the OPX-only firmware: the long types. A 50 ms burst of a sine (A3), then silence: the echoes where the
+ * knobs put them, at the levels LEVEL and FDBK give; the line lent while they are live, given back after */
+static double m5c3_y[FS * 3], m5c3_r[FS * 3];
+static void m5c3_render(uint32_t t, int b, int c, int e, int f, uint32_t n)
+{
+    uint32_t k;
+    m4_patch();
+    m5c_fx(0, t, b, c, e, f);
+    setup(&P, 0);
+    opx_fxl_assign(&P);                              /* (its region cleared already: the burst from its first sample) */
+    for (k = 0; k < 3u; k++)
+        opx_fxl[k].clr = opx_fxl[k].n;
+    opx_t_right = m5c3_r, opx_t_wide = 0;
+    engine_render(57, 127, m5c3_y, n, 2205, 0);
+    opx_t_right = 0;
+}
+static double m5c3_at(const double *y, double ms) { return m5c_rms(y, (uint32_t)(ms * 44.1) + 220u, 1764u); }   /* (40 ms) */
+static double m5c3_span(double a, double b)        /* both sides' level from a to b ms */
+{
+    return 10 * log10((pow(10, m5c_rms(m5c3_y, (uint32_t)(a * 44.1), (uint32_t)((b - a) * 44.1)) / 10) +
+                       pow(10, m5c_rms(m5c3_r, (uint32_t)(a * 44.1), (uint32_t)((b - a) * 44.1)) / 10)) / 2);
+}
+/* ms from a 1 ms click to the first wet sample above -60 dB of it (type t, TYPE ty, LEVEL 100, TIME 1 s) */
+static double m5c3_onset(uint32_t t, int ty)
+{
+    static double dr[FS / 4];
+    uint32_t i;
+    m4_patch();
+    setup(&P, 0);
+    engine_render(57, 127, dr, FS / 4, 44, 0);       /* (the click dry, taken off: the wet alone) */
+    m5c_fx(0, t, 100, ty, 1000, 8000);
+    setup(&P, 0);
+    opx_fxl_assign(&P);
+    opx_fxl[0].clr = opx_fxl[0].n;
+    opx_t_right = m5c3_r, opx_t_wide = 0;
+    engine_render(57, 127, m5c3_y, FS / 4, 44, 0);
+    opx_t_right = 0;
+    for (i = 0; i < FS / 4 && fabs(m5c3_y[i] - dr[i]) < 48; i++)
+        ;
+    return i / 44.1;
+}
+static void test_m5c3(void)
+{
+    double dry, a, b, c, d;
+    int ok;
+    m5c3_render(21, 100, 0, 300, 450, FS);           /* DLY: L 300 ms, R 450 ms, no feedback */
+    dry = m5c3_at(m5c3_y, 0);
+    a = m5c3_at(m5c3_y, 300), b = m5c3_at(m5c3_r, 450), c = m5c3_at(m5c3_y, 450), d = m5c3_at(m5c3_r, 300);
+    printf("opx: DLY 300 / 450: dry %.1f dB; left at 300 ms %+.1f, right at 450 %+.1f; left at 450 %+.1f, right at 300 %+.1f\n",
+           dry, a - dry, b - dry, c - dry, d - dry);
+    ok = fabs(a - dry) < 1 && fabs(b - dry) < 1 && c - dry < -40 && d - dry < -40 && opx_t_wide && opx_lend;
+    check("M5c DLY: the left echo at DLY L, the right at DLY R, each at the dry level (LEVEL 100); the line lent", ok);
+    m5c3_render(21, 100, 50, 300, 300, FS);          /* FDBK 50: the second echo ~6 dB down */
+    a = m5c3_at(m5c3_y, 300), b = m5c3_at(m5c3_y, 600), c = m5c3_at(m5c3_y, 900);
+    printf("opx: DLY FDBK 50: echoes %+.1f, %+.1f, %+.1f dB\n", a - dry, b - dry, c - dry);
+    check("M5c DLY FDBK 50: each echo ~6 dB below the last", fabs(b - a + 6.0) < 1 && fabs(c - b + 6.0) < 1);
+    song.g[G_BPM] = 120;
+    m5c3_render(22, 100, 0, 11, 14, FS * 3 / 2);     /* DLY BPM at 120: 1/4 = 500 ms, 1/2 = 1000 ms */
+    a = m5c3_at(m5c3_y, 500), b = m5c3_at(m5c3_r, 1000 - 50);
+    printf("opx: DLY BPM 1/4 / 1/2 at 120: left at 500 ms %+.1f, right at 950 %+.1f dB\n", a - dry, b - dry);
+    ok = fabs(a - dry) < 1 && b - dry < -40;
+    b = m5c3_at(m5c3_r, 1000);
+    printf("opx: DLY BPM: right at 1000 ms %+.1f dB\n", b - dry);
+    check("M5c DLY BPM: the echoes on the tempo's note values (1/4 at 120: 500 ms)", ok && fabs(b - dry) < 1);
+    m5c3_render(21, 100, 0, 2000, 2000, FS * 5 / 2);   /* 2 s: past a half region at half the rate: a quarter */
+    a = m5c3_at(m5c3_y, 2000), b = m5c3_at(m5c3_y, 1000);
+    printf("opx: DLY 2000 ms (rate 1/%u): echo %+.1f dB, between %+.1f dB\n", opx_fxl[0].q, a - dry, b - dry);
+    check("M5c DLY 2 s: the lines at a quarter rate (half the region each), the echo there (within 1.5 dB at A3)",
+          opx_fxl[0].q == 4u && fabs(a - dry) < 1.5 && b - dry < -40);
+    m5c3_render(25, 100, 60, 300, 1000, FS);         /* TDLY, DAMP 100: echoes in the middle, falling */
+    a = m5c3_at(m5c3_y, 300), b = m5c3_at(m5c3_y, 600), c = m5c3_at(m5c3_r, 300);
+    printf("opx: TDLY 300 FDBK 60 DAMP 100: %+.1f, %+.1f dB; right %+.1f\n", a - dry, b - dry, c - dry);
+    check("M5c TDLY: the echo in the middle, the next lower (FDBK 60, DAMP)", fabs(a - dry) < 1.5 && b < a - 3 && fabs(c - a) < 0.1);
+    m5c3_render(23, 100, 100, 300, 2000, FS);        /* PDLY: the echo panned by a 2 Hz sine */
+    {
+        double sl = 0, sr = 0, mx = 0;
+        uint32_t i;
+        for (i = 13230; i < 15435; i += 441u) {     /* (300 .. 350 ms, 10 ms at a time) */
+            double u = m5c_rms(m5c3_y, i, 441), v = m5c_rms(m5c3_r, i, 441);
+            sl += u, sr += v, mx = fabs(u - v) > mx ? fabs(u - v) : mx;
+        }
+        printf("opx: PDLY: the echo's sides up to %.1f dB apart\n", mx);
+        check("M5c PDLY: the echo at DLY, panned (its sides apart)", m5c3_at(m5c3_y, 300) - dry > -6 && mx > 3);
+    }
+    {                                                /* the reverbs: decay rates, width, sizes, the shimmer's octave */
+        double s1, s2, rate, w, h1, h2, early_room, early_hall;
+        m5c3_render(28, 100, 0, 2500, 8000, FS * 3);    /* REVERB HALL 2.5 s */
+        s1 = m5c3_at(m5c3_y, 600), s2 = m5c3_at(m5c3_y, 1600), rate = s2 - s1;
+        {
+            uint32_t i;
+            static double sd[FS * 3];
+            for (i = 0; i < FS * 3u; i++)
+                sd[i] = m5c3_y[i] - m5c3_r[i];
+            w = m5c_rms(sd, 26460, 4410) - m5c3_at(m5c3_y, 600);
+        }
+        printf("opx: REVERB HALL 2.5 s: %+.1f dB at 0.6 s, %.1f dB a second after (60 / 2.5 = -24), sides %+.1f dB\n",
+               s1 - dry, rate, w);
+        ok = rate < -24 * 0.7 && rate > -24 * 1.3 && w > -10 && s1 - dry < 0 && s1 - dry > -40;
+        m5c3_render(28, 100, 0, 8000, 8000, FS * 3);    /* TIME 8 s: slower */
+        s1 = m5c3_at(m5c3_y, 600), s2 = m5c3_at(m5c3_y, 1600);
+        printf("opx: REVERB HALL 8 s: %.1f dB a second (-7.5)\n", s2 - s1);
+        ok &= s2 - s1 < -7.5 * 0.6 && s2 - s1 > -7.5 * 1.4;
+        early_room = m5c3_onset(28, 5), early_hall = m5c3_onset(28, 0);   /* ROOM's lines shorter: it sounds sooner */
+        printf("opx: REVERB's first sound after a click: ROOM %.1f ms, HALL %.1f ms\n", early_room, early_hall);
+        check("M5c REVERB: decays at TIME's rate (60 dB in TIME, +-30 %), two channels apart, ROOM sooner than HALL",
+              ok && early_room < early_hall - 10);
+        m5c3_render(28, 100, 0, 3000, 8000, FS * 2);    /* the shimmer: the octave up grows in the tail */
+        h1 = harm_db(m5c3_y, FS, 16384, 440) - harm_db(m5c3_y, FS, 16384, 220);
+        m5c3_render(29, 100, 0, 30, 70, FS * 2);
+        h2 = harm_db(m5c3_y, FS, 16384, 440) - harm_db(m5c3_y, FS, 16384, 220);
+        printf("opx: the tail's 440 Hz against its 220 Hz: REVERB %+.1f, SHVERB CLEAR %+.1f dB\n", h1, h2);
+        check("M5c SHVERB CLEAR: an octave up in its tail (+10 dB against REVERB's or more)", h2 > h1 + 10);
+        m5c3_render(30, 100, 50, 1500, 50, FS * 2);     /* SPRING: a tail, two sides */
+        s1 = m5c3_at(m5c3_y, 300), s2 = m5c3_at(m5c3_y, 1300);
+        printf("opx: SPRING 1.5 s: %+.1f dB at 0.3 s, %.1f dB a second after (-40)\n", s1 - dry, s2 - s1);
+        check("M5c SPRING: a tail decaying near TIME's rate (+-35 %)", s1 - dry > -40 && s2 - s1 < -40 * 0.65 && s2 - s1 > -40 * 1.35);
+        m5c3_render(27, 100, 0, 400, 0, FS);            /* REF SHARP 400 ms: within TIME, nothing after */
+        h1 = m5c3_span(60, 200), h2 = m5c3_span(250, 450), s2 = m5c3_span(470, 900);
+        m5c3_render(27, 100, 3, 400, 0, FS);            /* REVERSE: the last taps the loudest */
+        s1 = m5c3_span(60, 200), w = m5c3_span(250, 450);
+        printf("opx: REF 400 ms, both sides: SHARP %+.1f dB in 60 .. 200 ms, %+.1f in 250 .. 450, %+.1f after; REVERSE "
+               "%+.1f, %+.1f\n", h1 - dry, h2 - dry, s2 - dry, s1 - dry, w - dry);
+        check("M5c REF: reflections within TIME and none after; SHARP falling, REVERSE rising",
+              h1 - dry > -20 && s2 - dry < -60 && h1 > h2 + 3 && w > s1 + 3);
+    }
+    {                                                /* GRAIN: each period's first TIME looped till the next */
+        double rep, after;
+        song.g[G_BPM] = 120;
+        m4_patch();
+        m5c_fx(0, 18, 100, 20, 11, 0);              /* (MIX 100, TIME 20 %, 1/4: 500 ms, RETRIG OFF) */
+        setup(&P, 0);
+        opx_fxl_assign(&P);
+        opx_fxl[0].clr = opx_fxl[0].n;
+        opx_t_right = m5c3_r, opx_t_wide = 0;
+        engine_render(57, 127, m5c3_y, FS, 2646, 0);    /* (60 ms of the sine) */
+        opx_t_right = 0;
+        rep = m5c3_span(216, 270), after = m5c3_span(520, 950);
+        printf("opx: GRAIN 1/4 TIME 20 %%: the burst again at 216 .. 270 ms %+.1f dB, after 500 ms %+.1f dB\n", rep - dry,
+               after - dry);
+        check("M5c GRAIN: the period's first TIME looped till the next period, then the live sound (silent)",
+              fabs(rep - dry) < 1.5 && after - dry < -60);
+    }
+    m4_patch();                                      /* no long type: the line back to the DELAY bus */
+    m5c_fx(0, 5, 100, 0, 5000, 300);
+    opx_fxtail[0] = 0;
+    {
+        int32_t b0[CTL] = {0}, lb[CTL];
+        opx_post(&trk[0], b0, lb, CTL, 0, 1);
+    }
+    check("M5c long types gone: the line back (opx_lend 0)", !opx_lend);
+    {                                                /* fx.c's DELAY bus: its line untouched while lent; cleared, then on */
+        static int32_t ci[CTL], di[CTL], ri[CTL], wet[CTL];
+        uint32_t i, bad = 0, k;
+        for (i = 0; i < CTL; i++)
+            di[i] = 20000;
+        song.g[G_DMIX] = 100;
+        memset(dly_buf, 0, sizeof dly_buf);
+        dly_buf[123] = 999;                          /* (an OPX echo left in it) */
+        opx_lend = 1;
+        for (k = 0; k < 4u; k++)
+            fx_buses(ci, di, ri, wet, CTL);
+        for (i = 0; i < DLY_LEN; i++)
+            bad += i != 123u && dly_buf[i] != 0;
+        opx_lend = 0;
+        for (k = 0; k < DLY_LEN / 2048u; k++)        /* (the slices: the bus silent meanwhile) */
+            fx_buses(ci, di, ri, wet, CTL);
+        bad += dly_buf[123] != 0;
+        fx_buses(ci, di, ri, wet, CTL);
+        for (i = 0, k = 0; i < DLY_LEN; i++)
+            k += dly_buf[i] != 0;
+        printf("opx: DELAY bus: %u touched or left, %u written after\n", bad, k);
+        check("M5c fx.c DELAY bus: its line untouched while lent, cleared when back, then written again", !bad && k > 0);
+        memset(dly_buf, 0, sizeof dly_buf);
+        song.g[G_DMIX] = 0;
+    }
     memset(&P, 0, sizeof P);
 }
 #endif
@@ -1876,6 +2059,7 @@ int main(int argc, char **argv)
     test_m5c();
 #if OPX_FX_ALL
     test_m5c2();
+    test_m5c3();
 #endif
     test_user_empty();
     test_waves();

@@ -2,9 +2,7 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Effects: per-track DIST and INSERT (1.5), then sends into three
  * shared buses (chorus, tempo delay, reverb). Mono buses, stereo dry mix. */
-#define DLY_LEN 65536u           /* 1.49 s: 1/4 fits from 41 BPM, 1/4D from 61, 1/2 from 81 */
-#define CHO_LEN 2048u
-static int16_t dly_buf[DLY_LEN] __attribute__((section(".pool")));
+#define CHO_LEN 2048u            /* (DLY_LEN and dly_buf: core.h, OPX fork: OPX Solo's long effects borrow it) */
 static int16_t cho_buf[CHO_LEN] __attribute__((section(".pool")));
 static const uint16_t REV_COMB[4] = {1116, 1188, 1277, 1356};
 static const uint16_t REV_AP[2] = {556, 441};
@@ -14,6 +12,7 @@ static union {                          /* ROOM's allpasses; SPRING's allpass ch
     int32_t sp[(556 + 441) / 2];
 } rev_u __attribute__((section(".pool")));
 #define rev_ap (rev_u.ap)
+static uint32_t dly_clr = DLY_LEN;      /* (OPX fork) dly_buf cleared up to here after OPX lent it back */
 static struct {
     uint32_t dly_w, cho_w, cho_ph;
     int32_t dly_lp;
@@ -537,6 +536,13 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     int32_t dmix = song.g[G_DMIX] * 258;
     int32_t cdepth = song.g[G_CDEPTH] * 6, rt;
     uint32_t cinc = LFO_INC[song.g[G_CRATE] & 127] / CTL;
+    uint32_t dly_off = opx_lend || dly_clr < DLY_LEN;   /* (OPX fork: OPX Solo's long effects have its line) */
+    if (opx_lend)
+        dly_clr = 0, fx.dly_lp = 0;
+    else if (dly_clr < DLY_LEN) {                   /* (lent back: cleared a slice a block, ~23 ms in all) */
+        memset(&dly_buf[dly_clr], 0, 2048u * sizeof dly_buf[0]);
+        dly_clr += 2048u;
+    }
     if (pf.ew1 && fb < THR_FB)
         fb += mulq16(THR_FB - fb, (uint32_t)pf.ew1 << 1);   /* ECHO THROW (perform.c): more feedback while held, 0.7
                                                              * at most (the loop's gain below 1: it never runs away) */
@@ -553,7 +559,11 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
             y += (c0 + (((c1 - c0) * f) >> 8)) << 1;
         }
         fx.cho_w++;
-        /* delay with a low-passed feedback */
+        /* delay with a low-passed feedback (OPX fork: not while its line is lent, nor till it is clean again) */
+        if (dly_off) {
+            wet[i] = y;
+            continue;
+        }
         x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)];
         fx.dly_lp += mulq15(x - fx.dly_lp, col);
         dly_buf[fx.dly_w & (DLY_LEN - 1u)] =

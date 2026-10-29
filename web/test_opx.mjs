@@ -56,7 +56,7 @@ ok(OPX.timeText(TST.timeCode(50)) === "50 MS" && OPX.timeText(TST.timeCode(2000)
   OPX.fxSetType(e, 2, 15);                          // (DIST: DRIVE 50, LEVEL -12.0 dB, EQFREQ 1000 Hz, EQGAIN 0)
   const dist = OPX.OPX_FX_TYPES[15][3];
   ok(OPX.get(d, "fx1.type") === 1 && OPX.get(d, "fx2.type") === 14 && OPX.get(d, "fx3.type") === 28 && OPX.get(d, "fx3.enable") === 1 &&
-     OPX.OPX_FX_TYPES.length === 31 && !OPX.fxPlayed(1) && OPX.fxPlayed(14) && !OPX.fxPlayed(28) &&
+     OPX.OPX_FX_TYPES.length === 31 && !OPX.fxPlayed(1) && OPX.fxPlayed(14) && !OPX.fxPlayed(28) && OPX.fxPlayed(28, true) && OPX.fxPlayed(1, true) &&
      OPX.get(e, "fx2.type") === 15 && OPX.pfxText(dist[1], OPX.get(e, "fx2.c")) === "-12.0 DB" && OPX.pfxText(dist[1], 0) === "-INF DB" &&
      OPX.pfxText(dist[2], OPX.get(e, "fx2.e")) === "1000 HZ" && OPX.pfxText(OPX.OPX_FX_TYPES[1][3][2], 480) === "0.500 HZ",
      "opx: FX: INIT FX1 CHO, FX2 3EQ, FX3 REVERB; a type set with its knobs' defaults; the knobs' texts");

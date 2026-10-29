@@ -20,7 +20,7 @@ it is in the [README](../README.md#the-opx-engine); the flash layout and the eng
 | M4 | EG1 (pitch), LFO1 and their default routes: each operator's P MOD (EG1, LFO1, VEL), LMOD LFO1, PROG PITCH (LFO1, TRANS, OCT); the CTRL sources | done (pages EG1 and LFO1, the rows in OPERATORS, the web editor; not yet compared with an opsix) |
 | M5a | EG2, EG3, LFO2, LFO3; the virtual patch (V.PATCH 1–12) to the destinations OPX has; every CTRL source live | done (pages EG1-3, LFO1-3, OPERATORS' V.PATCH section, the web editor; INT's scale a guess, see [Assumptions](#assumptions-to-check-by-ear)) |
 | M5b | Main filter (EG2, LFO2, key tracking), as far as the processor time allows | done: one a voice (OPERATORS' FILTER section, the web editor; V.PATCH FILTER CUTOFF and RESO played; on the device +9.4 to +11.5 points on six notes, see [Cost](#cost)) |
-| M5c | Effects 1–3 | part 1 done: the chain, the 13 types with no buffer (OPERATORS' FX1-3 section, the web editor); part 2 done (OPX Solo): the 6 short-buffer types; next: the delays and reverbs in Solo (Felucca's buffers; see [How M5c works](#how-m5c-works)) |
+| M5c | Effects 1–3 | part 1 done: the chain, the 13 types with no buffer (OPERATORS' FX1-3 section, the web editor); part 2 done (OPX Solo): the 6 short-buffer types; part 3 done (OPX Solo): the 11 long types in Felucca's DELAY bus's line (see [How M5c works](#how-m5c-works)) |
 
 Confirmed on a device so far: it installs and runs, and six OPX voices at once do not overload the processor. Not
 yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-by-ear)).
@@ -166,8 +166,35 @@ yet compared with a real opsix by ear (see [Assumptions](#assumptions-to-check-b
   - ENH: the part above 300 Hz delayed by DELAY·20 ms, added to the left and taken from the right (×DEPTH·SPREAD).
   Tests: tests/opx_test.c test_m5c2 (two channels apart where expected, levels within 6 dB of dry, RTRY FAST's
   level swing). Not yet measured on the device: their CPU cost.
-- **Not yet (kept, the sound passed; NOT AVAILABLE in both firmwares):** kind 2 (experimental), long buffers: DLY,
-  DLYBPM, PDLY, PDLBPM, TDLY, TDLBPM, REF, REVERB, SHVERB, SPRING, GRAIN. In OPX, kind 1 is NOT AVAILABLE too.
+- **Played in OPX Solo only (kind 2, long buffers):** DLY, DLYBPM, PDLY, PDLBPM, TDLY, TDLBPM, REF, REVERB, SHVERB,
+  SPRING, GRAIN (opx_fx.c opx_fx_long). Memory: Felucca's DELAY bus's line (dly_buf, 64 K int16, 1.49 s, now declared
+  in core.h) is lent while any long type is live on part 1 (`opx_lend`): fx.c's DELAY bus is silent meanwhile, and
+  clears its line (a 4 KB slice a block) before it plays again. The line is shared in equal regions among the live long
+  slots (one: 64 K samples; two: 32 K; three: 21.8 K), each cleared before its effect sounds (the dry passes, ~23 ms
+  at most). Designs (assumptions; the manual gives the knobs only), LEVEL the wet added to an untouched dry:
+  - DLY / DLYBPM: a line each side (half the region each), FDBK into its own side. A delay longer than its line holds
+    at 44.1 kHz runs it at a half or a quarter rate (an average after a one-pole low-pass; echoes darker, ~8 / ~4 kHz).
+    One slot alone: each side 0.74 s at the full rate, 1.49 s at half, 2.97 s at a quarter (DLY's 2.73 s needs a
+    quarter); the one-line types (PDLY, TDLY) twice those. Two slots: half of each; three: a third.
+  - PDLY / PDLBPM: one line, a fixed 35 % feedback (no FDBK knob), the echo panned by a sine at SPEED.
+  - TDLY / TDLBPM: one line, a 0.6 Hz wow (+-0.15 %), FDBK through a soft clip, DAMP > 0 a low-pass in the loop
+    (12 kHz down to 1.5 kHz), < 0 a high-pass (40 Hz up to 1.2 kHz); the echoes in the middle.
+  - REF: eight taps over TIME alternating sides; SHARP early taps falling fast, LOOSE spread and flatter, MOD LOOSE
+    swung +-1.5 ms, REVERSE rising; HEQ a 3 kHz shelf.
+  - REVERB: four diffusing all-passes, then a four-line feedback network (Hadamard), a low-pass (TONE) and TIME's
+    gain in each line; TYPE scales the lines (HALL 1, L.HALL 1.45, S.HALL 0.7, CHAMBR 0.55, PLATE 0.45 more diffused,
+    ROOM 0.3, W.ROOM 0.35 darker, SPACE 1.8 with a swung line). 17.3 K samples at most: it fits any region.
+  - SHVERB: the HALL network with its output pitch-shifted (two crossfaded heads over 2048 samples) back into its
+    input: CLEAR +12, RISER +7, SUBMAR -12, HORROR -1 semitones; TIME 0.5 .. 12 s, TONE 1 .. 16 kHz.
+  - SPRING: a loop of LENGTH (25 .. 75 ms) through twelve first-order all-passes (CHIRP: their coefficient, the
+    dispersion) and a 4.5 kHz low-pass, TIME's gain; a 110 Hz low cut on the way in; the right a tap at 0.7.
+  - GRAIN: at each SPEED note value the first TIME of the period plays live and is kept, then loops till the next
+    (2 ms crossfades); a period at most half the region; RETRIG restarts the grid (NOTE, VEL at note-ons; MODW,
+    DAMPER rising past half; LFO1..3 rising through 0).
+  Tails: the chain runs on after the last voice for the long types' echoes (to ~-80 dB from FDBK) or 1.5 x their
+  TIME, at most ~30 s. Tests: tests/opx_test.c test_m5c3 (echo times and levels, feedback, BPM, the rate change,
+  decay rates, the shimmer's octave, REF's taps, GRAIN's loop, the line's lending). Not yet measured on the device:
+  their CPU cost (the benchmark has their rows). In OPX, kinds 1 and 2 are NOT AVAILABLE.
 - **Memory** (the M5b build): the pool had 10.6 KB free with 8 KB kept spare by build.py, RAM 8.5 KB with 4 KB kept,
   flash 21.6 KB. The chain's state takes 1.3 KB of the pool (12 slots). Kind 1 needs its buffers from a part's
   engine memory (the voices' SHORT DELAY lines would shrink); kind 2 more than the FM-1 has free: the opsix's

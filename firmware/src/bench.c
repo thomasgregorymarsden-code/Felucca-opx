@@ -22,7 +22,7 @@
 #endif
 #if FELUCCA_BENCH
 static volatile uint8_t bench_mute;                    /* audio.c: the ISR's halves are silence */
-#define BENCH_ROWS 72u                                 /* (OPX fork: + the program effects, up to 19 + 1) */
+#define BENCH_ROWS 80u                                 /* (OPX fork: + the program effects, up to 30 + 1) */
 enum { BR_HEAD, BR_PCT, BR_NS, BR_SUB };               /* a row: a heading (ALL ONE), a share of real time (permille),
                                                         * ns x 10, a sub-heading */
 static struct { char name[16]; uint8_t kind; uint16_t all, one; } bench_row[BENCH_ROWS];   /* (ui_menu.c draws them) */
@@ -359,6 +359,14 @@ static int bench_run(void)
             bench_px.fx[0].v[k] = OPX_FXT[i].k[k].def;
         bench_track(ENGI_OPX, 0);
         opx_own[0] = &bench_px;
+#if OPX_FX_ALL
+        fm1_irq_off();                               /* (a long type: its region as if cleared already, so the blocks
+                                                      * measured are its own, not the clearing's) */
+        opx_fxl_assign(&bench_px);
+        for (k = 0; k < 3u; k++)
+            opx_fxl[k].clr = opx_fxl[k].n;
+        fm1_irq_on();
+#endif
         pm = bench_notes(idle);
         str_cpy(name + 3, OPX_FXT[i].name, sizeof name - 3u);
         bench_line(BR_PCT, name, pm, pm > pm_sin ? pm - pm_sin : 0u);

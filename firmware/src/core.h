@@ -427,6 +427,10 @@ static inline uint32_t swing_step_len(const track_t *t, uint32_t base, uint32_t 
 #define SPLASH_MS 3250u          /* the power-on splash's time after the boot's work (main.c, the web emulator; OPX fork,
                                   * 0.2.0: the logo's animation, then 0.25 s on the still logo; Felucca 400 ms) */
 #endif
+#define DLY_LEN 65536u           /* fx.c's DELAY bus: 1.49 s: 1/4 fits from 41 BPM, 1/4D from 61, 1/2 from 81 */
+static int16_t dly_buf[DLY_LEN] __attribute__((section(".pool")));   /* (OPX fork: here, before the engines: OPX
+                                                                     * Solo's long effects borrow it, opx_fx.c) */
+static uint8_t opx_lend;         /* (OPX fork) dly_buf lent to OPX's long effects: the DELAY bus silent (fx.c) */
 #ifndef SPLASH_ANIM_MS
 #define SPLASH_ANIM_MS 3000u     /* (OPX fork) the splash's animation (ui_draw.c splash_frame): it ends on the still logo */
 #endif

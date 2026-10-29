@@ -977,9 +977,11 @@ static int32_t opx_ktrk(const opx_rt_t *r, uint32_t k, uint32_t note)
     db8 = clamp(db8, -96 * 256, 24 * 256);
     return fm6_exp2(db8 * 10885 - (9 << 24));          /* 2^(dB / 6.0206) x 2^15 (10885: 2^24 / (6.0206 x 256)) */
 }
+static uint32_t opx_non[NTRK];                       /* M5c: each part's note-ons so far (GRAIN's RETRIG NOTE) */
 static void opx_note_on(track_t *t, voice_t *v)
 {
     opx_note_t *n = opx_note_of(t, v);
+    opx_non[(uint32_t)(t - trk) % NTRK]++;
     const opx_rt_t *r = &opx_rt[(uint32_t)(t - trk) % NTRK];
     int32_t vel = v->mvel ? v->mvel : v->vel, fresh, k, others = 0;
     if (!n)

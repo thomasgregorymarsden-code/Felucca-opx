@@ -5,6 +5,12 @@ Felucca-OPX's releases. Felucca's own release notes, up to the 1.5.1 this fork i
 
 ## Unreleased
 
+- **OPX Solo plays every effect:** the delays (DLY, DLYBPM, PDLY, PDLBPM, TDLY, TDLBPM), REF, REVERB, SHVERB, SPRING
+  and GRAIN, in Felucca's DELAY bus's memory: while one of them is on, the patch's DELAY send is silent. Up to three at
+  once share it (each delay's longest time shrinks as more share; past what fits the echoes run at a lower rate,
+  darker). The INIT patch's FX3 REVERB HALL is now heard there. OPX (four parts) is unchanged. The benchmark has a row
+  for each.
+
 - **OPX Solo plays six more effects:** CHO, U.ENS, FLNG, FLNBPM, RTRY and ENH (a 21 ms line per FX slot, 12 KB). The
   INIT patch's FX1 (CHO) is now heard there. The delays and reverbs read NOT AVAILABLE in Solo too until they are
   built (they passed the sound unchanged while showing as available). OPX (four parts) is unchanged: the 13 cheap
